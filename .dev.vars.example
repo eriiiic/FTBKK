@@ -3,7 +3,9 @@
 TURNSTILE_SECRET=1x0000000000000000000000000000000AA
 # Leave empty locally: emails are logged to the console instead of sent.
 RESEND_API_KEY=
-# Local only: requireAdmin() accepts this email when ACCESS_AUD is empty.
+# Local only: overrides the production Access audience in wrangler.jsonc so that
+# requireAdmin() accepts DEV_ADMIN_EMAIL instead of a Cloudflare Access login.
+ACCESS_AUD=
 DEV_ADMIN_EMAIL=admin@example.com
 # Set to 1 only if challenges.cloudflare.com is unreachable from your machine.
 # DEV_SKIP_TURNSTILE=1
