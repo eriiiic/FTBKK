@@ -1,0 +1,18 @@
+---
+interface Props {
+  href?: string;
+  class?: string;
+}
+const { href, class: cls = '' } = Astro.props;
+const classes = `group flex flex-col overflow-hidden rounded-card border border-line bg-paper shadow-card ${href ? 'transition-transform hover:-translate-y-0.5' : ''} ${cls}`;
+---
+
+{href ? (
+  <a href={href} class={`${classes} no-underline`}>
+    <slot />
+  </a>
+) : (
+  <div class={classes}>
+    <slot />
+  </div>
+)}

@@ -1,0 +1,42 @@
+---
+import Icon from './Icon.astro';
+import { initials, mediaUrl } from '../lib/format';
+
+interface Props {
+  person: {
+    name: string;
+    title: string | null;
+    organisation: string | null;
+    linkedin: string | null;
+    photoKey: string | null;
+  };
+}
+const { person } = Astro.props;
+const photo = mediaUrl(person.photoKey);
+---
+
+<div class="flex flex-col items-center text-center">
+  {photo ? (
+    <img
+      src={photo}
+      alt={`Portrait of ${person.name}`}
+      loading="lazy"
+      class="size-28 rounded-full object-cover shadow-card"
+    />
+  ) : (
+    <div
+      class="flex size-28 items-center justify-center rounded-full bg-navy font-display text-2xl font-bold text-paper"
+      aria-hidden="true"
+    >
+      {initials(person.name)}
+    </div>
+  )}
+  <h3 class="mt-4 text-base">{person.name}</h3>
+  {person.title && <p class="text-sm text-muted">{person.title}</p>}
+  {person.organisation && <p class="text-sm font-semibold text-ink">{person.organisation}</p>}
+  {person.linkedin && (
+    <a href={person.linkedin} class="mt-2 text-accent hover:text-navy" rel="noopener">
+      <Icon name="linkedin" class="size-5" label={`${person.name} on LinkedIn`} />
+    </a>
+  )}
+</div>

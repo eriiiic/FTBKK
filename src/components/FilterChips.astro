@@ -1,0 +1,30 @@
+---
+interface Props {
+  name: string;
+  label: string;
+  options: { value: string; label: string; count?: number }[];
+  selected?: string[];
+}
+const { name, label, options, selected = [] } = Astro.props;
+---
+
+<fieldset>
+  <legend class="mb-2 text-sm font-semibold">{label}</legend>
+  <div class="flex flex-wrap gap-2">
+    {options.map((o) => (
+      <label class="cursor-pointer">
+        <input
+          type="checkbox"
+          name={name}
+          value={o.value}
+          checked={selected.includes(o.value)}
+          class="peer sr-only"
+        />
+        <span class="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-sm peer-checked:border-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+          {o.label}
+          {o.count !== undefined && <span class="opacity-70">({o.count})</span>}
+        </span>
+      </label>
+    ))}
+  </div>
+</fieldset>

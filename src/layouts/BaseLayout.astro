@@ -1,0 +1,78 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getSettings } from '../lib/settings';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string | null;
+  canonical?: string;
+  noindex?: boolean;
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  /** Public pages are edge-cached for 60s; pass false for personal pages (manage, cancel). */
+  cache?: boolean;
+}
+const settings = await getSettings();
+const {
+  title,
+  description = settings.siteDescription,
+  image,
+  canonical = new URL(Astro.url.pathname, Astro.site).href,
+  noindex = false,
+  jsonLd,
+  cache = true,
+} = Astro.props;
+const fullTitle = title ? `${title} | ${settings.siteTitle}` : settings.siteTitle;
+const ogImage = image ? new URL(image, Astro.site).href : undefined;
+Astro.response.headers.set(
+  'Cache-Control',
+  cache ? 'public, s-maxage=60, stale-while-revalidate=300' : 'private, no-store',
+);
+const orgLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'La French Tech Bangkok',
+  url: Astro.site?.href,
+  email: settings.contactEmail,
+  sameAs: Object.values(settings.socials).filter(Boolean),
+};
+const ld = [orgLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [])];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate" type="application/rss+xml" title="Blog" href="/rss.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="La French Tech Bangkok" />
+    <meta property="og:title" content={fullTitle} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+    {settings.analyticsToken && (
+      <script
+        defer
+        src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon={JSON.stringify({ token: settings.analyticsToken })}
+      />
+    )}
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <Header whatsapp={settings.socials.whatsapp} />
+    <main id="main" class="flex-1">
+      <slot />
+    </main>
+    <Footer settings={settings} />
+  </body>
+</html>

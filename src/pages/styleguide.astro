@@ -1,0 +1,148 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/Button.astro';
+import Section from '../components/Section.astro';
+import Badge from '../components/Badge.astro';
+import Alert from '../components/Alert.astro';
+import FormField from '../components/FormField.astro';
+import FilterChips from '../components/FilterChips.astro';
+import EventCard from '../components/EventCard.astro';
+import PostCard from '../components/PostCard.astro';
+import PersonCard from '../components/PersonCard.astro';
+import OrgCard from '../components/OrgCard.astro';
+
+// Dev-only page.
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+
+const palette = [
+  ['navy', 'bg-navy'],
+  ['navy-soft', 'bg-navy-soft'],
+  ['brand', 'bg-brand'],
+  ['brand-dark', 'bg-brand-dark'],
+  ['accent', 'bg-accent'],
+  ['accent-soft', 'bg-accent-soft'],
+  ['ink', 'bg-ink'],
+  ['muted', 'bg-muted'],
+  ['line', 'bg-line'],
+  ['surface', 'bg-surface'],
+  ['paper', 'bg-paper'],
+];
+const start = new Date('2026-10-06T11:00:00Z');
+---
+
+<BaseLayout title="Styleguide" noindex cache={false}>
+  <Section title="Styleguide" intro="Every component and token. Dev only.">
+    <h2 class="mb-4 text-xl">Palette</h2>
+    <div class="grid grid-cols-3 gap-3 sm:grid-cols-6">
+      {palette.map(([name, cls]) => (
+        <div>
+          <div class={`h-16 rounded-lg border border-line ${cls}`} />
+          <p class="mt-1 text-xs">{name}</p>
+        </div>
+      ))}
+    </div>
+    <h2 class="mt-10 mb-4 text-xl">Type</h2>
+    <h1 class="text-4xl md:text-5xl">Heading one</h1>
+    <h2 class="mt-2 text-2xl md:text-3xl">Heading two</h2>
+    <h3 class="mt-2 text-lg">Heading three</h3>
+    <p class="mt-2 max-w-prose">
+      Body text. La French Tech Bangkok connects French and Thai entrepreneurs.{' '}
+      <a href="#" class="text-accent">
+        A link
+      </a>
+      .
+    </p>
+    <h2 class="mt-10 mb-4 text-xl">Buttons and badges</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      <Button>Primary</Button>
+      <Button variant="secondary">Secondary</Button>
+      <Button variant="ghost">Ghost</Button>
+      <Button size="sm">Small</Button>
+      <Badge>Neutral</Badge>
+      <Badge tone="brand">Member</Badge>
+      <Badge tone="accent">Series</Badge>
+      <Badge tone="success">Hiring</Badge>
+    </div>
+    <h2 class="mt-10 mb-4 text-xl">Alerts</h2>
+    <div class="grid gap-3 md:grid-cols-2">
+      <Alert>Info alert</Alert>
+      <Alert tone="success">Success alert</Alert>
+      <Alert tone="warning">Warning alert</Alert>
+      <Alert tone="danger">Danger alert</Alert>
+    </div>
+    <h2 class="mt-10 mb-4 text-xl">Form</h2>
+    <form class="grid max-w-xl gap-4">
+      <FormField name="name" label="Name" required hint="As it should appear." />
+      <FormField name="email" label="Email" type="email" error="Enter a valid email." />
+      <FormField
+        name="category"
+        label="Category"
+        options={[
+          { value: 'a', label: 'Option A' },
+          { value: 'b', label: 'Option B' },
+        ]}
+      />
+      <FormField name="msg" label="Message" rows={3} />
+      <FormField name="consent" label="I agree" type="checkbox" />
+      <FilterChips
+        name="sector"
+        label="Sectors"
+        options={[
+          { value: 'ai', label: 'AI', count: 4 },
+          { value: 'fintech', label: 'Fintech', count: 2 },
+        ]}
+        selected={['ai']}
+      />
+    </form>
+  </Section>
+  <Section title="Cards" tone="surface">
+    <div class="grid gap-6 md:grid-cols-3">
+      <EventCard
+        event={{
+          slug: 'x',
+          title: 'French Tech Connect #52 / CALM Bangkok',
+          series: 'French Tech Connect',
+          startsAt: start,
+          endsAt: new Date(start.getTime() + 4 * 3600e3),
+          venue: 'CALM Bangkok',
+          summary: 'Free networking evening for the French Tech community.',
+          coverKey: null,
+        }}
+      />
+      <PostCard
+        post={{
+          slug: 'x',
+          title: 'How to set up a company in Thailand',
+          excerpt: 'A founder guide.',
+          coverKey: null,
+          authorName: 'Eric',
+          publishedAt: start,
+          bodyMd: 'word '.repeat(900),
+        }}
+      />
+      <OrgCard
+        org={{
+          slug: 'x',
+          name: 'SalesMind AI',
+          pitch: 'AI sales assistant for B2B teams.',
+          category: 'french_startup',
+          logoKey: null,
+          badges: ['board'],
+          memberStatus: 'member',
+          hiring: true,
+        }}
+      />
+    </div>
+    <div class="mt-10 grid grid-cols-2 gap-6 md:grid-cols-5">
+      <PersonCard
+        person={{
+          name: 'Julien Gadea',
+          title: 'Board member',
+          organisation: 'SalesMind AI',
+          linkedin: 'https://linkedin.com',
+          photoKey: null,
+        }}
+      />
+    </div>
+  </Section>
+</BaseLayout>

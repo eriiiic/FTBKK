@@ -1,0 +1,94 @@
+---
+import Logo from './Logo.astro';
+import Button from './Button.astro';
+import Icon from './Icon.astro';
+
+interface Props {
+  whatsapp?: string;
+}
+const { whatsapp } = Astro.props;
+const nav = [
+  { href: '/', label: 'Home' },
+  { href: '/ecosystem', label: 'Ecosystem' },
+  { href: '/events', label: 'Events' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/about', label: 'About' },
+];
+const path = Astro.url.pathname;
+const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+const join = whatsapp || '/about#join';
+---
+
+<header class="sticky top-0 z-40 border-b border-line bg-paper/95 backdrop-blur">
+  <a
+    href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:rounded focus:bg-paper focus:px-3 focus:py-2"
+  >
+    Skip to content
+  </a>
+  <div class="container-page flex h-16 items-center justify-between gap-4">
+    <a href="/" class="no-underline" aria-label="La French Tech Bangkok, home">
+      <Logo />
+    </a>
+    <nav aria-label="Main" class="hidden md:block">
+      <ul class="flex items-center gap-1">
+        {nav.map((n) => (
+          <li>
+            <a
+              href={n.href}
+              aria-current={isActive(n.href) ? 'page' : undefined}
+              class="rounded-full px-3 py-2 text-sm font-semibold text-ink no-underline hover:text-brand aria-[current=page]:text-brand"
+            >
+              {n.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+    <div class="hidden md:block">
+      <Button href={join} size="sm">
+        Join the community
+      </Button>
+    </div>
+    <button
+      type="button"
+      class="rounded-lg p-2 text-navy md:hidden"
+      aria-controls="mobile-menu"
+      aria-expanded="false"
+      data-menu-toggle
+    >
+      <span class="sr-only">Open menu</span>
+      <Icon name="menu" class="size-6" />
+    </button>
+  </div>
+  <nav id="mobile-menu" aria-label="Main" class="hidden border-t border-line bg-paper md:hidden">
+    <ul class="container-page flex flex-col py-2">
+      {nav.map((n) => (
+        <li>
+          <a
+            href={n.href}
+            aria-current={isActive(n.href) ? 'page' : undefined}
+            class="block py-3 font-semibold text-ink no-underline aria-[current=page]:text-brand"
+          >
+            {n.label}
+          </a>
+        </li>
+      ))}
+      <li class="py-3">
+        <Button href={join} class="w-full">
+          Join the community
+        </Button>
+      </li>
+    </ul>
+  </nav>
+</header>
+
+<script>
+  const btn = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+  const menu = document.getElementById('mobile-menu');
+  btn?.addEventListener('click', () => {
+    const open = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!open));
+    menu?.classList.toggle('hidden', open);
+  });
+</script>
