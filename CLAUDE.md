@@ -56,4 +56,5 @@ The GitHub repo is connected to Workers Builds. Dashboard settings (Worker > Set
 - Root directory: `/`
 
 The Worker name in the dashboard must be `ft-bkk-site` (the `name` in `wrangler.jsonc`). The first
-deploy auto-creates the `ftbkk` D1 database and `ftbkk-media` R2 bucket.
+deploy auto-creates the `ftbkk` D1 database; the `ftbkk-media` R2 bucket must be created by hand in
+the dashboard first (see `docs/deploy.md`).

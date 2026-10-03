@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       // No database_id: `wrangler deploy` finds the database by name, or creates it on the first
-      // deploy (wrangler auto-provisioning). Same for the R2 bucket below.
+      // deploy (wrangler auto-provisioning). The R2 bucket below must exist already (docs/deploy.md).
       "database_name": "ftbkk",
       "migrations_dir": "migrations",
     },
