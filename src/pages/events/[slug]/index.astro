@@ -1,0 +1,194 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Badge from '../../../components/Badge.astro';
+import Button from '../../../components/Button.astro';
+import Icon from '../../../components/Icon.astro';
+import Alert from '../../../components/Alert.astro';
+import RegistrationForm from '../../../components/RegistrationForm.astro';
+import { eventBySlug, isUpcoming } from '../../../lib/queries';
+import { formatEventDate, mediaUrl } from '../../../lib/format';
+import { plainText, renderMarkdown } from '../../../lib/markdown';
+import { clientIp, fieldErrors, formToObject } from '../../../lib/forms';
+import { verifyTurnstile } from '../../../lib/turnstile';
+import { rateLimit } from '../../../lib/ratelimit';
+import { getSettings } from '../../../lib/settings';
+import {
+  RegisterSchema,
+  countTaken,
+  insertRegistration,
+  isMemberEmail,
+  registrationState,
+  sendConfirmation,
+} from '../../../lib/registrations';
+
+const event = await eventBySlug(Astro.params.slug!);
+if (!event) return Astro.rewrite('/404');
+
+const upcoming = isUpcoming(event);
+const description =
+  event.summary ||
+  plainText(event.bodyMd) ||
+  `${event.title}, ${formatEventDate(event.startsAt, event.endsAt)}${event.venue ? ` at ${event.venue}` : ''}. A La French Tech Bangkok event.`;
+const settings = await getSettings();
+const now = new Date();
+let state = registrationState(event, await countTaken(event.id), now, {
+  memberPriority: settings.memberPriority,
+});
+
+const isPost = Astro.request.method === 'POST';
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let result: { status: 'registered' | 'waitlist' | 'duplicate'; email: string } | null = null;
+if (isPost) {
+  const form = await Astro.request.formData();
+  values = formToObject(form);
+  const ip = clientIp(Astro.request);
+  const parsed = RegisterSchema.safeParse(values);
+  if (!parsed.success) {
+    errors = fieldErrors(parsed.error);
+  } else if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
+    errors.form = 'The anti-spam check failed. Please try again.';
+  } else if (!(await rateLimit(`register:${ip}`, 10, 3600))) {
+    errors.form = 'Too many registrations from your connection. Please try again later.';
+  } else {
+    const member = settings.memberPriority && (await isMemberEmail(parsed.data.email));
+    const mine = registrationState(event, await countTaken(event.id), now, {
+      memberPriority: settings.memberPriority,
+      isMember: member,
+    });
+    if (!mine.open) {
+      state = mine;
+    } else {
+      const row = await insertRegistration(event.id, parsed.data, mine.capacity);
+      if (!row) result = { status: 'duplicate', email: parsed.data.email };
+      else {
+        await sendConfirmation(event, { ...parsed.data, status: row.status, token: row.token });
+        result = { status: row.status, email: parsed.data.email };
+      }
+    }
+  }
+}
+const cover = mediaUrl(event.coverKey);
+const mapUrl =
+  event.mapUrl ??
+  (event.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue ?? ''} ${event.address}`)}`
+    : null);
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Event',
+  name: event.title,
+  startDate: event.startsAt.toISOString(),
+  endDate: event.endsAt?.toISOString(),
+  eventStatus:
+    event.status === 'cancelled'
+      ? 'https://schema.org/EventCancelled'
+      : 'https://schema.org/EventScheduled',
+  eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+  isAccessibleForFree: true,
+  location: {
+    '@type': 'Place',
+    name: event.venue ?? 'Bangkok',
+    address: event.address ?? 'Bangkok, Thailand',
+  },
+  image: cover ? new URL(cover, Astro.site).href : undefined,
+  description,
+  offers: {
+    '@type': 'Offer',
+    price: 0,
+    priceCurrency: 'THB',
+    availability: 'https://schema.org/InStock',
+    url: new URL(`/events/${event.slug}`, Astro.site).href,
+  },
+  organizer: { '@type': 'Organization', name: 'La French Tech Bangkok', url: Astro.site?.href },
+};
+---
+
+<BaseLayout
+  cache={!isPost}
+  title={event.title}
+  description={description}
+  image={cover}
+  jsonLd={jsonLd}
+>
+  <article>
+    <header class="bg-surface">
+      <div class="container-page grid gap-8 py-10 md:grid-cols-5 md:py-14">
+        <div class="md:col-span-3">
+          <div class="flex flex-wrap gap-2">
+            <Badge tone="accent">{event.series}</Badge>
+            {event.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
+            {!upcoming && <Badge>Past event</Badge>}
+          </div>
+          <h1 class="mt-3 text-3xl md:text-4xl">{event.title}</h1>
+          <dl class="mt-6 space-y-3">
+            <div class="flex gap-3">
+              <dt>
+                <Icon name="calendar" class="size-5 text-brand" />
+                <span class="sr-only">Date</span>
+              </dt>
+              <dd>
+                <time datetime={event.startsAt.toISOString()}>
+                  {formatEventDate(event.startsAt, event.endsAt)}
+                </time>
+                <span class="text-sm text-muted"> (Bangkok time)</span>
+              </dd>
+            </div>
+            {(event.venue || event.address) && (
+              <div class="flex gap-3">
+                <dt>
+                  <Icon name="pin" class="size-5 text-brand" />
+                  <span class="sr-only">Venue</span>
+                </dt>
+                <dd>
+                  {event.venue && <span class="font-semibold">{event.venue}</span>}
+                  {event.address && <span class="block text-muted">{event.address}</span>}
+                  {mapUrl && (
+                    <a href={mapUrl} rel="noopener" class="text-sm text-accent">
+                      Open in Google Maps
+                    </a>
+                  )}
+                </dd>
+              </div>
+            )}
+          </dl>
+          {upcoming && event.status !== 'cancelled' && (
+            <div class="mt-6 flex flex-wrap gap-3">
+              {state.open && (
+                <Button href="#register">{state.full ? 'Join the waitlist' : 'Register'}</Button>
+              )}
+              <Button href={`/events/${event.slug}/calendar.ics`} variant="secondary">
+                <Icon name="calendar" /> Add to calendar
+              </Button>
+            </div>
+          )}
+        </div>
+        {cover && (
+          <div class="md:col-span-2">
+            <img src={cover} alt="" class="w-full rounded-card object-cover shadow-card" />
+          </div>
+        )}
+      </div>
+    </header>
+    <div class="container-page grid gap-10 py-12 md:grid-cols-5">
+      <div class="prose max-w-none md:col-span-3" set:html={renderMarkdown(event.bodyMd)} />
+      <aside class="md:col-span-2">
+        {event.status === 'cancelled' ? (
+          <Alert tone="danger">This event has been cancelled.</Alert>
+        ) : upcoming ? (
+          <RegistrationForm
+            event={event}
+            state={state}
+            errors={errors}
+            values={values}
+            result={result}
+          />
+        ) : null}
+        <p class="mt-6 text-sm text-muted">
+          Photos and videos may be taken during our events and shared on our website and social
+          media. Let the organisers know on the day if you prefer not to appear.
+        </p>
+      </aside>
+    </div>
+  </article>
+</BaseLayout>

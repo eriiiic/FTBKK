@@ -1,0 +1,132 @@
+---
+import { asc, eq, inArray, and } from 'drizzle-orm';
+import '../../../../styles/global.css';
+import { getDb } from '../../../../db';
+import { events, registrations } from '../../../../db/schema';
+
+// Full-screen, phone-first check-in for the door. Admin only (guarded in middleware).
+const db = getDb();
+const [event] = await db
+  .select()
+  .from(events)
+  .where(eq(events.id, Number(Astro.params.id)));
+if (!event) return Astro.redirect('/admin/events');
+const rows = await db
+  .select({
+    id: registrations.id,
+    name: registrations.name,
+    email: registrations.email,
+    company: registrations.company,
+    status: registrations.status,
+  })
+  .from(registrations)
+  .where(
+    and(
+      eq(registrations.eventId, event.id),
+      inArray(registrations.status, ['registered', 'attended', 'waitlist']),
+    ),
+  )
+  .orderBy(asc(registrations.name));
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Check-in · {event.title}</title>
+  </head>
+  <body class="min-h-screen bg-surface">
+    <header class="sticky top-0 z-10 bg-navy p-4 text-paper">
+      <div class="flex items-center justify-between gap-3">
+        <a href={`/admin/registrations?event=${event.id}`} class="text-sm text-accent-soft">
+          ← Back
+        </a>
+        <p class="text-sm" aria-live="polite">
+          <span data-count>{rows.filter((r) => r.status === 'attended').length}</span> /{' '}
+          {rows.filter((r) => r.status !== 'waitlist').length} checked in
+        </p>
+      </div>
+      <h1 class="mt-1 truncate text-lg text-paper">{event.title}</h1>
+      <label for="search" class="sr-only">
+        Search by name, email or company
+      </label>
+      <input
+        id="search"
+        type="search"
+        autocomplete="off"
+        placeholder="Type a name…"
+        class="mt-3 w-full rounded-xl border-0 bg-paper px-4 py-3 text-lg text-ink"
+        autofocus
+      />
+    </header>
+    <ul class="grid gap-2 p-3" data-list data-event={event.id}>
+      {rows.map((r) => (
+        <li>
+          <button
+            type="button"
+            data-id={r.id}
+            data-status={r.status}
+            data-search={`${r.name} ${r.email} ${r.company ?? ''}`.toLowerCase()}
+            class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4 text-left data-[status=attended]:border-success data-[status=attended]:bg-success/5"
+          >
+            <span>
+              <span class="block text-lg font-semibold">{r.name}</span>
+              <span class="block text-sm text-muted">{r.company ?? r.email}</span>
+            </span>
+            <span data-label class="shrink-0 text-sm font-semibold">
+              {r.status === 'attended'
+                ? '✓ In'
+                : r.status === 'waitlist'
+                  ? 'Waitlist'
+                  : 'Tap to check in'}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+    {rows.length === 0 && <p class="p-6 text-center text-muted">Nobody registered yet.</p>}
+    <script>
+      const list = document.querySelector('[data-list]') as unknown as HTMLElement;
+      const eventId = Number(list.dataset.event);
+      const count = document.querySelector('[data-count]') as unknown as HTMLElement;
+      const search = document.getElementById('search') as unknown as HTMLInputElement;
+      const buttons = [...list.querySelectorAll<HTMLButtonElement>('button[data-id]')];
+
+      search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        for (const b of buttons) {
+          (b.parentElement as unknown as HTMLElement).hidden =
+            !!q && !b.dataset.search!.includes(q);
+        }
+      });
+
+      for (const b of buttons) {
+        b.addEventListener('click', async () => {
+          const undo = b.dataset.status === 'attended';
+          if (undo && !confirm('Undo this check-in?')) return;
+          const label = b.querySelector('[data-label]') as unknown as HTMLElement;
+          label.textContent = '…';
+          const res = await fetch('/api/admin/checkin', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: Number(b.dataset.id), eventId, undo }),
+          });
+          if (res.ok) {
+            b.dataset.status = undo ? 'registered' : 'attended';
+            count.textContent = String(Number(count.textContent) + (undo ? -1 : 1));
+            if (!undo) {
+              search.value = '';
+              search.dispatchEvent(new Event('input'));
+              search.focus();
+            }
+          }
+          label.textContent =
+            b.dataset.status === 'attended' ? '✓ In' : res.ok ? 'Tap to check in' : 'Try again';
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,90 @@
+---
+import Logo from './Logo.astro';
+import Icon from './Icon.astro';
+import type { Settings } from '../lib/settings';
+
+interface Props {
+  settings: Settings;
+}
+const { settings } = Astro.props;
+const socials = (['instagram', 'whatsapp', 'facebook', 'linkedin', 'youtube'] as const).filter(
+  (k) => settings.socials[k],
+);
+const labels = {
+  instagram: 'Instagram',
+  whatsapp: 'WhatsApp group',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+};
+---
+
+<footer class="bg-navy text-paper">
+  <div class="container-page grid gap-10 py-12 md:grid-cols-3">
+    <div>
+      <Logo tone="light" />
+      {settings.mission && <p class="mt-4 max-w-xs text-sm text-accent-soft">{settings.mission}</p>}
+    </div>
+    <nav aria-label="Footer">
+      <ul class="grid grid-cols-2 gap-2 text-sm">
+        <li>
+          <a href="/" class="text-paper hover:text-accent-soft">
+            Home
+          </a>
+        </li>
+        <li>
+          <a href="/ecosystem" class="text-paper hover:text-accent-soft">
+            Ecosystem
+          </a>
+        </li>
+        <li>
+          <a href="/events" class="text-paper hover:text-accent-soft">
+            Events
+          </a>
+        </li>
+        <li>
+          <a href="/blog" class="text-paper hover:text-accent-soft">
+            Blog
+          </a>
+        </li>
+        <li>
+          <a href="/about" class="text-paper hover:text-accent-soft">
+            About
+          </a>
+        </li>
+        <li>
+          <a href="/ecosystem/submit" class="text-paper hover:text-accent-soft">
+            Get listed
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div>
+      <a
+        href={`mailto:${settings.contactEmail}`}
+        class="inline-flex items-center gap-2 text-sm text-paper hover:text-accent-soft"
+      >
+        <Icon name="mail" class="size-4" />
+        {settings.contactEmail}
+      </a>
+      <ul class="mt-4 flex gap-3">
+        {socials.map((k) => (
+          <li>
+            <a
+              href={settings.socials[k]}
+              rel="noopener"
+              class="flex size-10 items-center justify-center rounded-full bg-paper/10 text-paper hover:bg-brand"
+            >
+              <Icon name={k} label={labels[k]} />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-paper/10">
+    <p class="container-page py-4 text-xs text-accent-soft">
+      © {new Date().getFullYear()} La French Tech Bangkok. A volunteer-run community.
+    </p>
+  </div>
+</footer>

@@ -1,0 +1,269 @@
+---
+import { eq } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import OrgFormFields from '../../../components/OrgFormFields.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import { getDb } from '../../../db';
+import { organisations, type Organisation } from '../../../db/schema';
+import { AdminOrgExtras, inviteToClaim, toDateInput } from '../../../lib/admin';
+import {
+  ORG_ARRAY_FIELDS,
+  OrgFields,
+  approveListing,
+  audit,
+  orgById,
+  uniqueSlug,
+} from '../../../lib/orgs';
+import { fieldErrors, formToObject } from '../../../lib/forms';
+import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
+import { BADGES, ORG_STATUSES } from '../../../lib/directory';
+import { formatDate, slugify } from '../../../lib/format';
+
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const isNew = Astro.params.id === 'new';
+let org: Organisation | null = null;
+if (!isNew) {
+  org = await orgById(Number(Astro.params.id));
+  if (!org) return Astro.redirect('/admin/ecosystem?tab=all');
+}
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = org
+  ? { ...org, renewalDueAt: toDateInput(org.renewalDueAt), ownerEmails: org.ownerEmails.join('\n') }
+  : { status: 'published', memberStatus: 'none', badges: [], sectors: [] };
+let notice = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  if (org && action === 'delete') {
+    await db.delete(organisations).where(eq(organisations.id, org.id));
+    await audit(actor, 'delete', 'organisation', org.id, { name: org.name }, null);
+    return Astro.redirect('/admin/ecosystem?tab=all&saved=1');
+  }
+  if (org && action === 'invite') {
+    const to = String(form.get('inviteEmail') ?? '')
+      .trim()
+      .toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) errors.inviteEmail = 'Enter a valid email address.';
+    else {
+      await inviteToClaim(org, to, actor);
+      notice = `Invitation sent to ${to}.`;
+    }
+  } else {
+    values = formToObject(form, [...ORG_ARRAY_FIELDS, 'badges']);
+    const owners = String(values.ownerEmails ?? '')
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const base = OrgFields.safeParse(values);
+    const extras = AdminOrgExtras.safeParse({ ...values, ownerEmails: owners });
+    if (!base.success) errors = fieldErrors(base.error);
+    if (!extras.success) errors = { ...errors, ...fieldErrors(extras.error) };
+    const logo = await storeUpload(form.get('logo'), {
+      prefix: 'orgs',
+      maxBytes: 2 * 1024 * 1024,
+      types: IMAGE_TYPES,
+    });
+    if (logo.error) errors.logo = logo.error;
+    if (base.success && extras.success && !logo.error) {
+      const x = extras.data;
+      const wantedSlug = x.slug || slugify(base.data.name);
+      const slug = org && wantedSlug === org.slug ? org.slug : await uniqueSlug(wantedSlug);
+      // Moving a pending request to "published" goes through the normal approval (email + dates).
+      const approving = org?.status === 'pending' && x.status === 'published';
+      const row = {
+        ...base.data,
+        category: base.data.category as Organisation['category'],
+        slug,
+        status: approving ? org!.status : x.status,
+        badges: x.badges,
+        memberStatus: x.memberStatus,
+        memberSince:
+          x.memberStatus === 'member'
+            ? (org?.memberSince ?? new Date())
+            : (org?.memberSince ?? null),
+        renewalDueAt: x.renewalDueAt,
+        ownerEmails: x.ownerEmails,
+        logoKey: logo.key ?? (values.removeLogo ? null : (org?.logoKey ?? null)),
+        updatedAt: new Date(),
+      };
+      let orgId = org?.id;
+      if (org) {
+        await db.update(organisations).set(row).where(eq(organisations.id, org.id));
+        const before = Object.fromEntries(
+          Object.keys(row)
+            .filter((k) => k !== 'updatedAt')
+            .map((k) => [k, (org as unknown as Record<string, unknown>)[k]])
+            .filter(
+              ([k, v]) =>
+                JSON.stringify(v ?? null) !==
+                JSON.stringify((row as Record<string, unknown>)[k as string] ?? null),
+            ),
+        );
+        const after = Object.fromEntries(
+          Object.keys(before).map((k) => [k, (row as Record<string, unknown>)[k]]),
+        );
+        if (Object.keys(before).length)
+          await audit(actor, 'admin_update', 'organisation', org.id, before, after);
+      } else {
+        const [ins] = await db
+          .insert(organisations)
+          .values({ ...row, submittedAt: new Date() })
+          .returning({ id: organisations.id });
+        orgId = ins!.id;
+        await audit(actor, 'create', 'organisation', orgId, null, { name: row.name });
+      }
+      if (approving) await approveListing((await orgById(orgId!))!, actor);
+      return Astro.redirect(`/admin/ecosystem/${orgId}?saved=1`);
+    }
+  }
+}
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+const badges = (values.badges as string[] | undefined) ?? [];
+---
+
+<AdminLayout title={org ? org.name : 'Add an organisation'}>
+  {org && (
+    <div class="mb-4 flex flex-wrap gap-4 text-sm text-muted">
+      {org.status === 'published' && (
+        <a href={`/ecosystem/${org.slug}`} target="_blank" rel="noopener">
+          View on the site ↗
+        </a>
+      )}
+      <span>Created {formatDate(org.createdAt)}</span>
+      {org.confirmedAt && <span>Last confirmed {formatDate(org.confirmedAt)}</span>}
+      {org.rejectionReason && <span>Rejected: {org.rejectionReason}</span>}
+      <a href="/admin/ecosystem?tab=log">History</a>
+    </div>
+  )}
+  {notice && (
+    <Alert tone="success" class="mb-6">
+      {notice}
+    </Alert>
+  )}
+  {Object.keys(errors).length > 0 && (
+    <Alert tone="danger" class="mb-6">
+      Please fix the highlighted fields.
+    </Alert>
+  )}
+  <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+    <div class="admin-panel">
+      <OrgFormFields values={values} errors={errors} logoKey={org?.logoKey} />
+      {org?.logoKey && (
+        <div class="mt-4">
+          <FormField name="removeLogo" label="Remove the logo" type="checkbox" />
+        </div>
+      )}
+    </div>
+    <div class="grid content-start gap-4">
+      <div class="admin-panel grid gap-4">
+        <FormField
+          name="status"
+          label="Status"
+          required
+          value={str('status')}
+          options={ORG_STATUSES.map((s) => ({ value: s, label: s }))}
+          hint="hidden = removed from the site by a moderator. expired = not reconfirmed."
+        />
+        <FormField name="slug" label="Web address" value={str('slug')} hint="/ecosystem/…" />
+        <div class="flex flex-wrap gap-3">
+          <Button type="submit" name="action" value="save">
+            Save
+          </Button>
+          <Button href="/admin/ecosystem?tab=all" variant="ghost">
+            Back
+          </Button>
+        </div>
+      </div>
+      <fieldset class="admin-panel">
+        <legend class="text-sm font-semibold">Badges</legend>
+        <div class="mt-2 grid gap-2">
+          {Object.entries(BADGES).map(([k, label]) => (
+            <label class="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="badges"
+                value={k}
+                checked={badges.includes(k)}
+                class="accent-brand"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div class="admin-panel grid gap-4">
+        <FormField
+          name="memberStatus"
+          label="Membership"
+          required
+          value={str('memberStatus')}
+          options={[
+            { value: 'none', label: 'Not a member' },
+            { value: 'applied', label: 'Applied' },
+            { value: 'member', label: 'Member' },
+            { value: 'lapsed', label: 'Lapsed' },
+          ]}
+        />
+        <FormField
+          name="ownerEmails"
+          label="Owner emails"
+          rows={3}
+          value={str('ownerEmails')}
+          error={errors.ownerEmails}
+          hint="One per line. These people can update the listing and get the yearly reminders."
+        />
+        <FormField
+          name="renewalDueAt"
+          label="Renewal date"
+          type="date"
+          value={str('renewalDueAt')}
+          error={errors.renewalDueAt}
+          hint="Empty = no yearly reminders (unclaimed listings)."
+        />
+      </div>
+    </div>
+  </form>
+
+  {org && (
+    <div class="mt-8 grid gap-6 lg:grid-cols-2">
+      <form method="post" class="admin-panel grid gap-3">
+        <h2 class="text-lg">Invite someone to claim it</h2>
+        <p class="text-sm text-muted">
+          Sends a link to the claim form. They still verify their email and you approve the claim.
+        </p>
+        <FormField
+          name="inviteEmail"
+          label="Email"
+          type="email"
+          required
+          error={errors.inviteEmail}
+        />
+        <div>
+          <Button type="submit" name="action" value="invite" variant="secondary" size="sm">
+            Send invitation
+          </Button>
+        </div>
+      </form>
+      <form
+        method="post"
+        data-confirm="Delete this organisation for good? Hiding it is usually better."
+        class="admin-panel grid content-start gap-3"
+      >
+        <h2 class="text-lg">Delete</h2>
+        <p class="text-sm text-muted">
+          To take it off the site but keep it, set the status to hidden instead.
+        </p>
+        <div>
+          <Button type="submit" name="action" value="delete" variant="ghost" class="text-danger">
+            Delete this organisation
+          </Button>
+        </div>
+      </form>
+    </div>
+  )}
+</AdminLayout>

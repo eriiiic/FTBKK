@@ -1,15 +1,186 @@
 ---
-import '../styles/global.css';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Section from '../components/Section.astro';
+import Button from '../components/Button.astro';
+import EventCard from '../components/EventCard.astro';
+import PostCard from '../components/PostCard.astro';
+import OrgCard from '../components/OrgCard.astro';
+import PersonCard from '../components/PersonCard.astro';
+import Icon from '../components/Icon.astro';
+import { getSettings } from '../lib/settings';
+import {
+  featuredOrganisations,
+  latestPosts,
+  organisationCounts,
+  peopleByGroup,
+  upcomingEvents,
+} from '../lib/queries';
+import { CATEGORIES, CATEGORY_KEYS } from '../lib/directory';
+
+const settings = await getSettings();
+const [nextEvents, posts, featured, counts, board, institutional] = await Promise.all([
+  upcomingEvents(2),
+  latestPosts(3),
+  featuredOrganisations(6),
+  organisationCounts(),
+  peopleByGroup('board'),
+  peopleByGroup('institutional'),
+]);
+const totalOrgs = Object.values(counts).reduce((a, b) => a + b, 0);
+const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
+  key: k,
+  label: CATEGORIES[k].label,
+  n: counts[k]!,
+}));
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>La French Tech Bangkok</title>
-  </head>
-  <body class="p-8 font-sans">
-    <h1 class="text-3xl font-bold">La French Tech Bangkok</h1>
-    <p class="mt-2">New site under construction.</p>
-  </body>
-</html>
+<BaseLayout>
+  <section class="relative overflow-hidden bg-navy text-paper">
+    <div
+      class="absolute -top-24 -right-24 size-96 rounded-full bg-brand/30 blur-3xl"
+      aria-hidden="true"
+    ></div>
+    <div class="container-page relative py-20 md:py-28">
+      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">
+        {settings.heroTitle}
+      </p>
+      <h1 class="max-w-3xl text-4xl text-paper md:text-6xl">{settings.heroTagline}</h1>
+      {settings.mission && (
+        <p class="mt-6 max-w-2xl text-lg text-accent-soft">{settings.mission}</p>
+      )}
+      <div class="mt-8 flex flex-wrap gap-3">
+        <Button href="/events">See upcoming events</Button>
+        {settings.socials.whatsapp && (
+          <Button href={settings.socials.whatsapp} variant="light" rel="noopener">
+            <Icon name="whatsapp" /> Join our WhatsApp
+          </Button>
+        )}
+      </div>
+      {settings.values.length > 0 && (
+        <ul class="mt-12 grid gap-4 sm:grid-cols-3">
+          {settings.values.map((v) => (
+            <li class="rounded-card border border-paper/15 bg-paper/5 p-4 text-sm">{v}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </section>
+
+  <Section eyebrow="Events" title="Coming up next">
+    {nextEvents.length ? (
+      <div class="grid gap-6 md:grid-cols-2">
+        {nextEvents.map((e) => (
+          <EventCard event={e} />
+        ))}
+      </div>
+    ) : (
+      <p class="text-muted">
+        No event scheduled yet. Join the WhatsApp group to hear about the next one.
+      </p>
+    )}
+    <p class="mt-8">
+      <a href="/events" class="font-semibold text-accent">
+        All events →
+      </a>
+    </p>
+  </Section>
+
+  {settings.pillars.length > 0 && (
+    <Section tone="surface" title={settings.ecosystemHeading}>
+      <div class="grid gap-6 md:grid-cols-3">
+        {settings.pillars.map((p) => (
+          <div class="rounded-card bg-paper p-6 shadow-card">
+            <h3 class="text-lg">{p.title}</h3>
+            <p class="mt-2 text-muted">{p.text}</p>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )}
+
+  <Section
+    eyebrow="Ecosystem"
+    title="The French Tech ecosystem in Thailand"
+    intro={`${totalOrgs} organisations listed in our open directory.`}
+  >
+    {stats.length > 0 && (
+      <ul class="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {stats.map((s) => (
+          <li>
+            <a
+              href={`/ecosystem?category=${s.key}`}
+              class="block rounded-card border border-line p-4 no-underline hover:border-navy"
+            >
+              <span class="block font-display text-3xl font-bold text-brand">{s.n}</span>
+              <span class="text-sm text-muted">{s.label}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {featured.map((o) => (
+        <OrgCard org={o} />
+      ))}
+    </div>
+    <div class="mt-8 flex flex-wrap gap-3">
+      <Button href="/ecosystem" variant="secondary">
+        Explore the directory
+      </Button>
+      <Button href="/ecosystem/submit" variant="ghost">
+        Get your organisation listed
+      </Button>
+    </div>
+  </Section>
+
+  {posts.length > 0 && (
+    <Section tone="surface" eyebrow="Blog" title="Latest from the community">
+      <div class="grid gap-6 md:grid-cols-3">
+        {posts.map((p) => (
+          <PostCard post={p} />
+        ))}
+      </div>
+      <p class="mt-8">
+        <a href="/blog" class="font-semibold text-accent">
+          All articles →
+        </a>
+      </p>
+    </Section>
+  )}
+
+  {board.length > 0 && (
+    <Section eyebrow="Board" title="Meet the board">
+      <div class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+        {board.map((p) => (
+          <PersonCard person={{ ...p, organisation: p.organisationName }} />
+        ))}
+      </div>
+    </Section>
+  )}
+
+  {institutional.length > 0 && (
+    <Section tone="surface" eyebrow="Partners" title="Institutional partners">
+      <div class="grid grid-cols-2 gap-8 md:grid-cols-3">
+        {institutional.map((p) => (
+          <PersonCard person={{ ...p, organisation: p.organisationName }} />
+        ))}
+      </div>
+    </Section>
+  )}
+
+  {settings.socials.whatsapp && (
+    <Section tone="navy">
+      <div class="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+        <div>
+          <h2 class="text-2xl text-paper md:text-3xl">Join the community</h2>
+          <p class="mt-2 text-accent-soft">
+            Event announcements, job posts and help from fellow founders, in one WhatsApp group.
+          </p>
+        </div>
+        <Button href={settings.socials.whatsapp} rel="noopener">
+          <Icon name="whatsapp" /> Join our WhatsApp
+        </Button>
+      </div>
+    </Section>
+  )}
+</BaseLayout>

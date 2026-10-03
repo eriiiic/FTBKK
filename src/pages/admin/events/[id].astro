@@ -1,0 +1,342 @@
+---
+import { eq } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import MarkdownEditor from '../../../components/admin/MarkdownEditor.astro';
+import { getDb } from '../../../db';
+import { events, type Event } from '../../../db/schema';
+import { EventSchema, toLocalInput, uniqueContentSlug } from '../../../lib/admin';
+import { fieldErrors, formToObject } from '../../../lib/forms';
+import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
+import { audit } from '../../../lib/orgs';
+import { mediaUrl, slugify } from '../../../lib/format';
+import { getSettings } from '../../../lib/settings';
+import { sendEventCancelled } from '../../../lib/registrations';
+import { env } from 'cloudflare:workers';
+
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const isNew = Astro.params.id === 'new';
+let event: Event | null = null;
+if (!isNew) {
+  [event = null] = await db
+    .select()
+    .from(events)
+    .where(eq(events.id, Number(Astro.params.id)))
+    .limit(1);
+  if (!event) return Astro.redirect('/admin/events');
+}
+const settings = await getSettings();
+
+const asValues = (e: Event): Record<string, unknown> => ({
+  ...e,
+  startsAt: toLocalInput(e.startsAt),
+  endsAt: toLocalInput(e.endsAt),
+  registrationOpensAt: toLocalInput(e.registrationOpensAt),
+  registrationClosesAt: toLocalInput(e.registrationClosesAt),
+});
+
+// "Duplicate" opens a new event prefilled from another one (dates left empty).
+const fromId = Number(Astro.url.searchParams.get('from'));
+let source: Event | null = null;
+if (isNew && fromId) {
+  [source = null] = await db.select().from(events).where(eq(events.id, fromId)).limit(1);
+}
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = event
+  ? asValues(event)
+  : source
+    ? {
+        ...asValues(source),
+        title: `${source.title} (copy)`,
+        slug: '',
+        startsAt: '',
+        endsAt: '',
+        registrationOpensAt: '',
+        registrationClosesAt: '',
+        status: 'draft',
+      }
+    : { status: 'draft', series: 'French Tech Connect', registrationOpen: true };
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  if (event && action === 'delete') {
+    await db.delete(events).where(eq(events.id, event.id));
+    await audit(actor, 'delete', 'event', event.id, { title: event.title }, null);
+    return Astro.redirect('/admin/events?saved=1');
+  }
+  if (event && action === 'cancel') {
+    await db
+      .update(events)
+      .set({ status: 'cancelled', registrationOpen: false, updatedAt: new Date() })
+      .where(eq(events.id, event.id));
+    const { results: toNotify } = await env.DB.prepare(
+      `SELECT name, email FROM registrations WHERE event_id = ? AND status IN ('registered', 'waitlist')`,
+    )
+      .bind(event.id)
+      .all<{ name: string; email: string }>();
+    await sendEventCancelled(event, toNotify);
+    await audit(
+      actor,
+      'cancel',
+      'event',
+      event.id,
+      { status: event.status },
+      { status: 'cancelled' },
+    );
+    return Astro.redirect(`/admin/events/${event.id}?saved=1`);
+  }
+  values = formToObject(form);
+  const parsed = EventSchema.safeParse(values);
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  const cover = await storeUpload(form.get('cover'), {
+    prefix: 'events',
+    maxBytes: 5 * 1024 * 1024,
+    types: IMAGE_TYPES,
+  });
+  if (cover.error) errors.cover = cover.error;
+  if (parsed.success && !cover.error) {
+    const d = parsed.data;
+    const slug = await uniqueContentSlug(events, d.slug || slugify(d.title), event?.id);
+    const keepCover = values.removeCover
+      ? null
+      : (event?.coverKey ?? (source?.coverKey && values.copyCover ? source.coverKey : null));
+    const row = { ...d, slug, coverKey: cover.key ?? keepCover, updatedAt: new Date() };
+    let eventId = event?.id;
+    if (event) {
+      await db.update(events).set(row).where(eq(events.id, event.id));
+    } else {
+      const [ins] = await db.insert(events).values(row).returning({ id: events.id });
+      eventId = ins!.id;
+    }
+    await audit(
+      actor,
+      event ? 'update' : 'create',
+      'event',
+      eventId!,
+      event ? { status: event.status } : null,
+      {
+        title: row.title,
+        status: row.status,
+      },
+    );
+    return Astro.redirect(`/admin/events/${eventId}?saved=1`);
+  }
+}
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Other'];
+---
+
+<AdminLayout title={isNew ? 'New event' : 'Edit event'}>
+  {event && (
+    <div class="mb-4 flex flex-wrap gap-4 text-sm">
+      {event.status !== 'draft' && (
+        <a href={`/events/${event.slug}`} target="_blank" rel="noopener">
+          View on the site ↗
+        </a>
+      )}
+      <a href={`/admin/registrations?event=${event.id}`}>Registrations</a>
+      <a href={`/admin/events/new?from=${event.id}`}>Duplicate</a>
+    </div>
+  )}
+  {event?.status === 'cancelled' && (
+    <Alert tone="warning" class="mb-6">
+      This event is cancelled. It stays visible on the site with a "Cancelled" label.
+    </Alert>
+  )}
+  {Object.keys(errors).length > 0 && (
+    <Alert tone="danger" class="mb-6">
+      Please fix the highlighted fields.
+    </Alert>
+  )}
+  <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+    <div class="grid content-start gap-6">
+      <div class="admin-panel grid content-start gap-4">
+        <FormField name="title" label="Title" required value={str('title')} error={errors.title} />
+        <FormField
+          name="series"
+          label="Type"
+          required
+          value={str('series')}
+          options={SERIES.map((s) => ({ value: s, label: s }))}
+        />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <FormField
+            name="startsAt"
+            label="Starts"
+            type="datetime-local"
+            required
+            value={str('startsAt')}
+            error={errors.startsAt}
+            hint="Bangkok time"
+          />
+          <FormField
+            name="endsAt"
+            label="Ends"
+            type="datetime-local"
+            value={str('endsAt')}
+            error={errors.endsAt}
+          />
+        </div>
+        <FormField
+          name="summary"
+          label="Summary"
+          rows={2}
+          maxlength={300}
+          value={str('summary')}
+          error={errors.summary}
+          hint="One or two sentences for cards and search results."
+        />
+        <MarkdownEditor name="bodyMd" label="Description" value={str('bodyMd')} rows={12} />
+      </div>
+      <div class="admin-panel grid gap-4">
+        <h2 class="text-lg">Venue</h2>
+        <FormField name="venue" label="Venue name" value={str('venue')} />
+        <FormField name="address" label="Address" value={str('address')} />
+        <FormField
+          name="mapUrl"
+          label="Map link"
+          value={str('mapUrl')}
+          error={errors.mapUrl}
+          placeholder="https://maps.google.com/…"
+        />
+      </div>
+    </div>
+
+    <div class="grid content-start gap-4">
+      <div class="admin-panel grid gap-4">
+        <FormField
+          name="status"
+          label="Status"
+          required
+          value={str('status')}
+          options={[
+            { value: 'draft', label: 'Draft (not visible)' },
+            { value: 'published', label: 'Published' },
+            { value: 'cancelled', label: 'Cancelled' },
+          ]}
+        />
+        <FormField
+          name="slug"
+          label="Web address"
+          value={str('slug')}
+          hint="/events/… Leave empty to build it from the title."
+        />
+        <div class="flex flex-wrap gap-3">
+          <Button type="submit" name="action" value="save">
+            Save
+          </Button>
+          <Button href="/admin/events" variant="ghost">
+            Back
+          </Button>
+        </div>
+      </div>
+
+      <div class="admin-panel grid gap-4">
+        <h2 class="text-lg">Registration</h2>
+        <FormField
+          name="registrationOpen"
+          label="Registration open"
+          type="checkbox"
+          checked={!!values.registrationOpen}
+        />
+        <FormField
+          name="capacity"
+          label="Capacity"
+          type="number"
+          value={str('capacity')}
+          error={errors.capacity}
+          hint="Empty = unlimited. When full, people join the waitlist."
+        />
+        <FormField
+          name="registrationOpensAt"
+          label="Registration opens"
+          type="datetime-local"
+          value={str('registrationOpensAt')}
+          hint="Empty = as soon as the event is published."
+        />
+        <FormField
+          name="registrationClosesAt"
+          label="Registration closes"
+          type="datetime-local"
+          value={str('registrationClosesAt')}
+          hint="Empty = when the event starts."
+        />
+        {settings.memberPriority ? (
+          <>
+            <FormField
+              name="memberEarlyDays"
+              label="Member early access (days)"
+              type="number"
+              value={str('memberEarlyDays')}
+            />
+            <FormField
+              name="memberReservedSeats"
+              label="Seats reserved for members"
+              type="number"
+              value={str('memberReservedSeats')}
+            />
+          </>
+        ) : (
+          <>
+            <input type="hidden" name="memberEarlyDays" value={str('memberEarlyDays') || '0'} />
+            <input
+              type="hidden"
+              name="memberReservedSeats"
+              value={str('memberReservedSeats') || '0'}
+            />
+          </>
+        )}
+      </div>
+
+      <div class="admin-panel grid gap-3">
+        <FormField
+          name="cover"
+          label="Cover image"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          error={errors.cover}
+          hint="1600×900 works best. 5 MB max."
+        />
+        {(event?.coverKey || source?.coverKey) && (
+          <>
+            <img
+              src={mediaUrl(event?.coverKey ?? source?.coverKey)}
+              alt="Current cover"
+              class="rounded-lg"
+            />
+            {event ? (
+              <FormField name="removeCover" label="Remove the cover" type="checkbox" />
+            ) : (
+              <FormField name="copyCover" label="Use this cover" type="checkbox" checked />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  </form>
+
+  {event && (
+    <div class="mt-8 flex flex-wrap gap-3">
+      {event.status !== 'cancelled' && (
+        <form
+          method="post"
+          data-confirm="Cancel this event? Everyone registered gets an email, and the event shows as cancelled."
+        >
+          <Button type="submit" name="action" value="cancel" variant="secondary">
+            Cancel the event
+          </Button>
+        </form>
+      )}
+      <form method="post" data-confirm="Delete this event and all its registrations for good?">
+        <Button type="submit" name="action" value="delete" variant="ghost" class="text-danger">
+          Delete
+        </Button>
+      </form>
+    </div>
+  )}
+</AdminLayout>

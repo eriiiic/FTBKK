@@ -1,0 +1,90 @@
+---
+import { desc, sql } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Badge from '../../../components/Badge.astro';
+import Button from '../../../components/Button.astro';
+import { getDb } from '../../../db';
+import { events, registrations } from '../../../db/schema';
+import { formatEventDate } from '../../../lib/format';
+
+const rows = await getDb()
+  .select({
+    id: events.id,
+    slug: events.slug,
+    title: events.title,
+    series: events.series,
+    startsAt: events.startsAt,
+    endsAt: events.endsAt,
+    status: events.status,
+    capacity: events.capacity,
+    registered: sql<number>`(select count(*) from ${registrations} r where r.event_id = ${events.id} and r.status in ('registered','attended'))`,
+  })
+  .from(events)
+  .orderBy(desc(events.startsAt));
+const now = new Date();
+const upcoming = rows.filter((e) => (e.endsAt ?? e.startsAt) >= now).reverse();
+const past = rows.filter((e) => (e.endsAt ?? e.startsAt) < now);
+const groups = [
+  { title: 'Upcoming', rows: upcoming },
+  { title: 'Past', rows: past },
+];
+---
+
+<AdminLayout title="Events">
+  <div class="mb-4 flex justify-end">
+    <Button href="/admin/events/new" size="sm">
+      New event
+    </Button>
+  </div>
+  {groups.map((g) => (
+    <section class="admin-panel mb-6 overflow-x-auto">
+      <h2 class="mb-3 text-lg">{g.title}</h2>
+      {g.rows.length ? (
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Date</th>
+              <th>Registered</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {g.rows.map((e) => (
+              <tr>
+                <td>
+                  <a href={`/admin/events/${e.id}`} class="font-semibold">
+                    {e.title}
+                  </a>
+                  <span class="block text-xs text-muted">{e.series}</span>
+                </td>
+                <td class="whitespace-nowrap">{formatEventDate(e.startsAt, e.endsAt)}</td>
+                <td>
+                  <a href={`/admin/registrations?event=${e.id}`}>
+                    {e.registered}
+                    {e.capacity ? ` / ${e.capacity}` : ''}
+                  </a>
+                </td>
+                <td>
+                  <Badge
+                    tone={
+                      e.status === 'published'
+                        ? 'success'
+                        : e.status === 'cancelled'
+                          ? 'danger'
+                          : 'neutral'
+                    }
+                  >
+                    {e.status}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p class="text-muted">None.</p>
+      )}
+    </section>
+  ))}
+</AdminLayout>

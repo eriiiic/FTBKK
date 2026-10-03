@@ -1,0 +1,74 @@
+---
+import { desc, eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Badge from '../../components/Badge.astro';
+import Button from '../../components/Button.astro';
+import { getDb } from '../../db';
+import { submissions } from '../../db/schema';
+import { formatDate } from '../../lib/format';
+
+const db = getDb();
+const show = Astro.url.searchParams.get('show') === 'all' ? 'all' : 'open';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const id = Number(form.get('id'));
+  const handled = form.get('action') === 'done';
+  if (id) await db.update(submissions).set({ handled }).where(eq(submissions.id, id));
+  return Astro.redirect(`/admin/submissions?show=${show}`);
+}
+const rows = await db
+  .select()
+  .from(submissions)
+  .where(show === 'open' ? eq(submissions.handled, false) : undefined)
+  .orderBy(desc(submissions.createdAt))
+  .limit(200);
+const str = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+---
+
+<AdminLayout title="Messages">
+  <p class="mb-4 text-sm">
+    {show === 'open' ? (
+      <a href="?show=all">Show handled messages too</a>
+    ) : (
+      <a href="?show=open">Show only open messages</a>
+    )}
+  </p>
+  {rows.length === 0 && <div class="admin-panel text-muted">No messages.</div>}
+  <div class="grid gap-4">
+    {rows.map((s) => {
+      const p = s.payload;
+      return (
+        <article class={`admin-panel ${s.handled ? 'opacity-70' : ''}`}>
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 class="text-base">
+                {str(p.name) || 'Anonymous'}
+                {p.company ? <span class="font-normal text-muted"> · {str(p.company)}</span> : null}
+              </h2>
+              <p class="text-sm">
+                {p.email ? <a href={`mailto:${str(p.email)}`}>{str(p.email)}</a> : null}
+              </p>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-muted">
+              <Badge tone="accent">{str(p.topic) || s.type}</Badge>
+              {formatDate(s.createdAt, { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+          <p class="mt-3 text-sm whitespace-pre-line">{str(p.message)}</p>
+          <form method="post" class="mt-4">
+            <input type="hidden" name="id" value={s.id} />
+            {s.handled ? (
+              <Button type="submit" name="action" value="reopen" size="sm" variant="ghost">
+                Mark as open
+              </Button>
+            ) : (
+              <Button type="submit" name="action" value="done" size="sm" variant="secondary">
+                Mark as handled
+              </Button>
+            )}
+          </form>
+        </article>
+      );
+    })}
+  </div>
+</AdminLayout>

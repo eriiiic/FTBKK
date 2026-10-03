@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `registration_opens_at` integer;

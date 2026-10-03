@@ -1,2 +1,72 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/montserrat';
+
+/*
+ * Design tokens. Source of truth: docs/design-tokens.md.
+ * PLACEHOLDER palette (from the project deck) until `npm run capture` extracts the Wix values;
+ * then only this block changes.
+ */
+@theme {
+  --color-navy: #0b1f3a;
+  --color-navy-soft: #1a2433;
+  --color-brand: #e4002b;
+  --color-brand-dark: #b80023;
+  --color-accent: #2f5c9e;
+  --color-accent-soft: #a9c1e6;
+  --color-ink: #1a2433;
+  --color-muted: #5b6b80;
+  --color-line: #d9e1ec;
+  --color-surface: #eef2f7;
+  --color-paper: #ffffff;
+  --color-success: #1f7a4d;
+  --color-warning: #8a5a00;
+  --color-danger: #b42318;
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Montserrat Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 1rem;
+  --radius-button: 999px;
+  --shadow-card: 0 1px 2px rgb(11 31 58 / 0.06), 0 8px 24px rgb(11 31 58 / 0.08);
+}
+
+@layer base {
+  html {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display font-bold tracking-tight text-navy;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+  a {
+    @apply underline-offset-2;
+  }
+}
+
+@utility container-page {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+}
+
+/* Admin building blocks (only used under /admin). */
+@utility admin-panel {
+  @apply rounded-card border border-line bg-paper p-4 md:p-6;
+}
+
+@utility admin-table {
+  @apply w-full text-left text-sm;
+  & th {
+    @apply border-b border-line px-3 py-2 text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+  & td {
+    @apply border-b border-line px-3 py-2 align-top;
+  }
+  & tr:last-child td {
+    @apply border-b-0;
+  }
+}

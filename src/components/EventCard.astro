@@ -1,0 +1,57 @@
+---
+import Card from './Card.astro';
+import Badge from './Badge.astro';
+import Icon from './Icon.astro';
+import { formatEventDate, mediaUrl } from '../lib/format';
+
+interface Props {
+  event: {
+    slug: string;
+    title: string;
+    series: string;
+    startsAt: Date;
+    endsAt: Date | null;
+    venue: string | null;
+    summary: string | null;
+    coverKey: string | null;
+    status?: string;
+  };
+  compact?: boolean;
+}
+const { event, compact = false } = Astro.props;
+const cover = mediaUrl(event.coverKey);
+---
+
+<Card href={`/events/${event.slug}`}>
+  {!compact && (
+    <div class="aspect-[16/9] bg-surface">
+      {cover ? (
+        <img src={cover} alt="" loading="lazy" class="size-full object-cover" />
+      ) : (
+        <div class="flex size-full items-center justify-center bg-navy font-display text-xl font-bold text-paper">
+          {event.series}
+        </div>
+      )}
+    </div>
+  )}
+  <div class="flex flex-1 flex-col gap-2 p-5">
+    <div class="flex flex-wrap items-center gap-2">
+      <Badge tone="accent">{event.series}</Badge>
+      {event.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
+    </div>
+    <h3 class="text-lg group-hover:text-brand">{event.title}</h3>
+    <p class="flex items-center gap-2 text-sm text-muted">
+      <Icon name="calendar" class="size-4 shrink-0" />
+      <time datetime={event.startsAt.toISOString()}>
+        {formatEventDate(event.startsAt, event.endsAt)}
+      </time>
+    </p>
+    {event.venue && (
+      <p class="flex items-center gap-2 text-sm text-muted">
+        <Icon name="pin" class="size-4 shrink-0" />
+        {event.venue}
+      </p>
+    )}
+    {!compact && event.summary && <p class="line-clamp-3 text-sm">{event.summary}</p>}
+  </div>
+</Card>

@@ -1,0 +1,294 @@
+---
+import { z } from 'zod';
+import { and, asc, desc, eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Badge from '../../components/Badge.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import { getDb } from '../../db';
+import { events, registrations, type Event } from '../../db/schema';
+import { formatDate, formatEventDate } from '../../lib/format';
+import { audit } from '../../lib/orgs';
+import { getSettings } from '../../lib/settings';
+import { promoteFromWaitlist, sendPromotion } from '../../lib/registrations';
+
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const allEvents = await db.select().from(events).orderBy(desc(events.startsAt));
+const eventId = Number(Astro.url.searchParams.get('event')) || allEvents[0]?.id;
+const event: Event | undefined = allEvents.find((e) => e.id === eventId);
+let error = '';
+
+if (Astro.request.method === 'POST' && event) {
+  const parsed = z
+    .object({
+      action: z.enum(['attended', 'registered', 'promote', 'cancel', 'promote-next']),
+      id: z.coerce.number().int().optional(),
+    })
+    .safeParse(Object.fromEntries(await Astro.request.formData()));
+  if (!parsed.success) error = 'Unknown action.';
+  else {
+    const { action, id } = parsed.data;
+    const where = and(eq(registrations.id, id ?? 0), eq(registrations.eventId, event.id));
+    const [reg] = id ? await db.select().from(registrations).where(where) : [];
+    if (action === 'attended' && reg) {
+      await db
+        .update(registrations)
+        .set({ status: 'attended', checkedInAt: new Date() })
+        .where(where);
+    } else if (action === 'registered' && reg) {
+      await db.update(registrations).set({ status: 'registered', checkedInAt: null }).where(where);
+    } else if (action === 'promote' && reg?.status === 'waitlist') {
+      // A manual promotion can go over capacity: the organiser decides.
+      const [row] = await db
+        .update(registrations)
+        .set({ status: 'registered' })
+        .where(where)
+        .returning();
+      if (row) await sendPromotion(event, { ...row, event_id: row.eventId });
+    } else if (action === 'promote-next') {
+      const settings = await getSettings();
+      const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+      if (row) await sendPromotion(event, row);
+      else error = 'No free seat, or nobody on the waitlist.';
+    } else if (action === 'cancel' && reg) {
+      await db.update(registrations).set({ status: 'cancelled' }).where(where);
+    }
+    if (reg)
+      await audit(
+        actor,
+        `registration_${action}`,
+        'registration',
+        reg.id,
+        { status: reg.status },
+        null,
+      );
+    if (!error) return Astro.redirect(`/admin/registrations?event=${event.id}&saved=1`);
+  }
+}
+
+const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
+const statusFilter = Astro.url.searchParams.get('status') ?? '';
+const rows = event
+  ? await db
+      .select()
+      .from(registrations)
+      .where(eq(registrations.eventId, event.id))
+      .orderBy(asc(registrations.createdAt), asc(registrations.id))
+  : [];
+const counts = {
+  registered: rows.filter((r) => r.status === 'registered').length,
+  attended: rows.filter((r) => r.status === 'attended').length,
+  waitlist: rows.filter((r) => r.status === 'waitlist').length,
+  cancelled: rows.filter((r) => r.status === 'cancelled').length,
+};
+const shown = rows.filter(
+  (r) =>
+    (!statusFilter || r.status === statusFilter) &&
+    (!q || `${r.name} ${r.email} ${r.company ?? ''}`.toLowerCase().includes(q)),
+);
+const tone = (s: string) =>
+  s === 'registered'
+    ? 'success'
+    : s === 'attended'
+      ? 'accent'
+      : s === 'waitlist'
+        ? 'warning'
+        : 'neutral';
+---
+
+<AdminLayout title="Registrations">
+  <form method="get" class="mb-4 flex flex-wrap items-center gap-2">
+    <label for="event" class="text-sm font-semibold">
+      Event
+    </label>
+    <select id="event" name="event" class="rounded-lg border border-line bg-paper px-3 py-1.5">
+      {allEvents.map((e) => (
+        <option value={e.id} selected={e.id === eventId}>
+          {formatDate(e.startsAt)} · {e.title}
+        </option>
+      ))}
+    </select>
+    <Button type="submit" size="sm" variant="secondary">
+      Show
+    </Button>
+  </form>
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+  {event ? (
+    <>
+      <div class="admin-panel mb-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg">
+              <a href={`/admin/events/${event.id}`}>{event.title}</a>
+            </h2>
+            <p class="text-sm text-muted">{formatEventDate(event.startsAt, event.endsAt)}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <Button href={`/admin/events/${event.id}/checkin`} size="sm">
+              Check-in mode
+            </Button>
+            <Button
+              href={`/admin/events/${event.id}/registrations.csv`}
+              size="sm"
+              variant="secondary"
+            >
+              Export CSV
+            </Button>
+          </div>
+        </div>
+        <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {[
+            ['Registered', counts.registered + counts.attended],
+            ['Capacity', event.capacity ?? '∞'],
+            ['Checked in', counts.attended],
+            ['Waitlist', counts.waitlist],
+            ['Cancelled', counts.cancelled],
+          ].map(([k, v]) => (
+            <div class="rounded-lg bg-surface p-3">
+              <dt class="text-xs text-muted">{k}</dt>
+              <dd class="font-display text-2xl font-bold text-navy">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        {counts.waitlist > 0 && (
+          <form method="post" class="mt-4">
+            <Button type="submit" name="action" value="promote-next" size="sm" variant="secondary">
+              Register the next person on the waitlist (if a seat is free)
+            </Button>
+          </form>
+        )}
+      </div>
+
+      <div class="admin-panel overflow-x-auto">
+        <form method="get" role="search" class="mb-4 flex flex-wrap gap-2">
+          <input type="hidden" name="event" value={event.id} />
+          <label for="q" class="sr-only">
+            Search
+          </label>
+          <input
+            id="q"
+            name="q"
+            value={q}
+            placeholder="Name, email or company"
+            class="rounded-lg border border-line px-3 py-1.5"
+          />
+          <label for="status" class="sr-only">
+            Status
+          </label>
+          <select id="status" name="status" class="rounded-lg border border-line px-3 py-1.5">
+            <option value="">All statuses</option>
+            {['registered', 'attended', 'waitlist', 'cancelled'].map((s) => (
+              <option value={s} selected={s === statusFilter}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <Button type="submit" size="sm" variant="secondary">
+            Filter
+          </Button>
+        </form>
+        {shown.length ? (
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Company</th>
+                <th>Status</th>
+                <th>Registered</th>
+                <th>
+                  <span class="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr>
+                  <td>
+                    {r.name}
+                    {r.role && <span class="block text-xs text-muted">{r.role}</span>}
+                  </td>
+                  <td class="break-all">{r.email}</td>
+                  <td>{r.company ?? ''}</td>
+                  <td>
+                    <Badge tone={tone(r.status)}>{r.status}</Badge>
+                  </td>
+                  <td class="whitespace-nowrap text-muted">{formatDate(r.createdAt)}</td>
+                  <td>
+                    <form method="post" class="flex flex-wrap gap-1">
+                      <input type="hidden" name="id" value={r.id} />
+                      {r.status === 'registered' && (
+                        <Button
+                          type="submit"
+                          name="action"
+                          value="attended"
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Check in
+                        </Button>
+                      )}
+                      {r.status === 'attended' && (
+                        <Button
+                          type="submit"
+                          name="action"
+                          value="registered"
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Undo check-in
+                        </Button>
+                      )}
+                      {r.status === 'waitlist' && (
+                        <Button
+                          type="submit"
+                          name="action"
+                          value="promote"
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Register
+                        </Button>
+                      )}
+                      {r.status === 'cancelled' && (
+                        <Button
+                          type="submit"
+                          name="action"
+                          value="registered"
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Restore
+                        </Button>
+                      )}
+                      {r.status !== 'cancelled' && (
+                        <Button
+                          type="submit"
+                          name="action"
+                          value="cancel"
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p class="text-muted">No registrations{q || statusFilter ? ' match' : ' yet'}.</p>
+        )}
+      </div>
+    </>
+  ) : (
+    <p class="text-muted">No events yet.</p>
+  )}
+</AdminLayout>

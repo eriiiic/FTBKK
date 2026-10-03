@@ -1,0 +1,15 @@
+[
+  { "name": "Franco-Thai Chamber of Commerce", "category": "institution", "badges": ["institutional"] },
+  { "name": "French Treasury", "category": "institution", "badges": ["institutional"] },
+  { "name": "Business France", "category": "institution", "badges": ["institutional"] },
+  { "name": "AlphOmega8", "category": "french_company", "badges": ["board"] },
+  { "name": "Accor", "category": "french_company", "badges": ["board"], "sectors": ["Travel and hospitality"] },
+  { "name": "Michelin", "category": "french_company", "badges": ["board"], "sectors": ["Mobility"] },
+  { "name": "S2M", "category": "french_company", "badges": ["board"], "sectors": ["Fintech"] },
+  { "name": "SalesMind AI", "category": "french_startup", "badges": ["board"], "sectors": ["AI", "SaaS"] },
+  { "name": "DIGITAL 4 GOOD", "category": "service_provider", "badges": ["board"] },
+  { "name": "Belaws", "category": "service_provider", "badges": ["board"] },
+  { "name": "Ez group", "category": "service_provider", "badges": ["board"] },
+  { "name": "Alkia AI Services", "category": "french_startup", "badges": ["board"], "sectors": ["AI"] },
+  { "name": "QUIVIDI", "category": "french_company", "badges": ["board"], "sectors": ["AI", "Media and gaming"] }
+]

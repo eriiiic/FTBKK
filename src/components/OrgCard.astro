@@ -1,0 +1,54 @@
+---
+import Card from './Card.astro';
+import Badge from './Badge.astro';
+import { BADGES, CATEGORIES, type BadgeKey, type Category } from '../lib/directory';
+import { initials, mediaUrl } from '../lib/format';
+
+interface Props {
+  org: {
+    slug: string;
+    name: string;
+    pitch: string | null;
+    category: string;
+    logoKey: string | null;
+    badges: string[];
+    memberStatus?: string;
+    hiring?: boolean;
+    raising?: boolean;
+  };
+}
+const { org } = Astro.props;
+const logo = mediaUrl(org.logoKey);
+const badges = [...org.badges];
+if (org.memberStatus === 'member') badges.unshift('member');
+---
+
+<Card href={`/ecosystem/${org.slug}`} class="h-full">
+  <div class="flex flex-1 flex-col gap-3 p-5">
+    <div class="flex items-center gap-3">
+      <div class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-paper">
+        {logo ? (
+          <img src={logo} alt="" loading="lazy" class="max-h-12 max-w-12 object-contain" />
+        ) : (
+          <span class="font-display font-bold text-navy" aria-hidden="true">
+            {initials(org.name)}
+          </span>
+        )}
+      </div>
+      <div class="min-w-0">
+        <h3 class="truncate text-base group-hover:text-brand">{org.name}</h3>
+        <p class="text-xs text-muted">
+          {CATEGORIES[org.category as Category]?.label ?? org.category}
+        </p>
+      </div>
+    </div>
+    {org.pitch && <p class="line-clamp-2 text-sm">{org.pitch}</p>}
+    <div class="mt-auto flex flex-wrap gap-1.5">
+      {badges.map((b) => (
+        <Badge tone={b === 'member' ? 'brand' : 'neutral'}>{BADGES[b as BadgeKey] ?? b}</Badge>
+      ))}
+      {org.hiring && <Badge tone="success">Hiring</Badge>}
+      {org.raising && <Badge tone="accent">Raising</Badge>}
+    </div>
+  </div>
+</Card>

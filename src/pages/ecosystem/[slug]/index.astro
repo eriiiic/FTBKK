@@ -1,0 +1,163 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import OrgCard from '../../../components/OrgCard.astro';
+import Badge from '../../../components/Badge.astro';
+import Icon from '../../../components/Icon.astro';
+import { orgBySlug } from '../../../lib/orgs';
+import { publishedOrganisations } from '../../../lib/queries';
+import { BADGES, CATEGORIES, type BadgeKey, type Category } from '../../../lib/directory';
+import { formatDate, initials, mediaUrl } from '../../../lib/format';
+import { plainText, renderMarkdown } from '../../../lib/markdown';
+
+const org = await orgBySlug(Astro.params.slug!);
+if (!org || org.status !== 'published') return Astro.rewrite('/404');
+
+const related = (await publishedOrganisations())
+  .filter((o) => o.id !== org.id && o.category === org.category)
+  .sort(
+    (a, b) =>
+      b.sectors.filter((s) => org.sectors.includes(s)).length -
+      a.sectors.filter((s) => org.sectors.includes(s)).length,
+  )
+  .slice(0, 3);
+const logo = mediaUrl(org.logoKey);
+const badges = [...(org.memberStatus === 'member' ? ['member'] : []), ...org.badges];
+const claimed = org.ownerEmails.length > 0;
+const confirmed = org.confirmedAt
+  ? formatDate(org.confirmedAt, { day: undefined, month: 'long', year: 'numeric' })
+  : null;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: org.name,
+  description: org.pitch ?? undefined,
+  url: org.website ?? undefined,
+  logo: logo ? new URL(logo, Astro.site).href : undefined,
+  foundingDate: org.foundedYear ? String(org.foundedYear) : undefined,
+  sameAs: [org.linkedin].filter(Boolean),
+  email: org.publicEmail ?? undefined,
+};
+const facts: [string, string][] = [
+  ['Category', CATEGORIES[org.category as Category]?.label ?? org.category],
+  ...(org.sectors.length ? [['Sectors', org.sectors.join(', ')] as [string, string]] : []),
+  ...(org.foundedYear ? [['Founded', String(org.foundedYear)] as [string, string]] : []),
+  ...(org.stage ? [['Stage', org.stage] as [string, string]] : []),
+  ...(org.teamSize ? [['Team', org.teamSize] as [string, string]] : []),
+  ...(org.ticketSize ? [['Ticket size', org.ticketSize] as [string, string]] : []),
+  ...(org.frenchLink ? [['French connection', org.frenchLink] as [string, string]] : []),
+];
+---
+
+<BaseLayout
+  title={org.name}
+  description={org.pitch ?? plainText(org.descriptionMd)}
+  image={logo}
+  jsonLd={jsonLd}
+>
+  <article class="container-page py-12">
+    <a href="/ecosystem" class="text-sm text-accent">
+      ← Ecosystem directory
+    </a>
+    <header class="mt-6 flex flex-col gap-6 sm:flex-row sm:items-center">
+      <div class="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-line bg-paper p-2">
+        {logo ? (
+          <img src={logo} alt={`${org.name} logo`} class="max-h-20 max-w-20 object-contain" />
+        ) : (
+          <span class="font-display text-2xl font-bold text-navy" aria-hidden="true">
+            {initials(org.name)}
+          </span>
+        )}
+      </div>
+      <div>
+        <h1 class="text-3xl md:text-4xl">{org.name}</h1>
+        {org.pitch && <p class="mt-2 text-lg text-muted">{org.pitch}</p>}
+        <div class="mt-3 flex flex-wrap gap-2">
+          {badges.map((b) => (
+            <Badge tone={b === 'member' ? 'brand' : 'neutral'}>{BADGES[b as BadgeKey] ?? b}</Badge>
+          ))}
+          {org.hiring && <Badge tone="success">Hiring</Badge>}
+          {org.raising && <Badge tone="accent">Raising</Badge>}
+        </div>
+      </div>
+    </header>
+
+    <div class="mt-10 grid gap-10 md:grid-cols-3">
+      <div class="md:col-span-2">
+        {org.descriptionMd ? (
+          <div class="prose max-w-none" set:html={renderMarkdown(org.descriptionMd)} />
+        ) : (
+          <p class="text-muted">No description yet.</p>
+        )}
+      </div>
+      <aside class="space-y-6">
+        <dl class="rounded-card border border-line p-5 text-sm">
+          {facts.map(([k, v]) => (
+            <div class="flex justify-between gap-4 border-b border-line py-2 last:border-0">
+              <dt class="text-muted">{k}</dt>
+              <dd class="text-right font-semibold">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <ul class="space-y-2 text-sm">
+          {org.website && (
+            <li>
+              <a
+                href={org.website}
+                rel="noopener"
+                class="inline-flex items-center gap-2 text-accent"
+              >
+                <Icon name="external" class="size-4" />{' '}
+                {new URL(org.website).hostname.replace(/^www\./, '')}
+              </a>
+            </li>
+          )}
+          {org.linkedin && (
+            <li>
+              <a
+                href={org.linkedin}
+                rel="noopener"
+                class="inline-flex items-center gap-2 text-accent"
+              >
+                <Icon name="linkedin" class="size-4" /> LinkedIn
+              </a>
+            </li>
+          )}
+          {org.publicEmail && (
+            <li>
+              <a
+                href={`mailto:${org.publicEmail}`}
+                class="inline-flex items-center gap-2 text-accent"
+              >
+                <Icon name="mail" class="size-4" /> {org.publicEmail}
+              </a>
+            </li>
+          )}
+        </ul>
+        <div class="rounded-card bg-surface p-5 text-sm">
+          {confirmed && <p class="text-muted">Last confirmed {confirmed}</p>}
+          <p class="mt-2">
+            {claimed ? (
+              <a href="/ecosystem/manage" class="font-semibold text-accent">
+                Update this listing
+              </a>
+            ) : (
+              <a href={`/ecosystem/${org.slug}/claim`} class="font-semibold text-accent">
+                Claim or update this listing
+              </a>
+            )}
+          </p>
+        </div>
+      </aside>
+    </div>
+  </article>
+  {related.length > 0 && (
+    <Section tone="surface" title="Related organisations">
+      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {related.map((o) => (
+          <OrgCard org={o} />
+        ))}
+      </div>
+    </Section>
+  )}
+</BaseLayout>

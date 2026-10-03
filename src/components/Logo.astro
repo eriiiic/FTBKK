@@ -1,0 +1,15 @@
+---
+// Text wordmark until the real logo is captured (migration/images/brand). Swap for an <img> then.
+interface Props {
+  tone?: 'dark' | 'light';
+}
+const { tone = 'dark' } = Astro.props;
+---
+
+<span class="inline-flex items-center gap-2 font-display leading-none font-extrabold">
+  <span class="inline-block size-7 rounded-md bg-brand" aria-hidden="true"></span>
+  <span class={tone === 'light' ? 'text-paper' : 'text-navy'}>
+    <span class="block text-[0.65rem] tracking-[0.2em] uppercase">La French Tech</span>
+    <span class="block text-lg">Bangkok</span>
+  </span>
+</span>

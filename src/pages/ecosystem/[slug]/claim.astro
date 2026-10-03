@@ -1,0 +1,122 @@
+---
+import { z } from 'zod';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import Turnstile from '../../../components/Turnstile.astro';
+import { getDb } from '../../../db';
+import { claims } from '../../../db/schema';
+import { orgBySlug, emailDomainMatches, siteUrl } from '../../../lib/orgs';
+import { clientIp, email, fieldErrors, formToObject, optionalText } from '../../../lib/forms';
+import { verifyTurnstile } from '../../../lib/turnstile';
+import { rateLimit } from '../../../lib/ratelimit';
+import { issueToken } from '../../../lib/tokens';
+import { sendEmail } from '../../../lib/email';
+
+const org = await orgBySlug(Astro.params.slug!);
+if (!org || org.status !== 'published') return Astro.rewrite('/404');
+const claimed = org.ownerEmails.length > 0;
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let sent = false;
+if (Astro.request.method === 'POST' && !claimed) {
+  const form = await Astro.request.formData();
+  values = formToObject(form);
+  const ip = clientIp(Astro.request);
+  const parsed = z
+    .object({
+      email,
+      name: z.string().min(1, 'Enter your name.').max(120),
+      role: optionalText(120),
+    })
+    .safeParse(values);
+  if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
+    errors.form = 'The anti-spam check failed. Please try again.';
+  } else if (!parsed.success) {
+    errors = fieldErrors(parsed.error);
+  } else if (
+    !(await rateLimit(`claim-ip:${ip}`, 10, 3600)) ||
+    !(await rateLimit(`claim-email:${parsed.data.email}`, 3, 3600))
+  ) {
+    errors.form = 'Too many requests. Please try again later.';
+  } else {
+    const [claim] = await getDb()
+      .insert(claims)
+      .values({
+        orgId: org.id,
+        email: parsed.data.email,
+        name: parsed.data.name,
+        role: parsed.data.role,
+        domainMatches: emailDomainMatches(parsed.data.email, org.website),
+      })
+      .returning({ id: claims.id });
+    const token = await issueToken('claim', parsed.data.email, { orgId: org.id, refId: claim!.id });
+    await sendEmail({
+      to: parsed.data.email,
+      subject: `Confirm your claim for ${org.name}`,
+      paragraphs: [
+        `You asked to manage the ${org.name} listing in the French Tech Bangkok directory.`,
+        'Confirm your email and a moderator will approve the claim, usually within 5 days.',
+      ],
+      action: { label: 'Confirm my email', url: siteUrl(`/ecosystem/claim/verify?token=${token}`) },
+    });
+    sent = true;
+  }
+}
+---
+
+<BaseLayout title={`Claim ${org.name}`} noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <a href={`/ecosystem/${org.slug}`} class="text-sm text-accent">
+        ← {org.name}
+      </a>
+      <h1 class="mt-4 text-3xl">Claim this listing</h1>
+      {claimed ? (
+        <Alert class="mt-6">
+          This listing already has a manager. If that's you,{' '}
+          <a href="/ecosystem/manage">request a manage link</a>. Otherwise,{' '}
+          <a href="/about#contact">contact us</a>.
+        </Alert>
+      ) : sent ? (
+        <Alert tone="success" class="mt-6">
+          Check your inbox to confirm your email. A moderator then approves the claim, usually
+          within 5 days.
+        </Alert>
+      ) : (
+        <form method="post" class="mt-6 grid gap-4">
+          <p class="text-muted">
+            Work at {org.name}? Claim the listing to keep it up to date. Using an email on the
+            company's domain speeds up the approval.
+          </p>
+          {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+          <FormField
+            name="name"
+            label="Your name"
+            required
+            value={values.name as string}
+            error={errors.name}
+            autocomplete="name"
+          />
+          <FormField name="role" label="Your role" value={values.role as string} />
+          <FormField
+            name="email"
+            label="Work email"
+            type="email"
+            required
+            value={values.email as string}
+            error={errors.email}
+            autocomplete="email"
+          />
+          <Turnstile />
+          <div>
+            <Button type="submit">Claim this listing</Button>
+          </div>
+        </form>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

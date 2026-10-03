@@ -1,0 +1,443 @@
+---
+import { z } from 'zod';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Badge from '../../../components/Badge.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import { getDb } from '../../../db';
+import { auditLog, organisations } from '../../../db/schema';
+import { moderationQueue } from '../../../lib/cron-directory';
+import { MODERATION_TARGET_DAYS, ageDays, daysUntil } from '../../../lib/lifecycle';
+import { approveListing, orgById, rejectListing } from '../../../lib/orgs';
+import { decideChange, decideClaim, decideMembership, inviteToClaim } from '../../../lib/admin';
+import { CATEGORIES, ORG_STATUSES } from '../../../lib/directory';
+import { formatDate } from '../../../lib/format';
+
+const actor = Astro.locals.adminEmail ?? 'admin';
+const tabs = [
+  { key: 'queue', label: 'To review' },
+  { key: 'all', label: 'All listings' },
+  { key: 'renewals', label: 'Renewals' },
+  { key: 'log', label: 'History' },
+] as const;
+const tab = tabs.find((t) => t.key === Astro.url.searchParams.get('tab'))?.key ?? 'queue';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const parsed = z
+    .object({
+      action: z.enum(['approve', 'reject', 'invite']),
+      kind: z.enum(['listing', 'change', 'claim', 'membership']).optional(),
+      id: z.coerce.number().int(),
+      reason: z.string().max(2000).optional().default(''),
+      email: z.string().optional().default(''),
+    })
+    .safeParse(Object.fromEntries(await Astro.request.formData()));
+  if (!parsed.success) error = 'Something was missing in that form.';
+  else {
+    const { action, kind, id, reason } = parsed.data;
+    const approve = action === 'approve';
+    if (action === 'reject' && reason.trim().length < 5) {
+      error = 'Write a short reason when you reject. It is emailed to the person.';
+    } else if (action === 'invite') {
+      const to = z.email().safeParse(parsed.data.email.trim().toLowerCase());
+      const org = await orgById(id);
+      if (!to.success || !org) error = 'Enter a valid email address to invite.';
+      else await inviteToClaim(org, to.data, actor);
+    } else if (kind === 'listing') {
+      const org = await orgById(id);
+      if (org?.status === 'pending') {
+        if (approve) await approveListing(org, actor);
+        else await rejectListing(org, reason.trim(), actor);
+      }
+    } else if (kind === 'change') await decideChange(id, approve, reason.trim(), actor);
+    else if (kind === 'claim') await decideClaim(id, approve, reason.trim(), actor);
+    else if (kind === 'membership') await decideMembership(id, approve, reason.trim(), actor);
+    if (!error) return Astro.redirect(`/admin/ecosystem?tab=${tab}&saved=1`);
+  }
+}
+
+const db = getDb();
+const now = new Date();
+const queue = tab === 'queue' ? await moderationQueue() : null;
+const items = queue
+  ? [
+      ...queue.pendingOrgs.map((o) => ({
+        kind: 'listing' as const,
+        id: o.id,
+        org: o,
+        at: o.submittedAt ?? o.updatedAt,
+        title: `New listing: ${o.name}`,
+        lines: [
+          `${CATEGORIES[o.category].label} · ${o.website ?? 'no website'}`,
+          o.pitch ?? '',
+          `Submitted by ${o.ownerEmails.join(', ')}`,
+        ],
+      })),
+      ...queue.changes.map(({ change, org }) => ({
+        kind: 'change' as const,
+        id: change.id,
+        org,
+        at: change.createdAt,
+        title: `Change to ${org.name}`,
+        lines: [
+          `Asked by ${change.email}`,
+          ...Object.entries(change.changes).map(
+            ([k, v]) =>
+              `${k}: ${String((org as unknown as Record<string, unknown>)[k] ?? '–')} → ${String(v ?? '–')}`,
+          ),
+        ],
+      })),
+      ...queue.pendingClaims.map(({ claim, org }) => ({
+        kind: 'claim' as const,
+        id: claim.id,
+        org,
+        at: claim.createdAt,
+        title: `Claim for ${org.name}`,
+        lines: [
+          `${claim.name ?? ''} (${claim.role ?? 'no role'}) <${claim.email}>`,
+          claim.domainMatches
+            ? 'Email domain matches the website.'
+            : `Email domain does NOT match the website (${org.website ?? 'none'}).`,
+          org.ownerEmails.length
+            ? `Current owners: ${org.ownerEmails.join(', ')}`
+            : 'Unclaimed until now.',
+        ],
+      })),
+      ...queue.applications.map(({ app, org }) => ({
+        kind: 'membership' as const,
+        id: app.id,
+        org,
+        at: app.createdAt,
+        title: `Membership: ${org.name}`,
+        lines: [`${app.contactName} (${app.contactRole ?? '-'}) <${app.email}>`, app.motivation],
+      })),
+    ].sort((a, b) => a.at.getTime() - b.at.getTime())
+  : [];
+
+const status = Astro.url.searchParams.get('status') ?? '';
+const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
+const all =
+  tab === 'all'
+    ? (
+        await db
+          .select()
+          .from(organisations)
+          .where(
+            status ? eq(organisations.status, status as (typeof ORG_STATUSES)[number]) : undefined,
+          )
+          .orderBy(asc(organisations.name))
+      ).filter((o) => !q || o.name.toLowerCase().includes(q))
+    : [];
+
+const renewals =
+  tab === 'renewals'
+    ? await db
+        .select()
+        .from(organisations)
+        .where(
+          and(
+            inArray(organisations.status, ['published', 'expired']),
+            sql`(${organisations.renewalDueAt} IS NOT NULL OR json_array_length(${organisations.ownerEmails}) = 0)`,
+          ),
+        )
+        .orderBy(sql`${organisations.renewalDueAt} IS NULL`, asc(organisations.renewalDueAt))
+    : [];
+
+const log =
+  tab === 'log'
+    ? await db
+        .select({ a: auditLog, name: organisations.name, orgId: organisations.id })
+        .from(auditLog)
+        .leftJoin(
+          organisations,
+          and(eq(auditLog.entity, 'organisation'), eq(auditLog.entityId, organisations.id)),
+        )
+        .orderBy(desc(auditLog.id))
+        .limit(200)
+    : [];
+
+const statusTone = (s: string) =>
+  s === 'published'
+    ? 'success'
+    : s === 'pending'
+      ? 'warning'
+      : s === 'rejected' || s === 'expired'
+        ? 'danger'
+        : 'neutral';
+const short = (v: unknown) => {
+  const s = v === null || v === undefined ? '' : JSON.stringify(v);
+  return s.length > 140 ? `${s.slice(0, 139)}…` : s;
+};
+---
+
+<AdminLayout title="Ecosystem">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <nav aria-label="Ecosystem sections" class="flex flex-wrap gap-2">
+      {tabs.map((t) => (
+        <a
+          href={`?tab=${t.key}`}
+          aria-current={t.key === tab ? 'page' : undefined}
+          class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper"
+        >
+          {t.label}
+          {t.key === 'queue' && queue && ` (${items.length})`}
+        </a>
+      ))}
+    </nav>
+    <Button href="/admin/ecosystem/new" size="sm">
+      Add an organisation
+    </Button>
+  </div>
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+
+  {tab === 'queue' && (
+    <div class="grid gap-4">
+      <p class="text-sm text-muted">
+        Oldest first. Target: answer within {MODERATION_TARGET_DAYS} days. Every decision is emailed
+        to the person, with your reason when you reject.
+      </p>
+      {items.length === 0 && <div class="admin-panel text-muted">Nothing to review. 🎉</div>}
+      {items.map((it) => {
+        const age = ageDays(it.at, now);
+        return (
+          <article class="admin-panel">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <h2 class="text-base">
+                <a href={`/admin/ecosystem/${it.org.id}`}>{it.title}</a>
+              </h2>
+              <Badge
+                tone={age > MODERATION_TARGET_DAYS ? 'danger' : age >= 3 ? 'warning' : 'neutral'}
+              >
+                {age} day{age === 1 ? '' : 's'} old
+              </Badge>
+            </div>
+            <ul class="mt-2 grid gap-1 text-sm">
+              {it.lines.filter(Boolean).map((l) => (
+                <li class="break-words whitespace-pre-line">{l}</li>
+              ))}
+            </ul>
+            <div class="mt-4 flex flex-wrap items-end gap-3">
+              <form method="post">
+                <input type="hidden" name="kind" value={it.kind} />
+                <input type="hidden" name="id" value={it.id} />
+                <Button type="submit" name="action" value="approve" size="sm">
+                  Approve
+                </Button>
+              </form>
+              <form method="post" class="flex flex-1 flex-wrap items-end gap-2">
+                <input type="hidden" name="kind" value={it.kind} />
+                <input type="hidden" name="id" value={it.id} />
+                <label class="min-w-56 flex-1 text-sm">
+                  <span class="sr-only">Reason for rejecting</span>
+                  <input
+                    name="reason"
+                    required
+                    minlength={5}
+                    placeholder="Reason (sent to them)"
+                    class="w-full rounded-lg border border-line px-3 py-1.5"
+                  />
+                </label>
+                <Button type="submit" name="action" value="reject" size="sm" variant="secondary">
+                  Reject
+                </Button>
+              </form>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  )}
+
+  {tab === 'all' && (
+    <div class="admin-panel overflow-x-auto">
+      <form method="get" role="search" class="mb-4 flex flex-wrap gap-2">
+        <input type="hidden" name="tab" value="all" />
+        <label for="q" class="sr-only">
+          Search
+        </label>
+        <input
+          id="q"
+          name="q"
+          value={q}
+          placeholder="Search names"
+          class="rounded-lg border border-line px-3 py-1.5"
+        />
+        <label for="status" class="sr-only">
+          Status
+        </label>
+        <select id="status" name="status" class="rounded-lg border border-line px-3 py-1.5">
+          <option value="">All statuses</option>
+          {ORG_STATUSES.map((s) => (
+            <option value={s} selected={s === status}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <Button type="submit" size="sm" variant="secondary">
+          Filter
+        </Button>
+      </form>
+      <p class="mb-2 text-sm text-muted">{all.length} organisations</p>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Owners</th>
+            <th>Renewal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {all.map((o) => (
+            <tr>
+              <td>
+                <a href={`/admin/ecosystem/${o.id}`} class="font-semibold">
+                  {o.name}
+                </a>
+                {o.badges.length > 0 && (
+                  <span class="block text-xs text-muted">{o.badges.join(', ')}</span>
+                )}
+              </td>
+              <td>{CATEGORIES[o.category].short}</td>
+              <td>
+                <Badge tone={statusTone(o.status)}>{o.status}</Badge>
+              </td>
+              <td>
+                {o.ownerEmails.length ? (
+                  o.ownerEmails.length
+                ) : (
+                  <span class="text-muted">unclaimed</span>
+                )}
+              </td>
+              <td class="whitespace-nowrap">{o.renewalDueAt ? formatDate(o.renewalDueAt) : '–'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+
+  {tab === 'renewals' && (
+    <div class="admin-panel overflow-x-auto">
+      <p class="mb-4 text-sm text-muted">
+        Owners get reminders 30 and 14 days before and on the renewal date. Listings not confirmed
+        are hidden 30 days after it. Unclaimed listings get no reminders: invite someone you know at
+        the organisation to claim them.
+      </p>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Renewal</th>
+            <th>Owners</th>
+            <th>Invite to claim</th>
+          </tr>
+        </thead>
+        <tbody>
+          {renewals.map((o) => {
+            const d = o.renewalDueAt ? daysUntil(o.renewalDueAt, now) : null;
+            return (
+              <tr>
+                <td>
+                  <a href={`/admin/ecosystem/${o.id}`}>{o.name}</a>
+                  {o.status === 'expired' && (
+                    <Badge tone="danger" class="ml-2">
+                      hidden
+                    </Badge>
+                  )}
+                </td>
+                <td class="whitespace-nowrap">
+                  {o.renewalDueAt ? formatDate(o.renewalDueAt) : '–'}
+                  {d !== null && (
+                    <span class={`block text-xs ${d < 0 ? 'text-danger' : 'text-muted'}`}>
+                      {d < 0 ? `${-d} days overdue` : `in ${d} days`}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {o.ownerEmails.length ? (
+                    o.ownerEmails.join(', ')
+                  ) : (
+                    <span class="text-muted">unclaimed</span>
+                  )}
+                </td>
+                <td>
+                  {o.ownerEmails.length === 0 && (
+                    <form method="post" class="flex gap-2">
+                      <input type="hidden" name="id" value={o.id} />
+                      <label class="sr-only" for={`inv-${o.id}`}>
+                        Email to invite
+                      </label>
+                      <input
+                        id={`inv-${o.id}`}
+                        name="email"
+                        type="email"
+                        required
+                        placeholder="name@company.com"
+                        class="w-48 rounded-lg border border-line px-2 py-1"
+                      />
+                      <Button
+                        type="submit"
+                        name="action"
+                        value="invite"
+                        size="sm"
+                        variant="secondary"
+                      >
+                        Send
+                      </Button>
+                    </form>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  )}
+
+  {tab === 'log' && (
+    <div class="admin-panel overflow-x-auto">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Who</th>
+            <th>What</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {log.map(({ a, name, orgId }) => (
+            <tr>
+              <td class="whitespace-nowrap">
+                {formatDate(a.at, { hour: '2-digit', minute: '2-digit' })}
+              </td>
+              <td class="break-all">{a.actor}</td>
+              <td>
+                {a.action} {a.entity}{' '}
+                {orgId ? (
+                  <a href={`/admin/ecosystem/${orgId}`}>{name}</a>
+                ) : a.entityId ? (
+                  `#${a.entityId}`
+                ) : (
+                  ''
+                )}
+              </td>
+              <td class="font-mono text-xs break-all text-muted">
+                {short(a.before)} {a.after ? `→ ${short(a.after)}` : ''}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>

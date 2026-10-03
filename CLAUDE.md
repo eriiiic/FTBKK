@@ -2,7 +2,7 @@
 
 Rebuild of https://www.french-tech-bangkok.com/ (Wix) as one Cloudflare Worker.
 Public sections: Home, Ecosystem, Events, Blog, About. Private `/admin` for blog posts,
-events, registrations and the ecosystem directory. Full plan: `docs/plan.md`.
+events, registrations and the ecosystem directory. Full plan: `docs/plan.md`. Cloudflare setup: `docs/deploy.md`. Admin guide: `docs/admin.md`.
 
 ## Stack
 
@@ -41,6 +41,8 @@ npm run db:migrate:local         # create/upgrade the local D1 database
 npm run dev                      # http://localhost:4321, runs in workerd with local D1/R2
 npm run check                    # astro check + eslint + prettier
 npm run build && npx wrangler dev  # production build served by wrangler
+npm test                         # unit tests (Vitest)
+npm run check:redirects -- <url>  # every old Wix URL must end on a 200
 ```
 
 ## Deploy (Cloudflare Workers Builds)

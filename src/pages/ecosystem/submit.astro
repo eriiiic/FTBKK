@@ -1,0 +1,178 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import OrgFormFields from '../../components/OrgFormFields.astro';
+import FormField from '../../components/FormField.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import Turnstile from '../../components/Turnstile.astro';
+import { getDb } from '../../db';
+import { organisations } from '../../db/schema';
+import { clientIp, fieldErrors, formToObject } from '../../lib/forms';
+import { verifyTurnstile } from '../../lib/turnstile';
+import { rateLimit } from '../../lib/ratelimit';
+import { ORG_ARRAY_FIELDS, SubmitSchema, audit, siteUrl, uniqueSlug } from '../../lib/orgs';
+import { IMAGE_TYPES, storeUpload } from '../../lib/uploads';
+import { issueToken } from '../../lib/tokens';
+import { sendEmail } from '../../lib/email';
+import { slugify } from '../../lib/format';
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let done: string | null = null;
+const isPost = Astro.request.method === 'POST';
+
+if (isPost) {
+  const form = await Astro.request.formData();
+  values = formToObject(form, ORG_ARRAY_FIELDS);
+  const ip = clientIp(Astro.request);
+  if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
+    errors.form = 'The anti-spam check failed. Please try again.';
+  } else if (!(await rateLimit(`submit:${ip}`, 5, 3600))) {
+    errors.form = 'Too many submissions from your connection. Please try again later.';
+  } else {
+    const parsed = SubmitSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    const logo = await storeUpload(form.get('logo'), {
+      prefix: 'orgs/pending',
+      maxBytes: 2 * 1024 * 1024,
+      types: IMAGE_TYPES,
+    });
+    if (logo.error) errors.logo = logo.error;
+    if (parsed.success && !logo.error) {
+      const d = parsed.data;
+      const slug = await uniqueSlug(slugify(d.name));
+      const [row] = await getDb()
+        .insert(organisations)
+        .values({
+          slug,
+          name: d.name,
+          category: d.category as never,
+          pitch: d.pitch,
+          descriptionMd: d.descriptionMd,
+          website: d.website,
+          linkedin: d.linkedin,
+          foundedYear: d.foundedYear,
+          sectors: d.sectors,
+          stage: d.stage,
+          teamSize: d.teamSize,
+          hiring: d.hiring,
+          raising: d.raising,
+          ticketSize: d.ticketSize,
+          frenchLink: d.frenchLink,
+          publicEmail: d.publicEmail,
+          logoKey: logo.key,
+          ownerEmails: [d.ownerEmail],
+          status: 'unverified',
+          submittedAt: new Date(),
+        })
+        .returning({ id: organisations.id });
+      await audit(d.ownerEmail, 'submit', 'organisation', row!.id, null, {
+        name: d.name,
+        submitter: d.submitterName,
+      });
+      const token = await issueToken('verify', d.ownerEmail, { orgId: row!.id });
+      await sendEmail({
+        to: d.ownerEmail,
+        subject: `Confirm your listing request for ${d.name}`,
+        paragraphs: [
+          `Hi ${d.submitterName}, thanks for adding ${d.name} to the French Tech Bangkok ecosystem directory.`,
+          'Please confirm your email address. We review every request and aim to answer within 5 days.',
+          'This link expires in 7 days.',
+        ],
+        action: { label: 'Confirm my email', url: siteUrl(`/ecosystem/verify?token=${token}`) },
+      });
+      done = d.ownerEmail;
+    }
+  }
+}
+---
+
+<BaseLayout
+  title="Get listed in the ecosystem directory"
+  description="Add your startup, company, school or organisation to the French Tech Bangkok directory."
+  cache={!isPost}
+>
+  <Section>
+    <div class="max-w-2xl">
+      <a href="/ecosystem" class="text-sm text-accent">
+        ← Ecosystem directory
+      </a>
+      <h1 class="mt-4 text-3xl md:text-4xl">Get listed</h1>
+      {done ? (
+        <Alert tone="success" class="mt-6">
+          <p class="font-semibold">Check your inbox.</p>
+          <p class="mt-1">
+            We sent a confirmation link to {done}. Your request reaches our moderators once you
+            click it, and we aim to answer within 5 days.
+          </p>
+        </Alert>
+      ) : (
+        <>
+          <p class="mt-3 text-lg text-muted">
+            The directory is open to every organisation that is part of French tech in Thailand:
+            startups, companies, service providers, investors, incubators, schools and institutions.
+            Listing is free. We review each request and ask you once a year to confirm it is still
+            accurate.
+          </p>
+          <form method="post" enctype="multipart/form-data" class="mt-8">
+            {errors.form && (
+              <Alert tone="danger" class="mb-6">
+                {errors.form}
+              </Alert>
+            )}
+            {Object.keys(errors).length > 0 && !errors.form && (
+              <Alert tone="danger" class="mb-6">
+                Please fix the highlighted fields.
+              </Alert>
+            )}
+            <OrgFormFields values={values} errors={errors} />
+            <fieldset class="mt-8 grid gap-4">
+              <legend class="mb-2 text-lg font-bold text-navy">You</legend>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  name="submitterName"
+                  label="Your name"
+                  required
+                  value={values.submitterName as string}
+                  error={errors.submitterName}
+                  autocomplete="name"
+                />
+                <FormField
+                  name="ownerEmail"
+                  label="Your email"
+                  type="email"
+                  required
+                  value={values.ownerEmail as string}
+                  error={errors.ownerEmail}
+                  autocomplete="email"
+                  hint="Private. Used to verify the request and to manage the listing."
+                />
+              </div>
+              <FormField
+                name="consentPublish"
+                type="checkbox"
+                required
+                checked={!!values.consentPublish}
+                error={errors.consentPublish}
+                label="I am allowed to represent this organisation and agree to the publication of this information."
+              />
+              <FormField
+                name="consentReconfirm"
+                type="checkbox"
+                required
+                checked={!!values.consentReconfirm}
+                error={errors.consentReconfirm}
+                label="I understand the listing is reconfirmed by email once a year and hidden if nobody confirms it."
+              />
+              <Turnstile />
+            </fieldset>
+            <div class="mt-8">
+              <Button type="submit">Send my request</Button>
+            </div>
+          </form>
+        </>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

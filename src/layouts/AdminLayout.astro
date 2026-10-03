@@ -1,0 +1,87 @@
+---
+import '../styles/global.css';
+import Logo from '../components/Logo.astro';
+
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+const adminEmail = Astro.locals.adminEmail;
+const flash = Astro.url.searchParams.get('saved');
+const nav = [
+  { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/events', label: 'Events' },
+  { href: '/admin/registrations', label: 'Registrations' },
+  { href: '/admin/posts', label: 'Posts' },
+  { href: '/admin/ecosystem', label: 'Ecosystem' },
+  { href: '/admin/people', label: 'People' },
+  { href: '/admin/submissions', label: 'Messages' },
+  { href: '/admin/settings', label: 'Settings' },
+];
+const path = Astro.url.pathname;
+const active = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>{title} · Admin · La French Tech Bangkok</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="min-h-screen bg-surface md:flex">
+    <aside class="bg-navy text-paper md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0">
+      <div class="flex items-center justify-between p-4 md:block">
+        <a href="/admin" class="no-underline">
+          <Logo tone="light" />
+        </a>
+        <a href="/" class="text-xs text-accent-soft md:mt-3 md:block">
+          View site ↗
+        </a>
+      </div>
+      <nav aria-label="Admin">
+        <ul class="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:px-3">
+          {nav.map((n) => (
+            <li>
+              <a
+                href={n.href}
+                aria-current={active(n.href) ? 'page' : undefined}
+                class="block rounded-lg px-3 py-2 text-sm whitespace-nowrap text-paper no-underline hover:bg-paper/10 aria-[current=page]:bg-paper/15 aria-[current=page]:font-semibold"
+              >
+                {n.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {adminEmail && <p class="hidden px-6 pt-6 text-xs text-accent-soft md:block">{adminEmail}</p>}
+    </aside>
+    <main class="min-w-0 flex-1 p-4 md:p-8">
+      <h1 class="mb-6 text-2xl">{title}</h1>
+      {flash && (
+        <div
+          role="status"
+          data-toast
+          class="mb-6 rounded-xl border border-success/30 bg-success/5 p-4 text-success"
+        >
+          Saved. Public pages refresh within a minute.
+        </div>
+      )}
+      <slot />
+    </main>
+    <script>
+      document.querySelectorAll<HTMLElement>('[data-toast]').forEach((t) => {
+        setTimeout(() => t.remove(), 6000);
+      });
+      // Confirm destructive actions: <form data-confirm="Delete this post?">
+      document.querySelectorAll<HTMLFormElement>('form[data-confirm]').forEach((f) => {
+        f.addEventListener('submit', (e) => {
+          if (!confirm(f.dataset.confirm)) e.preventDefault();
+        });
+      });
+    </script>
+  </body>
+</html>

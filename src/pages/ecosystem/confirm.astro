@@ -1,0 +1,56 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import Alert from '../../components/Alert.astro';
+import Button from '../../components/Button.astro';
+import { consumeToken, peekToken } from '../../lib/tokens';
+import { confirmListing, orgById } from '../../lib/orgs';
+import { formatDate } from '../../lib/format';
+
+// Yearly "still accurate?" confirmation and reactivation. The link is reusable for a year.
+const token = Astro.url.searchParams.get('token');
+const peek = await peekToken(token, 'confirm');
+const org = peek?.org_id ? await orgById(peek.org_id) : null;
+const valid =
+  !!org && org.ownerEmails.includes(peek!.email) && ['published', 'expired'].includes(org.status);
+let done: { renewalDueAt: Date; reactivated: boolean } | null = null;
+if (Astro.request.method === 'POST' && valid) {
+  const row = await consumeToken(token, 'confirm');
+  if (row) done = await confirmListing(org!, row.email);
+}
+---
+
+<BaseLayout title="Confirm your listing" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Confirm your listing</h1>
+      {!valid ? (
+        <Alert tone="danger" class="mt-6">
+          This link is no longer valid. <a href="/ecosystem/manage">Request a manage link</a>{' '}
+          instead.
+        </Alert>
+      ) : done ? (
+        <Alert tone="success" class="mt-6">
+          {done.reactivated
+            ? `${org!.name} is visible again in the directory. `
+            : `Thanks, ${org!.name} is confirmed. `}
+          We'll ask again around {formatDate(done.renewalDueAt)}.
+        </Alert>
+      ) : (
+        <form method="post" class="mt-6">
+          <p class="text-muted">
+            {org!.status === 'expired'
+              ? `${org!.name} is hidden because it wasn't confirmed in time. Confirm it is still accurate to bring it back.`
+              : `Is the ${org!.name} listing still accurate?`}
+          </p>
+          <div class="mt-4 flex flex-wrap gap-3">
+            <Button type="submit">Yes, it is still accurate</Button>
+            <Button href="/ecosystem/manage" variant="secondary">
+              Update it first
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

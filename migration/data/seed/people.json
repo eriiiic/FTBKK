@@ -1,0 +1,25 @@
+[
+  { "name": "Olivier Dombey", "title": "", "organisation": "AlphOmega8", "group": "board" },
+  { "name": "Mathieu Verhaeghe", "title": "", "organisation": "Accor", "group": "board" },
+  { "name": "Seren Gaultier", "title": "", "organisation": "Michelin", "group": "board" },
+  { "name": "Emma Longieras", "title": "", "organisation": "S2M", "group": "board" },
+  { "name": "Julien Gadea", "title": "", "organisation": "SalesMind AI", "group": "board" },
+  { "name": "Malika Ait El Mouden", "title": "", "organisation": "DIGITAL 4 GOOD", "group": "board" },
+  { "name": "Vincent Birot", "title": "", "organisation": "Belaws", "group": "board" },
+  { "name": "Laetitia Hoquetis", "title": "", "organisation": "Ez group", "group": "board" },
+  { "name": "Maxime Carpentier", "title": "", "organisation": "Alkia AI Services", "group": "board" },
+  { "name": "Laetitia Lim", "title": "", "organisation": "QUIVIDI", "group": "board" },
+  {
+    "name": "Séverine Clément Derville",
+    "title": "",
+    "organisation": "Franco-Thai Chamber of Commerce",
+    "group": "institutional"
+  },
+  { "name": "Julien Hohl", "title": "", "organisation": "French Treasury", "group": "institutional" },
+  {
+    "name": "Phutachart Chaiwatana",
+    "title": "",
+    "organisation": "Business France",
+    "group": "institutional"
+  }
+]
