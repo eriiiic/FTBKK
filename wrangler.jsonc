@@ -26,10 +26,10 @@
     },
   ],
   "vars": {
-    // Cloudflare Zero Trust team domain, e.g. "ftbkk.cloudflareaccess.com" (phase 9).
-    "ACCESS_TEAM_DOMAIN": "",
-    // Audience tag of the Access application protecting /admin (phase 9).
-    "ACCESS_AUD": "",
+    // Cloudflare Zero Trust team domain.
+    "ACCESS_TEAM_DOMAIN": "ftbkk.cloudflareaccess.com",
+    // Audience tag of the Access application protecting /admin. Emptied locally by .dev.vars.
+    "ACCESS_AUD": "55b16ed23629446d19a82aaf7ee44d0188f91cf1fd2470504b342112a15d321f",
     // Public Turnstile site key. This is Cloudflare's always-pass test key.
     "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
     "SITE_URL": "https://www.french-tech-bangkok.com",
