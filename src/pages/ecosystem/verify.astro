@@ -1,0 +1,81 @@
+---
+import { eq } from 'drizzle-orm';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import Alert from '../../components/Alert.astro';
+import Button from '../../components/Button.astro';
+import { getDb } from '../../db';
+import { organisations } from '../../db/schema';
+import { consumeToken } from '../../lib/tokens';
+import { audit, moderatorEmails, orgById, siteUrl } from '../../lib/orgs';
+import { sendEmail } from '../../lib/email';
+
+// Email verification for a new listing request. GET shows a button so link scanners can't verify.
+const token = Astro.url.searchParams.get('token');
+let state: 'ask' | 'ok' | 'invalid' = 'ask';
+let orgName = '';
+if (Astro.request.method === 'POST') {
+  const row = await consumeToken(token, 'verify');
+  const org = row?.org_id ? await orgById(row.org_id) : null;
+  if (!row || !org || org.status !== 'unverified') {
+    state = 'invalid';
+  } else {
+    await getDb()
+      .update(organisations)
+      .set({ status: 'pending', updatedAt: new Date() })
+      .where(eq(organisations.id, org.id));
+    await audit(
+      row.email,
+      'verify',
+      'organisation',
+      org.id,
+      { status: 'unverified' },
+      { status: 'pending' },
+    );
+    await sendEmail({
+      to: await moderatorEmails(),
+      subject: `New directory listing to review: ${org.name}`,
+      paragraphs: [
+        `${org.name} asked to be listed in the ecosystem directory and verified ${row.email}.`,
+        'Target: answer within 5 days.',
+      ],
+      details: [
+        ['Category', org.category],
+        ['Website', org.website ?? '-'],
+        ['Pitch', org.pitch ?? '-'],
+      ],
+      action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+    });
+    state = 'ok';
+    orgName = org.name;
+  }
+}
+---
+
+<BaseLayout title="Confirm your email" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Confirm your email</h1>
+      {state === 'ask' && (
+        <form method="post" class="mt-6">
+          <p class="text-muted">Click to confirm your listing request.</p>
+          <Button type="submit" class="mt-4">
+            Confirm my email
+          </Button>
+        </form>
+      )}
+      {state === 'ok' && (
+        <Alert tone="success" class="mt-6">
+          Thanks, your request for {orgName} is now with our moderators. We aim to answer within 5
+          days and will email you when it is published.
+        </Alert>
+      )}
+      {state === 'invalid' && (
+        <Alert tone="danger" class="mt-6">
+          This link has expired or was already used. If your request is more than 7 days old, please{' '}
+          <a href="/ecosystem/submit">submit it again</a>.
+        </Alert>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

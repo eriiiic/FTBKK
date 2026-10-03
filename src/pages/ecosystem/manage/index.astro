@@ -1,0 +1,66 @@
+---
+import { z } from 'zod';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import Turnstile from '../../../components/Turnstile.astro';
+import { clientIp, email } from '../../../lib/forms';
+import { rateLimit } from '../../../lib/ratelimit';
+import { verifyTurnstile } from '../../../lib/turnstile';
+import { sendManageLinks } from '../../../lib/orgs';
+
+let sent = false;
+let error = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const ip = clientIp(Astro.request);
+  const parsed = z.object({ email }).safeParse({ email: String(form.get('email') ?? '').trim() });
+  if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
+    error = 'The anti-spam check failed. Please try again.';
+  } else if (!parsed.success) {
+    error = 'Enter a valid email address.';
+  } else {
+    // Same answer whether or not the email owns a listing; limits stay silent too.
+    const okIp = await rateLimit(`manage-ip:${ip}`, 10, 3600);
+    const okEmail = await rateLimit(`manage-email:${parsed.data.email}`, 3, 3600);
+    if (okIp && okEmail) await sendManageLinks(parsed.data.email);
+    sent = true;
+  }
+}
+---
+
+<BaseLayout title="Manage your listing" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <a href="/ecosystem" class="text-sm text-accent">
+        ← Ecosystem directory
+      </a>
+      <h1 class="mt-4 text-3xl">Manage your listing</h1>
+      {sent ? (
+        <Alert tone="success" class="mt-6">
+          If this email manages a listing, a link is on its way. It works once and expires in 30
+          minutes.
+        </Alert>
+      ) : (
+        <form method="post" class="mt-6 grid gap-4">
+          <p class="text-muted">
+            Enter the email address linked to your listing. We'll send you a one-time link to update
+            it. There's no password to remember.
+          </p>
+          {error && <Alert tone="danger">{error}</Alert>}
+          <FormField name="email" label="Email" type="email" required autocomplete="email" />
+          <Turnstile />
+          <div>
+            <Button type="submit">Email me a link</Button>
+          </div>
+          <p class="text-sm text-muted">
+            Your organisation is listed but nobody manages it yet? Open its page and choose "Claim
+            this listing".
+          </p>
+        </form>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

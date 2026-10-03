@@ -1,0 +1,67 @@
+---
+import { and, eq } from 'drizzle-orm';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import Alert from '../../../components/Alert.astro';
+import Button from '../../../components/Button.astro';
+import { getDb } from '../../../db';
+import { claims } from '../../../db/schema';
+import { consumeToken } from '../../../lib/tokens';
+import { audit, moderatorEmails, orgById, siteUrl } from '../../../lib/orgs';
+import { sendEmail } from '../../../lib/email';
+
+const token = Astro.url.searchParams.get('token');
+let state: 'ask' | 'ok' | 'invalid' = 'ask';
+if (Astro.request.method === 'POST') {
+  const row = await consumeToken(token, 'claim');
+  const org = row?.org_id ? await orgById(row.org_id) : null;
+  if (!row || !org || !row.ref_id) {
+    state = 'invalid';
+  } else {
+    const [claim] = await getDb()
+      .update(claims)
+      .set({ status: 'pending' })
+      .where(and(eq(claims.id, row.ref_id), eq(claims.status, 'unverified')))
+      .returning();
+    if (!claim) state = 'invalid';
+    else {
+      await audit(row.email, 'claim_verified', 'organisation', org.id, null, { claimId: claim.id });
+      await sendEmail({
+        to: await moderatorEmails(),
+        subject: `Listing claim to review: ${org.name}`,
+        paragraphs: [
+          `${claim.name ?? row.email} (${claim.role ?? 'no role given'}) verified ${row.email} and asks to manage ${org.name}.`,
+          claim.domainMatches
+            ? 'The email domain matches the website.'
+            : 'The email domain does NOT match the website. Check before approving.',
+        ],
+        action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+      });
+      state = 'ok';
+    }
+  }
+}
+---
+
+<BaseLayout title="Confirm your claim" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Confirm your claim</h1>
+      {state === 'ask' && (
+        <form method="post" class="mt-6">
+          <Button type="submit">Confirm my email</Button>
+        </form>
+      )}
+      {state === 'ok' && (
+        <Alert tone="success" class="mt-6">
+          Thanks. A moderator will review your claim, usually within 5 days.
+        </Alert>
+      )}
+      {state === 'invalid' && (
+        <Alert tone="danger" class="mt-6">
+          This link has expired or was already used.
+        </Alert>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

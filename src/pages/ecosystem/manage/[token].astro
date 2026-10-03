@@ -1,0 +1,311 @@
+---
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import OrgFormFields from '../../../components/OrgFormFields.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import Badge from '../../../components/Badge.astro';
+import { getDb } from '../../../db';
+import {
+  membershipApplications,
+  orgChanges,
+  organisations,
+  type Organisation,
+} from '../../../db/schema';
+import { consumeToken, peekToken } from '../../../lib/tokens';
+import {
+  ORG_ARRAY_FIELDS,
+  OrgFields,
+  REVIEWED_FIELDS,
+  audit,
+  moderatorEmails,
+  orgsOwnedBy,
+  siteUrl,
+} from '../../../lib/orgs';
+import { email, fieldErrors, formToObject } from '../../../lib/forms';
+import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
+import { sendEmail } from '../../../lib/email';
+import { getSettings } from '../../../lib/settings';
+import { formatDate } from '../../../lib/format';
+
+const token = Astro.params.token!;
+const settings = await getSettings();
+const row = await peekToken(token, 'manage');
+const owned = row ? await orgsOwnedBy(row.email) : [];
+const slug = Astro.url.searchParams.get('org') ?? owned[0]?.slug;
+const org: Organisation | undefined = owned.find((o) => o.slug === slug);
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = org ? { ...org } : {};
+let result: { published: string[]; review: string[] } | null = null;
+let applied = false;
+
+if (Astro.request.method === 'POST' && row && org) {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  if (action === 'membership') {
+    const parsed = z
+      .object({
+        contactName: z.string().min(1, 'Enter a contact name.').max(120),
+        contactRole: z.string().max(120).optional(),
+        motivation: z
+          .string()
+          .min(20, 'Tell the board a little more (20 characters or more).')
+          .max(2000),
+        charter: z.literal(true, { error: 'Please accept the community charter.' }),
+      })
+      .safeParse(formToObject(form));
+    if (!settings.membershipOpen) errors.form = 'Membership applications are not open yet.';
+    else if (!parsed.success) errors = fieldErrors(parsed.error);
+    else if (!(await consumeToken(token, 'manage')))
+      errors.form = 'This link has expired. Request a new one.';
+    else {
+      await getDb()
+        .insert(membershipApplications)
+        .values({
+          orgId: org.id,
+          email: row.email,
+          contactName: parsed.data.contactName,
+          contactRole: parsed.data.contactRole ?? null,
+          motivation: parsed.data.motivation,
+          charterAccepted: true,
+        });
+      await getDb()
+        .update(organisations)
+        .set({ memberStatus: 'applied' })
+        .where(eq(organisations.id, org.id));
+      await audit(row.email, 'membership_apply', 'organisation', org.id);
+      await sendEmail({
+        to: await moderatorEmails(),
+        subject: `Membership application: ${org.name}`,
+        paragraphs: [
+          `${org.name} applied for the free French Tech Bangkok membership.`,
+          parsed.data.motivation,
+        ],
+        details: [
+          [
+            'Contact',
+            `${parsed.data.contactName} (${parsed.data.contactRole ?? '-'}) <${row.email}>`,
+          ],
+        ],
+        action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+      });
+      applied = true;
+    }
+  } else {
+    values = formToObject(form, [...ORG_ARRAY_FIELDS, 'ownerEmails']);
+    const parsed = OrgFields.safeParse(values);
+    const owners = (values.ownerEmails as string[])
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const ownersOk = z.array(email).min(1).max(3).safeParse(owners);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    if (!ownersOk.success) errors.ownerEmails = 'Keep between 1 and 3 valid email addresses.';
+    const logo = await storeUpload(form.get('logo'), {
+      prefix: 'orgs/pending',
+      maxBytes: 2 * 1024 * 1024,
+      types: IMAGE_TYPES,
+    });
+    if (logo.error) errors.logo = logo.error;
+    if (parsed.success && ownersOk.success && !logo.error) {
+      if (!(await consumeToken(token, 'manage'))) {
+        errors.form = 'This link has expired or was already used. Request a new one.';
+      } else {
+        const next: Record<string, unknown> = {
+          ...parsed.data,
+          ...(logo.key ? { logoKey: logo.key } : {}),
+        };
+        const review: Record<string, unknown> = {};
+        const immediate: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(next)) {
+          const before = (org as unknown as Record<string, unknown>)[k];
+          if (JSON.stringify(before ?? null) === JSON.stringify(v ?? null)) continue;
+          if ((REVIEWED_FIELDS as readonly string[]).includes(k)) review[k] = v;
+          else immediate[k] = v;
+        }
+        if (JSON.stringify(org.ownerEmails) !== JSON.stringify(ownersOk.data))
+          immediate.ownerEmails = ownersOk.data;
+        if (Object.keys(immediate).length) {
+          await getDb()
+            .update(organisations)
+            .set({ ...(immediate as Partial<Organisation>), updatedAt: new Date() })
+            .where(eq(organisations.id, org.id));
+          const before = Object.fromEntries(
+            Object.keys(immediate).map((k) => [k, (org as unknown as Record<string, unknown>)[k]]),
+          );
+          await audit(row.email, 'owner_update', 'organisation', org.id, before, immediate);
+        }
+        if (Object.keys(review).length) {
+          await getDb()
+            .insert(orgChanges)
+            .values({ orgId: org.id, email: row.email, changes: review });
+          await audit(row.email, 'owner_change_requested', 'organisation', org.id, null, review);
+          await sendEmail({
+            to: await moderatorEmails(),
+            subject: `Listing change to review: ${org.name}`,
+            paragraphs: [
+              `${row.email} asked to change ${Object.keys(review).join(', ')} on ${org.name}.`,
+            ],
+            action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+          });
+        }
+        result = { published: Object.keys(immediate), review: Object.keys(review) };
+      }
+    }
+  }
+}
+const ownersList = [
+  ...((values.ownerEmails as string[] | undefined) ?? org?.ownerEmails ?? []),
+  '',
+  '',
+  '',
+].slice(0, 3);
+---
+
+<BaseLayout title="Manage your listing" noindex cache={false}>
+  <Section>
+    <div class="max-w-2xl">
+      <a href="/ecosystem" class="text-sm text-accent">
+        ← Ecosystem directory
+      </a>
+      {!row || !org ? (
+        <>
+          <h1 class="mt-4 text-3xl">Manage your listing</h1>
+          <Alert tone="danger" class="mt-6">
+            This link has expired or was already used.{' '}
+            <a href="/ecosystem/manage">Request a new link</a>.
+          </Alert>
+        </>
+      ) : result || applied ? (
+        <>
+          <h1 class="mt-4 text-3xl">Thanks</h1>
+          <Alert tone="success" class="mt-6">
+            {applied && (
+              <p>Your membership application was sent to the board. They answer within 5 days.</p>
+            )}
+            {result && result.published.length > 0 && (
+              <p>Your changes are live (public pages refresh within a minute).</p>
+            )}
+            {result && result.review.length > 0 && (
+              <p>
+                Changes to {result.review.join(', ')} were sent to our moderators and go live once
+                approved.
+              </p>
+            )}
+            {result && !result.published.length && !result.review.length && <p>Nothing changed.</p>}
+          </Alert>
+          <p class="mt-6 text-sm">
+            <a href={`/ecosystem/${org.slug}`} class="text-accent">
+              See the listing
+            </a>{' '}
+            ·{' '}
+            <a href="/ecosystem/manage" class="text-accent">
+              Get a new link to edit again
+            </a>
+          </p>
+        </>
+      ) : (
+        <>
+          <h1 class="mt-4 text-3xl">Edit {org.name}</h1>
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+            <Badge tone={org.status === 'published' ? 'success' : 'warning'}>{org.status}</Badge>
+            {org.renewalDueAt && (
+              <span>Next yearly confirmation: {formatDate(org.renewalDueAt)}</span>
+            )}
+          </div>
+          {owned.length > 1 && (
+            <nav class="mt-4 flex flex-wrap gap-2 text-sm" aria-label="Your listings">
+              {owned.map((o) => (
+                <a
+                  href={`?org=${o.slug}`}
+                  aria-current={o.slug === org.slug ? 'page' : undefined}
+                  class="rounded-full border border-line px-3 py-1 no-underline aria-[current=page]:bg-navy aria-[current=page]:text-paper"
+                >
+                  {o.name}
+                </a>
+              ))}
+            </nav>
+          )}
+          <p class="mt-4 text-sm text-muted">
+            Changes to the name, category, logo or website are checked by a moderator first.
+            Everything else goes live when you save. This link works once: request a new one to edit
+            again later.
+          </p>
+          <form method="post" enctype="multipart/form-data" class="mt-8">
+            {errors.form && (
+              <Alert tone="danger" class="mb-6">
+                {errors.form}
+              </Alert>
+            )}
+            <input type="hidden" name="action" value="save" />
+            <OrgFormFields values={values} errors={errors} logoKey={org.logoKey} />
+            <fieldset class="mt-8 grid gap-3">
+              <legend class="mb-2 text-lg font-bold text-navy">Who can manage this listing</legend>
+              <p class="-mt-2 text-sm text-muted">
+                Up to 3 email addresses. Each can request a manage link and receives the yearly
+                confirmation.
+              </p>
+              {ownersList.map((e, i) => (
+                <FormField
+                  name="ownerEmails"
+                  label={`Email ${i + 1}`}
+                  type="email"
+                  value={e}
+                  required={i === 0}
+                />
+              ))}
+              {errors.ownerEmails && <p class="text-sm text-danger">{errors.ownerEmails}</p>}
+            </fieldset>
+            <div class="mt-8">
+              <Button type="submit">Save changes</Button>
+            </div>
+          </form>
+          {settings.membershipOpen &&
+            org.status === 'published' &&
+            ['none', 'lapsed'].includes(org.memberStatus) && (
+              <form method="post" class="mt-12 grid gap-4 rounded-card border border-line p-6">
+                <h2 class="text-xl">Apply for the free membership</h2>
+                <p class="text-sm text-muted">
+                  Members get the Member badge in the directory. The board validates applications
+                  within 5 days, and the membership renews with your yearly confirmation.
+                </p>
+                <input type="hidden" name="action" value="membership" />
+                <FormField
+                  name="contactName"
+                  label="Contact person"
+                  required
+                  error={errors.contactName}
+                />
+                <FormField name="contactRole" label="Role" />
+                <FormField
+                  name="motivation"
+                  label="Why do you want to join?"
+                  rows={4}
+                  required
+                  error={errors.motivation}
+                />
+                <FormField
+                  name="charter"
+                  type="checkbox"
+                  required
+                  label="We accept the French Tech Bangkok community charter."
+                  error={errors.charter}
+                />
+                <div>
+                  <Button type="submit" variant="secondary">
+                    Apply
+                  </Button>
+                </div>
+              </form>
+            )}
+          {org.memberStatus === 'applied' && (
+            <Alert class="mt-8">Your membership application is with the board.</Alert>
+          )}
+        </>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

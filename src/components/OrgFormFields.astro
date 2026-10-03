@@ -1,0 +1,147 @@
+---
+import FormField from './FormField.astro';
+import { CATEGORIES, CATEGORY_KEYS, SECTORS, STAGES } from '../lib/directory';
+import { mediaUrl } from '../lib/format';
+
+interface Props {
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+  /** Current logo key when editing. */
+  logoKey?: string | null;
+}
+const { values: v, errors: e, logoKey } = Astro.props;
+const str = (k: string) => (v[k] === null || v[k] === undefined ? '' : String(v[k]));
+const sectors = (v.sectors as string[] | undefined) ?? [];
+---
+
+<fieldset class="grid gap-4">
+  <legend class="mb-2 text-lg font-bold text-navy">Organisation</legend>
+  <FormField name="name" label="Name" required value={str('name')} error={e.name} maxlength={120} />
+  <FormField
+    name="category"
+    label="Category"
+    required
+    value={str('category')}
+    error={e.category}
+    options={CATEGORY_KEYS.map((k) => ({ value: k, label: CATEGORIES[k].label }))}
+  />
+  <FormField
+    name="pitch"
+    label="One-line pitch"
+    required
+    value={str('pitch')}
+    error={e.pitch}
+    maxlength={160}
+    hint="What you do, in one sentence (160 characters max)."
+  />
+  <FormField
+    name="descriptionMd"
+    label="Description"
+    rows={6}
+    value={str('descriptionMd')}
+    error={e.descriptionMd}
+    maxlength={4000}
+    hint="A few paragraphs. Markdown works (**bold**, lists, links)."
+  />
+  <div>
+    <FormField
+      name="logo"
+      label="Logo"
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+      error={e.logo}
+      hint="PNG, JPG, WebP or SVG, 2 MB max. Square or wide logos on a transparent background work best."
+    />
+    {logoKey && (
+      <p class="mt-2 flex items-center gap-3 text-sm text-muted">
+        Current: <img src={mediaUrl(logoKey)} alt="" class="h-10 max-w-24 object-contain" />
+      </p>
+    )}
+  </div>
+  <div class="grid gap-4 sm:grid-cols-2">
+    <FormField
+      name="website"
+      label="Website"
+      value={str('website')}
+      error={e.website}
+      placeholder="https://"
+    />
+    <FormField
+      name="linkedin"
+      label="LinkedIn page"
+      value={str('linkedin')}
+      error={e.linkedin}
+      placeholder="https://linkedin.com/company/…"
+    />
+  </div>
+  <div class="grid gap-4 sm:grid-cols-2">
+    <FormField
+      name="foundedYear"
+      label="Founded (year)"
+      type="number"
+      value={str('foundedYear')}
+      error={e.foundedYear}
+    />
+    <FormField
+      name="publicEmail"
+      label="Public contact email"
+      type="email"
+      value={str('publicEmail')}
+      error={e.publicEmail}
+      hint="Optional, shown on your listing."
+    />
+  </div>
+  <fieldset>
+    <legend class="text-sm font-semibold">
+      Sectors <span class="font-normal text-muted">(up to 3)</span>
+    </legend>
+    <div class="mt-2 flex flex-wrap gap-2">
+      {SECTORS.map((s) => (
+        <label class="cursor-pointer">
+          <input
+            type="checkbox"
+            name="sectors"
+            value={s}
+            checked={sectors.includes(s)}
+            class="peer sr-only"
+          />
+          <span class="inline-block rounded-full border border-line px-3 py-1 text-sm peer-checked:border-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+            {s}
+          </span>
+        </label>
+      ))}
+    </div>
+    {e.sectors && <p class="mt-1 text-sm text-danger">{e.sectors}</p>}
+  </fieldset>
+</fieldset>
+
+<fieldset class="mt-8 grid gap-4">
+  <legend class="mb-2 text-lg font-bold text-navy">Details</legend>
+  <p class="-mt-2 text-sm text-muted">Fill in what applies to you.</p>
+  <div class="grid gap-4 sm:grid-cols-2">
+    <FormField
+      name="stage"
+      label="Stage (startups)"
+      value={str('stage')}
+      options={STAGES.map((s) => ({ value: s, label: s }))}
+    />
+    <FormField name="teamSize" label="Team size" value={str('teamSize')} placeholder="e.g. 11-50" />
+  </div>
+  <div class="flex flex-wrap gap-6">
+    <FormField name="hiring" label="We are hiring" type="checkbox" checked={!!v.hiring} />
+    <FormField name="raising" label="We are raising funds" type="checkbox" checked={!!v.raising} />
+  </div>
+  <FormField
+    name="ticketSize"
+    label="Ticket size (investors)"
+    value={str('ticketSize')}
+    placeholder="e.g. USD 50k to 500k"
+  />
+  <FormField
+    name="frenchLink"
+    label="Link with France"
+    value={str('frenchLink')}
+    hint="French founders, French HQ, French-speaking team…"
+    maxlength={200}
+  />
+</fieldset>
