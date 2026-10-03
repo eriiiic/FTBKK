@@ -13,9 +13,9 @@
   "d1_databases": [
     {
       "binding": "DB",
+      // No database_id: `wrangler deploy` finds the database by name, or creates it on the first
+      // deploy (wrangler auto-provisioning). Same for the R2 bucket below.
       "database_name": "ftbkk",
-      // Replace with the id printed by `npx wrangler d1 create ftbkk` (phase 9).
-      "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations",
     },
   ],
