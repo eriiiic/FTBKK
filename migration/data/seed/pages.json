@@ -1,0 +1,56 @@
+{
+  "site": {
+    "title": "La French Tech Bangkok | French-Thai Tech Community & Events",
+    "description": "La French Tech Bangkok connects French and Thai entrepreneurs — free monthly networking events, talks, and a community of founders, investors and tech leaders.",
+    "contactEmail": "hello@french-tech-bangkok.com",
+    "socials": {
+      "instagram": "https://www.instagram.com/la_french_tech_bangkok/",
+      "whatsapp": "https://chat.whatsapp.com/CHLAj8CdY6492xEKHyTPXu",
+      "facebook": "https://www.facebook.com/lafrenchtechbangkok/",
+      "linkedin": "https://www.linkedin.com/company/14602794",
+      "youtube": "https://www.youtube.com/@lafrenchtechbangkok9628"
+    }
+  },
+  "home": {
+    "heroTitle": "La French Tech Bangkok",
+    "heroTagline": "Support your venture with our network",
+    "mission": "Building bridges between the French tech entrepreneurs in Thailand and the local Thai ecosystem",
+    "values": [
+      "Sharing knowledge and helping each other",
+      "Fostering tech communities and innovation",
+      "Having fun doing it"
+    ],
+    "ecosystemHeading": "Join a vibrant ecosystem of tech founders, entrepreneurs & business people in Bangkok",
+    "pillars": [
+      {
+        "title": "Learn new things",
+        "text": "La French Tech is a free space for sharing and discovering knowledge. Meet new people, learn from them, develop new ideas"
+      },
+      {
+        "title": "Expand your network",
+        "text": "Entrepreneurs, corporates, investors... We have everything to win by getting to know each other."
+      },
+      {
+        "title": "Grow your business",
+        "text": "Build awesome companies, find partners, clients, and purpose"
+      }
+    ]
+  },
+  "about": {
+    "intro": "La French Tech Bangkok is a volunteer-run community, labelled by La French Tech since 2019. It is free and open to all: French and Thai founders, startups, corporates, investors and anyone who wants to build tech in Thailand.",
+    "join": [
+      {
+        "title": "Individuals",
+        "text": "Come to our monthly French Tech Connect and Talks, join the WhatsApp group and meet the community."
+      },
+      {
+        "title": "Startups",
+        "text": "Get listed in the ecosystem directory and apply for the free French Tech Bangkok membership."
+      },
+      {
+        "title": "Business partners",
+        "text": "Support the community, host an event or share your expertise with founders."
+      }
+    ]
+  }
+}
