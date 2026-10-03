@@ -1,0 +1,152 @@
+---
+import { and, asc, count, eq, gte, inArray, sql } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Badge from '../../components/Badge.astro';
+import Button from '../../components/Button.astro';
+import { getDb } from '../../db';
+import { events, organisations, posts, registrations, submissions } from '../../db/schema';
+import { moderationQueue } from '../../lib/cron-directory';
+import { MODERATION_TARGET_DAYS, ageDays } from '../../lib/lifecycle';
+import { formatEventDate } from '../../lib/format';
+
+const db = getDb();
+const now = new Date();
+const [queue, upcoming, [drafts], [unread], [listed], [renewSoon]] = await Promise.all([
+  moderationQueue(),
+  db
+    .select({
+      id: events.id,
+      title: events.title,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      status: events.status,
+      capacity: events.capacity,
+      registered: sql<number>`(select count(*) from ${registrations} r where r.event_id = ${events.id} and r.status in ('registered','attended'))`,
+      waitlist: sql<number>`(select count(*) from ${registrations} r where r.event_id = ${events.id} and r.status = 'waitlist')`,
+    })
+    .from(events)
+    .where(gte(events.startsAt, new Date(now.getTime() - 86400_000)))
+    .orderBy(asc(events.startsAt))
+    .limit(5),
+  db.select({ n: count() }).from(posts).where(eq(posts.status, 'draft')),
+  db.select({ n: count() }).from(submissions).where(eq(submissions.handled, false)),
+  db.select({ n: count() }).from(organisations).where(eq(organisations.status, 'published')),
+  db
+    .select({ n: count() })
+    .from(organisations)
+    .where(
+      and(
+        inArray(organisations.status, ['published']),
+        sql`${organisations.renewalDueAt} < ${Math.floor(now.getTime() / 1000) + 30 * 86400}`,
+      ),
+    ),
+]);
+const queueAges = [
+  ...queue.pendingOrgs.map((o) => o.submittedAt ?? o.updatedAt),
+  ...queue.changes.map((c) => c.change.createdAt),
+  ...queue.pendingClaims.map((c) => c.claim.createdAt),
+  ...queue.applications.map((a) => a.app.createdAt),
+].map((d) => ageDays(d, now));
+const queueSize = queueAges.length;
+const oldest = queueSize ? Math.max(...queueAges) : 0;
+const stats = [
+  {
+    label: 'To review in the directory',
+    value: queueSize,
+    href: '/admin/ecosystem',
+    note: queueSize ? `Oldest: ${oldest} day${oldest === 1 ? '' : 's'}` : 'All clear',
+    alert: oldest > MODERATION_TARGET_DAYS,
+  },
+  { label: 'Unread messages', value: unread!.n, href: '/admin/submissions' },
+  { label: 'Draft posts', value: drafts!.n, href: '/admin/posts' },
+  {
+    label: 'Listed organisations',
+    value: listed!.n,
+    href: '/admin/ecosystem?tab=all',
+    note: `${renewSoon!.n} renewals in the next 30 days`,
+  },
+];
+---
+
+<AdminLayout title="Dashboard">
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    {stats.map((s) => (
+      <a href={s.href} class="admin-panel block no-underline hover:border-accent">
+        <p class="text-sm text-muted">{s.label}</p>
+        <p class="mt-1 font-display text-3xl font-bold text-navy">{s.value}</p>
+        {s.note && <p class={`mt-1 text-sm ${s.alert ? 'text-danger' : 'text-muted'}`}>{s.note}</p>}
+      </a>
+    ))}
+  </div>
+
+  <section class="admin-panel mt-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="text-lg">Upcoming events</h2>
+      <Button href="/admin/events/new" size="sm">
+        New event
+      </Button>
+    </div>
+    {upcoming.length ? (
+      <div class="mt-4 overflow-x-auto">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Date</th>
+              <th>Registered</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {upcoming.map((e) => (
+              <tr>
+                <td>
+                  <a href={`/admin/events/${e.id}`}>{e.title}</a>
+                </td>
+                <td class="whitespace-nowrap">{formatEventDate(e.startsAt, e.endsAt)}</td>
+                <td>
+                  {e.registered}
+                  {e.capacity ? ` / ${e.capacity}` : ''}
+                  {e.waitlist > 0 && <span class="text-muted"> (+{e.waitlist} waitlist)</span>}
+                </td>
+                <td>
+                  <Badge
+                    tone={
+                      e.status === 'published'
+                        ? 'success'
+                        : e.status === 'cancelled'
+                          ? 'danger'
+                          : 'neutral'
+                    }
+                  >
+                    {e.status}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="mt-4 text-muted">No upcoming events.</p>
+    )}
+  </section>
+
+  <section class="admin-panel mt-6">
+    <h2 class="text-lg">Quick actions</h2>
+    <div class="mt-4 flex flex-wrap gap-3">
+      <Button href="/admin/posts/new" variant="secondary" size="sm">
+        Write a post
+      </Button>
+      <Button href="/admin/events/new" variant="secondary" size="sm">
+        Create an event
+      </Button>
+      <Button href="/admin/ecosystem/new" variant="secondary" size="sm">
+        Add an organisation
+      </Button>
+      <Button href="/admin/settings" variant="secondary" size="sm">
+        Edit home and about text
+      </Button>
+    </div>
+  </section>
+</AdminLayout>

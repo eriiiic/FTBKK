@@ -1,0 +1,267 @@
+---
+import { asc, eq } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import MarkdownEditor from '../../../components/admin/MarkdownEditor.astro';
+import { getDb } from '../../../db';
+import { categories, postCategories, posts, type Attachment, type Post } from '../../../db/schema';
+import { PostSchema, toLocalInput, uniqueContentSlug } from '../../../lib/admin';
+import { fieldErrors, formToObject } from '../../../lib/forms';
+import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
+import { audit } from '../../../lib/orgs';
+import { mediaUrl, slugify } from '../../../lib/format';
+
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const isNew = Astro.params.id === 'new';
+const id = isNew ? null : Number(Astro.params.id);
+let post: Post | null = null;
+if (id !== null) {
+  [post = null] = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
+  if (!post) return Astro.redirect('/admin/posts');
+}
+const allCategories = await db.select().from(categories).orderBy(asc(categories.sortOrder));
+let selected = post
+  ? (
+      await db
+        .select({ id: postCategories.categoryId })
+        .from(postCategories)
+        .where(eq(postCategories.postId, post.id))
+    ).map((r) => r.id)
+  : [];
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = post
+  ? { ...post, publishedAt: toLocalInput(post.publishedAt) }
+  : { status: 'draft' };
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (form.get('action') === 'delete' && post) {
+    await db.delete(posts).where(eq(posts.id, post.id));
+    await audit(actor, 'delete', 'post', post.id, { title: post.title, slug: post.slug }, null);
+    return Astro.redirect('/admin/posts?saved=1');
+  }
+  values = formToObject(form, ['categoryIds', 'removeAttachment']);
+  selected = (values.categoryIds as string[]).map(Number);
+  const parsed = PostSchema.safeParse(values);
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  const cover = await storeUpload(form.get('cover'), {
+    prefix: 'posts',
+    maxBytes: 5 * 1024 * 1024,
+    types: IMAGE_TYPES,
+  });
+  if (cover.error) errors.cover = cover.error;
+  const added: Attachment[] = [];
+  for (const file of form.getAll('attachments')) {
+    const up = await storeUpload(file, {
+      prefix: 'files',
+      maxBytes: 20 * 1024 * 1024,
+      types: ['application/pdf'],
+    });
+    if (up.error) errors.attachments = up.error;
+    else if (up.key && file instanceof File)
+      added.push({ name: file.name, key: up.key, size: file.size });
+  }
+
+  if (parsed.success && !Object.keys(errors).length) {
+    const d = parsed.data;
+    const slug = await uniqueContentSlug(posts, d.slug || slugify(d.title), post?.id);
+    const remove = new Set(values.removeAttachment as string[]);
+    const row = {
+      title: d.title,
+      slug,
+      excerpt: d.excerpt,
+      bodyMd: d.bodyMd,
+      authorName: d.authorName,
+      authorRole: d.authorRole,
+      status: d.status,
+      publishedAt: d.publishedAt ?? (d.status === 'published' ? new Date() : null),
+      coverKey: values.removeCover ? null : (cover.key ?? post?.coverKey ?? null),
+      attachments: [...(post?.attachments ?? []).filter((a) => !remove.has(a.key)), ...added],
+      updatedAt: new Date(),
+    };
+    const newCat = String(form.get('newCategory') ?? '').trim();
+    if (newCat) {
+      const [cat] = await db
+        .insert(categories)
+        .values({ name: newCat, slug: slugify(newCat), sortOrder: allCategories.length })
+        .onConflictDoUpdate({ target: categories.slug, set: { name: newCat } })
+        .returning();
+      if (cat) selected.push(cat.id);
+    }
+    let postId = post?.id;
+    if (post) {
+      await db.update(posts).set(row).where(eq(posts.id, post.id));
+    } else {
+      [{ id: postId }] = (await db.insert(posts).values(row).returning({ id: posts.id })) as [
+        { id: number },
+      ];
+    }
+    await db.delete(postCategories).where(eq(postCategories.postId, postId!));
+    const catIds = [...new Set(selected)];
+    if (catIds.length) {
+      await db
+        .insert(postCategories)
+        .values(catIds.map((categoryId) => ({ postId: postId!, categoryId })));
+    }
+    await audit(
+      actor,
+      post ? 'update' : 'create',
+      'post',
+      postId!,
+      post ? { status: post.status } : null,
+      {
+        title: row.title,
+        status: row.status,
+      },
+    );
+    return Astro.redirect(`/admin/posts/${postId}?saved=1`);
+  }
+}
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+---
+
+<AdminLayout title={isNew ? 'New post' : 'Edit post'}>
+  {post?.status === 'published' && (
+    <p class="mb-4 text-sm">
+      <a href={`/blog/${post.slug}`} target="_blank" rel="noopener">
+        View on the site ↗
+      </a>
+    </p>
+  )}
+  {Object.keys(errors).length > 0 && (
+    <Alert tone="danger" class="mb-6">
+      Please fix the highlighted fields.
+    </Alert>
+  )}
+  <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+    <div class="admin-panel grid content-start gap-4">
+      <FormField name="title" label="Title" required value={str('title')} error={errors.title} />
+      <FormField
+        name="excerpt"
+        label="Summary"
+        rows={2}
+        value={str('excerpt')}
+        error={errors.excerpt}
+        maxlength={300}
+        hint="Shown on cards and in search results. Leave empty to use the start of the text."
+      />
+      <MarkdownEditor name="bodyMd" label="Text" value={str('bodyMd')} error={errors.bodyMd} />
+    </div>
+
+    <div class="grid content-start gap-4">
+      <div class="admin-panel grid gap-4">
+        <FormField
+          name="status"
+          label="Status"
+          required
+          value={str('status')}
+          options={[
+            { value: 'draft', label: 'Draft (not visible)' },
+            { value: 'published', label: 'Published' },
+          ]}
+        />
+        <FormField
+          name="publishedAt"
+          label="Publication date"
+          type="datetime-local"
+          value={str('publishedAt')}
+          error={errors.publishedAt}
+          hint="Bangkok time. A future date schedules the post. Empty = now."
+        />
+        <div class="flex flex-wrap gap-3">
+          <Button type="submit" name="action" value="save">
+            Save
+          </Button>
+          <Button href="/admin/posts" variant="ghost">
+            Back
+          </Button>
+        </div>
+      </div>
+
+      <div class="admin-panel grid gap-4">
+        <FormField
+          name="slug"
+          label="Web address"
+          value={str('slug')}
+          error={errors.slug}
+          hint="/blog/… Leave empty to build it from the title."
+        />
+        <FormField name="authorName" label="Author" value={str('authorName')} />
+        <FormField name="authorRole" label="Author role" value={str('authorRole')} />
+      </div>
+
+      <fieldset class="admin-panel">
+        <legend class="text-sm font-semibold">Categories</legend>
+        <div class="mt-2 grid gap-2">
+          {allCategories.map((c) => (
+            <label class="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="categoryIds"
+                value={c.id}
+                checked={selected.includes(c.id)}
+                class="accent-brand"
+              />
+              {c.name}
+            </label>
+          ))}
+        </div>
+        <div class="mt-3">
+          <FormField name="newCategory" label="New category" placeholder="e.g. Startup stories" />
+        </div>
+      </fieldset>
+
+      <div class="admin-panel grid gap-3">
+        <FormField
+          name="cover"
+          label="Cover image"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          error={errors.cover}
+          hint="1600×900 works best. 5 MB max."
+        />
+        {post?.coverKey && (
+          <>
+            <img src={mediaUrl(post.coverKey)} alt="Current cover" class="rounded-lg" />
+            <FormField name="removeCover" label="Remove the cover" type="checkbox" />
+          </>
+        )}
+      </div>
+
+      <div class="admin-panel grid gap-3">
+        <div>
+          <label for="f-attachments" class="block text-sm font-semibold">
+            PDF attachments
+          </label>
+          <input
+            id="f-attachments"
+            name="attachments"
+            type="file"
+            accept="application/pdf"
+            multiple
+            class="mt-1 block w-full text-sm"
+          />
+          {errors.attachments && <p class="mt-1 text-sm text-danger">{errors.attachments}</p>}
+        </div>
+        {post?.attachments.map((a) => (
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="removeAttachment" value={a.key} class="accent-brand" />
+            Remove <a href={mediaUrl(a.key)}>{a.name}</a>
+          </label>
+        ))}
+      </div>
+    </div>
+  </form>
+
+  {post && (
+    <form method="post" data-confirm="Delete this post for good?" class="mt-8">
+      <Button type="submit" name="action" value="delete" variant="ghost" class="text-danger">
+        Delete this post
+      </Button>
+    </form>
+  )}
+</AdminLayout>

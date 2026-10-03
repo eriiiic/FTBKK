@@ -1,0 +1,238 @@
+---
+import { z } from 'zod';
+import { asc, eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import { getDb } from '../../db';
+import { people, type Person } from '../../db/schema';
+import { fieldErrors, formToObject, optionalText, optionalUrl } from '../../lib/forms';
+import { IMAGE_TYPES, storeUpload } from '../../lib/uploads';
+import { audit } from '../../lib/orgs';
+import { mediaUrl } from '../../lib/format';
+
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const PersonSchema = z.object({
+  name: z.string().min(2, 'Enter a name.').max(120),
+  title: optionalText(120),
+  organisationName: optionalText(120),
+  linkedin: optionalUrl,
+  group: z.enum(['board', 'institutional']),
+});
+const GROUPS = [
+  { key: 'board', label: 'Board' },
+  { key: 'institutional', label: 'Institutional partners' },
+] as const;
+let error = '';
+
+const load = () =>
+  db.select().from(people).orderBy(asc(people.group), asc(people.sortOrder), asc(people.id));
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action'));
+  const id = Number(form.get('id'));
+  const all = await load();
+  const person = all.find((p) => p.id === id);
+
+  if ((action === 'up' || action === 'down') && person) {
+    // Renumber the group, then swap with the neighbour.
+    const group = all.filter((p) => p.group === person.group);
+    const i = group.findIndex((p) => p.id === id);
+    const j = action === 'up' ? i - 1 : i + 1;
+    if (j >= 0 && j < group.length) {
+      [group[i], group[j]] = [group[j]!, group[i]!];
+      for (const [n, p] of group.entries()) {
+        if (p.sortOrder !== n)
+          await db.update(people).set({ sortOrder: n }).where(eq(people.id, p.id));
+      }
+    }
+    return Astro.redirect('/admin/people');
+  }
+  if (action === 'delete' && person) {
+    await db.delete(people).where(eq(people.id, id));
+    await audit(actor, 'delete', 'person', id, { name: person.name }, null);
+    return Astro.redirect('/admin/people?saved=1');
+  }
+  if (action === 'save') {
+    const parsed = PersonSchema.safeParse(formToObject(form));
+    const photo = await storeUpload(form.get('photo'), {
+      prefix: 'people',
+      maxBytes: 2 * 1024 * 1024,
+      types: IMAGE_TYPES,
+    });
+    if (!parsed.success) error = Object.values(fieldErrors(parsed.error)).join(' ');
+    else if (photo.error) error = photo.error;
+    else {
+      const row: Partial<Person> = { ...parsed.data };
+      if (photo.key) row.photoKey = photo.key;
+      if (form.get('removePhoto')) row.photoKey = null;
+      if (person) {
+        await db.update(people).set(row).where(eq(people.id, id));
+        await audit(actor, 'update', 'person', id, { name: person.name }, parsed.data);
+      } else {
+        const sortOrder = all.filter((p) => p.group === parsed.data.group).length;
+        const [ins] = await db
+          .insert(people)
+          .values({ ...parsed.data, photoKey: photo.key, sortOrder })
+          .returning({ id: people.id });
+        await audit(actor, 'create', 'person', ins!.id, null, parsed.data);
+      }
+      return Astro.redirect('/admin/people?saved=1');
+    }
+  }
+}
+const rows = await load();
+const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
+---
+
+<AdminLayout title="People">
+  <p class="mb-4 text-sm text-muted">Shown on the About page in this order.</p>
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+  {GROUPS.map((g) => {
+    const list = rows.filter((p) => p.group === g.key);
+    return (
+      <section class="admin-panel mb-6">
+        <h2 class="mb-4 text-lg">{g.label}</h2>
+        <ul class="grid gap-3">
+          {list.map((p, i) => (
+            <li class="rounded-lg border border-line p-3">
+              <form
+                method="post"
+                enctype="multipart/form-data"
+                class="grid items-end gap-2 md:grid-cols-[3rem_1fr_1fr_1fr_1fr_auto]"
+              >
+                <input type="hidden" name="id" value={p.id} />
+                <input type="hidden" name="group" value={p.group} />
+                {p.photoKey ? (
+                  <img
+                    src={mediaUrl(p.photoKey)}
+                    alt=""
+                    class="size-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <span class="size-12 rounded-full bg-surface" />
+                )}
+                <label class="text-xs text-muted">
+                  Name
+                  <input name="name" value={p.name} required class={input} />
+                </label>
+                <label class="text-xs text-muted">
+                  Title
+                  <input name="title" value={p.title ?? ''} class={input} />
+                </label>
+                <label class="text-xs text-muted">
+                  Organisation
+                  <input name="organisationName" value={p.organisationName ?? ''} class={input} />
+                </label>
+                <label class="text-xs text-muted">
+                  LinkedIn
+                  <input name="linkedin" value={p.linkedin ?? ''} class={input} />
+                </label>
+                <div class="flex flex-wrap gap-1">
+                  <Button type="submit" name="action" value="save" size="sm">
+                    Save
+                  </Button>
+                  <Button
+                    type="submit"
+                    name="action"
+                    value="up"
+                    size="sm"
+                    variant="ghost"
+                    disabled={i === 0}
+                    aria-label={`Move ${p.name} up`}
+                    formnovalidate
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    type="submit"
+                    name="action"
+                    value="down"
+                    size="sm"
+                    variant="ghost"
+                    disabled={i === list.length - 1}
+                    aria-label={`Move ${p.name} down`}
+                    formnovalidate
+                  >
+                    ↓
+                  </Button>
+                </div>
+                <label class="text-xs text-muted md:col-span-2 md:col-start-2">
+                  Photo
+                  <input
+                    name="photo"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    class="block text-sm"
+                  />
+                </label>
+                {p.photoKey && (
+                  <label class="flex items-center gap-2 text-xs">
+                    <input type="checkbox" name="removePhoto" class="accent-brand" /> Remove photo
+                  </label>
+                )}
+              </form>
+              <form method="post" data-confirm={`Remove ${p.name}?`} class="mt-2 text-right">
+                <input type="hidden" name="id" value={p.id} />
+                <button
+                  type="submit"
+                  name="action"
+                  value="delete"
+                  class="text-xs text-danger underline"
+                >
+                  Remove
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  })}
+
+  <section class="admin-panel">
+    <h2 class="mb-4 text-lg">Add a person</h2>
+    <form method="post" enctype="multipart/form-data" class="grid items-end gap-3 md:grid-cols-3">
+      <label class="text-sm">
+        Name <input name="name" required class={input} />
+      </label>
+      <label class="text-sm">
+        Title <input name="title" class={input} />
+      </label>
+      <label class="text-sm">
+        Organisation <input name="organisationName" class={input} />
+      </label>
+      <label class="text-sm">
+        LinkedIn <input name="linkedin" class={input} />
+      </label>
+      <label class="text-sm">
+        Group
+        <select name="group" class={input}>
+          {GROUPS.map((g) => (
+            <option value={g.key}>{g.label}</option>
+          ))}
+        </select>
+      </label>
+      <label class="text-sm">
+        Photo{' '}
+        <input
+          name="photo"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          class="block text-sm"
+        />
+      </label>
+      <div>
+        <Button type="submit" name="action" value="save">
+          Add
+        </Button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>

@@ -1,0 +1,95 @@
+---
+import { asc, desc, eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Badge from '../../components/Badge.astro';
+import { getDb } from '../../db';
+import { events, registrations } from '../../db/schema';
+import { formatDate, formatEventDate } from '../../lib/format';
+
+const db = getDb();
+const allEvents = await db
+  .select({ id: events.id, title: events.title, startsAt: events.startsAt, endsAt: events.endsAt })
+  .from(events)
+  .orderBy(desc(events.startsAt));
+const eventId = Number(Astro.url.searchParams.get('event')) || allEvents[0]?.id;
+const event = allEvents.find((e) => e.id === eventId);
+const rows = event
+  ? await db
+      .select()
+      .from(registrations)
+      .where(eq(registrations.eventId, event.id))
+      .orderBy(asc(registrations.createdAt))
+  : [];
+const tone = (s: string) =>
+  s === 'registered'
+    ? 'success'
+    : s === 'attended'
+      ? 'accent'
+      : s === 'waitlist'
+        ? 'warning'
+        : 'neutral';
+---
+
+<AdminLayout title="Registrations">
+  <form method="get" class="mb-4 flex flex-wrap items-center gap-2">
+    <label for="event" class="text-sm font-semibold">
+      Event
+    </label>
+    <select
+      id="event"
+      name="event"
+      onchange="this.form.submit()"
+      class="rounded-lg border border-line bg-paper px-3 py-1.5"
+    >
+      {allEvents.map((e) => (
+        <option value={e.id} selected={e.id === eventId}>
+          {formatDate(e.startsAt)} · {e.title}
+        </option>
+      ))}
+    </select>
+    <noscript>
+      <button type="submit" class="underline">
+        Show
+      </button>
+    </noscript>
+  </form>
+  {event ? (
+    <div class="admin-panel overflow-x-auto">
+      <p class="mb-3 text-sm text-muted">
+        {formatEventDate(event.startsAt, event.endsAt)} ·{' '}
+        {rows.filter((r) => r.status === 'registered' || r.status === 'attended').length}{' '}
+        registered, {rows.filter((r) => r.status === 'waitlist').length} on the waitlist
+      </p>
+      {rows.length ? (
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Company</th>
+              <th>Status</th>
+              <th>Registered</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr>
+                <td>{r.name}</td>
+                <td class="break-all">{r.email}</td>
+                <td>{r.company ?? ''}</td>
+                <td>
+                  <Badge tone={tone(r.status)}>{r.status}</Badge>
+                </td>
+                <td class="whitespace-nowrap text-muted">{formatDate(r.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p class="text-muted">No registrations yet.</p>
+      )}
+    </div>
+  ) : (
+    <p class="text-muted">No events yet.</p>
+  )}
+</AdminLayout>

@@ -1,0 +1,214 @@
+---
+import { z } from 'zod';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import FormField from '../../components/FormField.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import { getSettings, saveSettings, type Settings } from '../../lib/settings';
+import { fieldErrors, formToObject } from '../../lib/forms';
+import { audit } from '../../lib/orgs';
+
+const actor = Astro.locals.adminEmail ?? 'admin';
+const current = await getSettings();
+
+const lines = (s: string) =>
+  s
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+/** "Title | text" lines <-> [{title, text}] */
+const pairs = (s: string) =>
+  lines(s).map((l) => {
+    const [title, ...rest] = l.split('|');
+    return { title: title!.trim(), text: rest.join('|').trim() };
+  });
+const fromPairs = (p: { title: string; text: string }[]) =>
+  p.map((x) => `${x.title} | ${x.text}`).join('\n');
+const url = z.union([z.literal(''), z.url('Enter a full URL starting with https://')]);
+
+const Schema = z.object({
+  siteTitle: z.string().min(2).max(100),
+  siteDescription: z.string().max(300),
+  contactEmail: z.email('Enter a valid email.'),
+  moderatorEmails: z
+    .string()
+    .transform((s) => lines(s.replace(/[,;]/g, '\n')).map((e) => e.toLowerCase()))
+    .pipe(z.array(z.email('One moderator email is not valid.')).max(10)),
+  instagram: url,
+  whatsapp: url,
+  facebook: url,
+  linkedin: url,
+  youtube: url,
+  heroTitle: z.string().min(2).max(120),
+  heroTagline: z.string().max(300),
+  mission: z.string().max(2000),
+  values: z.string().transform(lines),
+  ecosystemHeading: z.string().max(200),
+  pillars: z.string().transform(pairs),
+  aboutIntro: z.string().max(4000),
+  joinPaths: z.string().transform(pairs),
+  membershipOpen: z.boolean().optional().default(false),
+  memberPriority: z.boolean().optional().default(false),
+  analyticsToken: z.string().max(100),
+});
+
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {
+  ...current,
+  ...current.socials,
+  moderatorEmails: current.moderatorEmails.join('\n'),
+  values: current.values.join('\n'),
+  pillars: fromPairs(current.pillars),
+  joinPaths: fromPairs(current.joinPaths),
+};
+
+if (Astro.request.method === 'POST') {
+  values = formToObject(await Astro.request.formData());
+  const parsed = Schema.safeParse(values);
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  else {
+    const { instagram, whatsapp, facebook, linkedin, youtube, ...rest } = parsed.data;
+    const next: Partial<Settings> = {
+      ...rest,
+      socials: { instagram, whatsapp, facebook, linkedin, youtube },
+    };
+    await saveSettings(next);
+    await audit(actor, 'update', 'settings', null, null, Object.keys(next));
+    return Astro.redirect('/admin/settings?saved=1');
+  }
+}
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+---
+
+<AdminLayout title="Settings">
+  {Object.keys(errors).length > 0 && (
+    <Alert tone="danger" class="mb-6">
+      Please fix the highlighted fields.
+    </Alert>
+  )}
+  <form method="post" class="grid max-w-3xl gap-6">
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Site</h2>
+      <FormField
+        name="siteTitle"
+        label="Site name"
+        required
+        value={str('siteTitle')}
+        error={errors.siteTitle}
+      />
+      <FormField
+        name="siteDescription"
+        label="Description for search engines"
+        rows={2}
+        maxlength={300}
+        value={str('siteDescription')}
+      />
+      <FormField
+        name="contactEmail"
+        label="Contact email"
+        type="email"
+        required
+        value={str('contactEmail')}
+        error={errors.contactEmail}
+        hint="Shown in the footer. Contact form messages are sent here."
+      />
+      <FormField
+        name="moderatorEmails"
+        label="Directory moderators"
+        rows={3}
+        value={str('moderatorEmails')}
+        error={errors.moderatorEmails}
+        hint="One email per line. They get new listing requests, claims and the Monday digest. Empty = the contact email."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Social links</h2>
+      {(['linkedin', 'instagram', 'facebook', 'whatsapp', 'youtube'] as const).map((k) => (
+        <FormField
+          name={k}
+          label={k[0]!.toUpperCase() + k.slice(1)}
+          value={str(k)}
+          error={errors[k]}
+          placeholder="https://"
+        />
+      ))}
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Home page</h2>
+      <FormField
+        name="heroTitle"
+        label="Main title"
+        required
+        value={str('heroTitle')}
+        error={errors.heroTitle}
+      />
+      <FormField name="heroTagline" label="Tagline" rows={2} value={str('heroTagline')} />
+      <FormField name="mission" label="Mission" rows={4} value={str('mission')} />
+      <FormField name="values" label="Values" rows={4} value={str('values')} hint="One per line." />
+      <FormField
+        name="ecosystemHeading"
+        label="Ecosystem section heading"
+        value={str('ecosystemHeading')}
+      />
+      <FormField
+        name="pillars"
+        label="Pillars"
+        rows={5}
+        value={str('pillars')}
+        hint="One per line, as: Title | short text"
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">About page</h2>
+      <FormField
+        name="aboutIntro"
+        label="Introduction"
+        rows={6}
+        value={str('aboutIntro')}
+        hint="Markdown works."
+      />
+      <FormField
+        name="joinPaths"
+        label="Ways to get involved"
+        rows={5}
+        value={str('joinPaths')}
+        hint="One per line, as: Title | short text"
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Membership</h2>
+      <FormField
+        name="membershipOpen"
+        label="Accept membership applications"
+        type="checkbox"
+        checked={!!values.membershipOpen}
+        hint="Owners of listed organisations can apply from their update page. The board approves each one."
+      />
+      <FormField
+        name="memberPriority"
+        label="Member priority on events"
+        type="checkbox"
+        checked={!!values.memberPriority}
+        hint="Planned for 2027: early registration and reserved seats for members, set per event."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Analytics</h2>
+      <FormField
+        name="analyticsToken"
+        label="Cloudflare Web Analytics token"
+        value={str('analyticsToken')}
+        hint="From Cloudflare dashboard > Analytics & Logs > Web Analytics. Empty = off."
+      />
+    </section>
+
+    <div>
+      <Button type="submit">Save settings</Button>
+    </div>
+  </form>
+</AdminLayout>

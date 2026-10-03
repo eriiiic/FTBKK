@@ -1,0 +1,131 @@
+---
+/** Markdown textarea with a Preview tab and image upload (admin only). Works without JS. */
+interface Props {
+  name: string;
+  label: string;
+  value?: string | null;
+  rows?: number;
+  error?: string;
+}
+const { name, label, value, rows = 18, error } = Astro.props;
+const id = `md-${name}`;
+---
+
+<div data-md-editor class="grid gap-2">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <label for={id} class="text-sm font-semibold text-ink">
+      {label}
+    </label>
+    <div class="flex flex-wrap gap-2 text-sm" role="toolbar" aria-label="Editor">
+      <button type="button" data-md-tab="write" aria-pressed="true" class="md-btn">
+        Write
+      </button>
+      <button type="button" data-md-tab="preview" aria-pressed="false" class="md-btn">
+        Preview
+      </button>
+      <label class="md-btn cursor-pointer">
+        Insert image
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          class="sr-only"
+          data-md-upload="image"
+        />
+      </label>
+      <label class="md-btn cursor-pointer">
+        Attach PDF
+        <input type="file" accept="application/pdf" class="sr-only" data-md-upload="file" />
+      </label>
+    </div>
+  </div>
+  <textarea
+    id={id}
+    name={name}
+    rows={rows}
+    aria-describedby={`${id}-hint`}
+    class="block w-full rounded-lg border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:border-accent"
+    set:text={value ?? ''}
+  ></textarea>
+  <div
+    data-md-preview
+    hidden
+    class="prose min-h-40 max-w-none rounded-lg border border-line bg-paper p-4"
+  ></div>
+  <p id={`${id}-hint`} class="text-sm text-muted" data-md-status>
+    Markdown: **bold**, *italic*, ## heading, - list, [link](https://…). Images upload to the site.
+  </p>
+  {error && <p class="text-sm text-danger">{error}</p>}
+</div>
+
+<style>
+  .md-btn {
+    border-radius: var(--radius-button);
+    border: 1px solid var(--color-line);
+    background: var(--color-paper);
+    padding: 0.25rem 0.75rem;
+  }
+  .md-btn[aria-pressed='true'] {
+    background: var(--color-navy);
+    color: var(--color-paper);
+    border-color: var(--color-navy);
+  }
+  .md-btn:focus-within {
+    outline: 2px solid var(--color-accent);
+  }
+</style>
+
+<script>
+  type El = HTMLElement & { hidden: boolean };
+  for (const root of document.querySelectorAll<HTMLElement>('[data-md-editor]')) {
+    const ta = root.querySelector('textarea') as unknown as HTMLTextAreaElement;
+    const preview = root.querySelector('[data-md-preview]') as unknown as El;
+    const status = root.querySelector('[data-md-status]') as unknown as HTMLElement;
+    const tabs = root.querySelectorAll<HTMLButtonElement>('[data-md-tab]');
+    const hint = status.textContent;
+
+    tabs.forEach((tab) =>
+      tab.addEventListener('click', async () => {
+        const showPreview = tab.dataset.mdTab === 'preview';
+        tabs.forEach((t) => t.setAttribute('aria-pressed', String(t === tab)));
+        (ta as unknown as El).hidden = showPreview;
+        preview.hidden = !showPreview;
+        if (!showPreview) return;
+        preview.textContent = 'Loading…';
+        const res = await fetch('/api/admin/preview', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ md: ta.value }),
+        });
+        const data = (await res.json()) as { html?: string };
+        preview.innerHTML = data.html ?? '<p>Preview failed.</p>';
+      }),
+    );
+
+    root.querySelectorAll<HTMLInputElement>('[data-md-upload]').forEach((input) =>
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        status.textContent = `Uploading ${file.name}…`;
+        const body = new FormData();
+        body.append('file', file);
+        body.append('kind', input.dataset.mdUpload ?? 'image');
+        const res = await fetch('/api/admin/upload', { method: 'POST', body });
+        const data = (await res.json()) as { url?: string; error?: string };
+        input.value = '';
+        if (!data.url) {
+          status.textContent = data.error ?? 'Upload failed.';
+          return;
+        }
+        const label = file.name.replace(/\.[^.]+$/, '');
+        const snippet =
+          input.dataset.mdUpload === 'file'
+            ? `[${label}](${data.url})`
+            : `![${label}](${data.url})`;
+        const at = ta.selectionStart ?? ta.value.length;
+        ta.value = `${ta.value.slice(0, at)}\n${snippet}\n${ta.value.slice(at)}`;
+        status.textContent = `Inserted ${file.name}. Edit the text in [brackets] to describe it.`;
+        setTimeout(() => (status.textContent = hint), 6000);
+      }),
+    );
+  }
+</script>

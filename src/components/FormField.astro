@@ -104,9 +104,8 @@ const input =
         aria-describedby={describedBy}
         aria-invalid={error ? 'true' : undefined}
         class={input}
-      >
-          {value ?? ''}
-        </textarea>
+        set:text={String(value ?? '')}
+      />
     ) : (
       <input
         id={id}

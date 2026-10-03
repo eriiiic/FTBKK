@@ -52,3 +52,21 @@
 @utility container-page {
   @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
 }
+
+/* Admin building blocks (only used under /admin). */
+@utility admin-panel {
+  @apply rounded-card border border-line bg-paper p-4 md:p-6;
+}
+
+@utility admin-table {
+  @apply w-full text-left text-sm;
+  & th {
+    @apply border-b border-line px-3 py-2 text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+  & td {
+    @apply border-b border-line px-3 py-2 align-top;
+  }
+  & tr:last-child td {
+    @apply border-b-0;
+  }
+}
