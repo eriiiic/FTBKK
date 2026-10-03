@@ -72,7 +72,10 @@ function typeOfSitemap(sitemapUrl: string): UrlType {
 }
 
 async function readyPage(page: Page, url: string) {
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 });
+  // Wix keeps analytics/websocket traffic open, so 'networkidle' may never fire: wait for 'load'
+  // and give the network a short, optional settle.
+  await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
+  await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
   // Wix lazy-loads sections: scroll to the bottom in steps, then back up.
   await page.evaluate(async () => {
     for (let y = 0; y < document.body.scrollHeight; y += 600) {
@@ -81,7 +84,7 @@ async function readyPage(page: Page, url: string) {
     }
     window.scrollTo(0, 0);
   });
-  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
 }
 
 async function jsonLd(page: Page): Promise<Record<string, unknown>[]> {
@@ -155,6 +158,16 @@ async function capture(page: Page, type: UrlType, url: string) {
 
 // ---------- extractors ----------
 
+/** Wix's JSON-LD names are HTML-escaped (e.g. &quot;, &amp;). */
+function decodeEntities(s: string) {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 function series(title: string) {
   const t = title.toLowerCase();
   if (t.includes('connect')) return 'French Tech Connect';
@@ -168,7 +181,7 @@ async function extractEvent(page: Page, url: string) {
   const slug = slugOf(url);
   const ld = (await jsonLd(page)).find((x) => String(x['@type']).includes('Event')) || {};
   const loc = (ld.location || {}) as Record<string, any>;
-  const title = String(ld.name || (await page.title()).split('|')[0].trim());
+  const title = decodeEntities(String(ld.name || (await page.title()).split('|')[0].trim()));
   const descHtml = await mainHtml(page, [
     '[data-hook="event-description"]',
     '[data-hook="about-section"]',
@@ -215,7 +228,7 @@ async function extractPost(page: Page, url: string) {
   const imgs = await imagesOn(page, 'article');
   return {
     slug,
-    title: String(ld.headline || (await page.title()).split('|')[0].trim()),
+    title: decodeEntities(String(ld.headline || (await page.title()).split('|')[0].trim())),
     excerpt: String(ld.description || ''),
     author: String((ld.author as any)?.name || ''),
     publishedAt: String(ld.datePublished || ''),
