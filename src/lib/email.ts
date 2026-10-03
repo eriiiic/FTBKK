@@ -103,3 +103,44 @@ export async function sendEmail(m: EmailMessage): Promise<{ ok: boolean; error?:
   }
   return { ok: true };
 }
+
+/**
+ * Sends many emails in as few requests as possible (Resend batch API, 100 per call), so a
+ * reminder or cancellation for a full event stays well under the Worker's subrequest limit.
+ * Batch sends don't support attachments; they are dropped.
+ */
+export async function sendEmailBatch(messages: EmailMessage[]) {
+  if (!messages.length) return { ok: true, sent: 0 };
+  if (!env.RESEND_API_KEY) {
+    for (const m of messages) await sendEmail({ ...m, attachments: undefined });
+    return { ok: true, sent: messages.length };
+  }
+  let sent = 0;
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100).map((m) => {
+      const { html, text } = renderEmail(m);
+      return {
+        from: env.EMAIL_FROM,
+        to: Array.isArray(m.to) ? m.to : [m.to],
+        subject: m.subject,
+        html,
+        text,
+        reply_to: m.replyTo,
+      };
+    });
+    const res = await fetch('https://api.resend.com/emails/batch', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(chunk),
+    });
+    if (!res.ok) {
+      console.error('[email] Resend batch error', res.status, await res.text());
+      return { ok: false, sent };
+    }
+    sent += chunk.length;
+  }
+  return { ok: true, sent };
+}

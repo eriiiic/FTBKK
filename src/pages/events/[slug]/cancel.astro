@@ -1,0 +1,83 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import Alert from '../../../components/Alert.astro';
+import Button from '../../../components/Button.astro';
+import { env } from 'cloudflare:workers';
+import { eventBySlug } from '../../../lib/queries';
+import { formatEventDate } from '../../../lib/format';
+import { getSettings } from '../../../lib/settings';
+import { promoteFromWaitlist, sendPromotion } from '../../../lib/registrations';
+
+// GET shows a button (so email link scanners can't cancel); POST cancels.
+const event = await eventBySlug(Astro.params.slug!);
+if (!event) return Astro.rewrite('/404');
+const token = Astro.url.searchParams.get('token') ?? '';
+const reg = token
+  ? await env.DB.prepare(
+      `SELECT id, name, email, status FROM registrations WHERE token = ? AND event_id = ?`,
+    )
+      .bind(token, event.id)
+      .first<{ id: number; name: string; email: string; status: string }>()
+  : null;
+const started = event.startsAt <= new Date();
+let state: 'ask' | 'done' | 'invalid' | 'already' | 'started' = !reg
+  ? 'invalid'
+  : reg.status === 'cancelled'
+    ? 'already'
+    : started
+      ? 'started'
+      : 'ask';
+
+if (Astro.request.method === 'POST' && state === 'ask' && reg) {
+  const cancelled = await env.DB.prepare(
+    `UPDATE registrations SET status = 'cancelled' WHERE id = ? AND status IN ('registered', 'waitlist') RETURNING status`,
+  )
+    .bind(reg.id)
+    .first();
+  if (cancelled && reg.status === 'registered') {
+    const settings = await getSettings();
+    const promoted = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+    if (promoted) await sendPromotion(event, promoted);
+  }
+  state = 'done';
+}
+---
+
+<BaseLayout title="Cancel registration" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Cancel your registration</h1>
+      <p class="mt-2 text-muted">
+        {event.title} · {formatEventDate(event.startsAt, event.endsAt)}
+      </p>
+      {state === 'ask' && reg && (
+        <form method="post" class="mt-6 grid gap-4">
+          <p>
+            {reg.name}, do you want to cancel your
+            {reg.status === 'waitlist' ? ' place on the waitlist' : ' registration'}? Your seat goes
+            to the next person on the waitlist.
+          </p>
+          <div>
+            <Button type="submit">Yes, cancel</Button>
+          </div>
+        </form>
+      )}
+      {state === 'done' && (
+        <Alert tone="success" class="mt-6">
+          Done, your registration is cancelled. Thanks for letting us know.{' '}
+          <a href={`/events/${event.slug}`}>Changed your mind? Register again.</a>
+        </Alert>
+      )}
+      {state === 'already' && <Alert class="mt-6">This registration was already cancelled.</Alert>}
+      {state === 'started' && (
+        <Alert class="mt-6">This event has already started, so there is nothing to cancel.</Alert>
+      )}
+      {state === 'invalid' && (
+        <Alert tone="danger" class="mt-6">
+          This cancel link is not valid. Use the link in your confirmation email.
+        </Alert>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

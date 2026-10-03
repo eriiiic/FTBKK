@@ -8,11 +8,62 @@ import RegistrationForm from '../../../components/RegistrationForm.astro';
 import { eventBySlug, isUpcoming } from '../../../lib/queries';
 import { formatEventDate, mediaUrl } from '../../../lib/format';
 import { plainText, renderMarkdown } from '../../../lib/markdown';
+import { clientIp, fieldErrors, formToObject } from '../../../lib/forms';
+import { verifyTurnstile } from '../../../lib/turnstile';
+import { rateLimit } from '../../../lib/ratelimit';
+import { getSettings } from '../../../lib/settings';
+import {
+  RegisterSchema,
+  countTaken,
+  insertRegistration,
+  isMemberEmail,
+  registrationState,
+  sendConfirmation,
+} from '../../../lib/registrations';
 
 const event = await eventBySlug(Astro.params.slug!);
 if (!event) return Astro.rewrite('/404');
 
 const upcoming = isUpcoming(event);
+const settings = await getSettings();
+const now = new Date();
+let state = registrationState(event, await countTaken(event.id), now, {
+  memberPriority: settings.memberPriority,
+});
+
+const isPost = Astro.request.method === 'POST';
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let result: { status: 'registered' | 'waitlist' | 'duplicate'; email: string } | null = null;
+if (isPost) {
+  const form = await Astro.request.formData();
+  values = formToObject(form);
+  const ip = clientIp(Astro.request);
+  const parsed = RegisterSchema.safeParse(values);
+  if (!parsed.success) {
+    errors = fieldErrors(parsed.error);
+  } else if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
+    errors.form = 'The anti-spam check failed. Please try again.';
+  } else if (!(await rateLimit(`register:${ip}`, 10, 3600))) {
+    errors.form = 'Too many registrations from your connection. Please try again later.';
+  } else {
+    const member = settings.memberPriority && (await isMemberEmail(parsed.data.email));
+    const mine = registrationState(event, await countTaken(event.id), now, {
+      memberPriority: settings.memberPriority,
+      isMember: member,
+    });
+    if (!mine.open) {
+      state = mine;
+    } else {
+      const row = await insertRegistration(event.id, parsed.data, mine.capacity);
+      if (!row) result = { status: 'duplicate', email: parsed.data.email };
+      else {
+        await sendConfirmation(event, { ...parsed.data, status: row.status, token: row.token });
+        result = { status: row.status, email: parsed.data.email };
+      }
+    }
+  }
+}
 const cover = mediaUrl(event.coverKey);
 const mapUrl =
   event.mapUrl ??
@@ -50,6 +101,7 @@ const jsonLd = {
 ---
 
 <BaseLayout
+  cache={!isPost}
   title={event.title}
   description={event.summary ?? plainText(event.bodyMd)}
   image={cover}
@@ -98,7 +150,9 @@ const jsonLd = {
           </dl>
           {upcoming && event.status !== 'cancelled' && (
             <div class="mt-6 flex flex-wrap gap-3">
-              {event.registrationOpen && <Button href="#register">Register</Button>}
+              {state.open && (
+                <Button href="#register">{state.full ? 'Join the waitlist' : 'Register'}</Button>
+              )}
               <Button href={`/events/${event.slug}/calendar.ics`} variant="secondary">
                 <Icon name="calendar" /> Add to calendar
               </Button>
@@ -118,7 +172,13 @@ const jsonLd = {
         {event.status === 'cancelled' ? (
           <Alert tone="danger">This event has been cancelled.</Alert>
         ) : upcoming ? (
-          <RegistrationForm event={event} />
+          <RegistrationForm
+            event={event}
+            state={state}
+            errors={errors}
+            values={values}
+            result={result}
+          />
         ) : null}
         <p class="mt-6 text-sm text-muted">
           Photos and videos may be taken during our events and shared on our website and social

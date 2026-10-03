@@ -1,10 +1,14 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 
+/** R2 prefixes that must never be served publicly (database backups hold personal data). */
+const PRIVATE_PREFIXES = ['backups/'];
+
 /** Streams R2 objects (images, PDFs). Keys are immutable in practice, so cache for a year. */
 export const GET: APIRoute = async ({ params, request }) => {
   const key = params.key;
-  if (!key || key.includes('..')) return new Response('Not found', { status: 404 });
+  if (!key || key.includes('..') || PRIVATE_PREFIXES.some((p) => key.startsWith(p)))
+    return new Response('Not found', { status: 404 });
   const obj = await env.MEDIA.get(key, { onlyIf: request.headers, range: request.headers });
   if (!obj) return new Response('Not found', { status: 404 });
   const headers = new Headers();

@@ -41,6 +41,8 @@ export const events = sqliteTable(
     /** null = unlimited */
     capacity: integer('capacity'),
     registrationOpen: integer('registration_open', { mode: 'boolean' }).notNull().default(true),
+    /** null = open as soon as the event is published. Members may start memberEarlyDays before. */
+    registrationOpensAt: ts('registration_opens_at'),
     registrationClosesAt: ts('registration_closes_at'),
     /** Member priority (stage 3): members may register this many days before everyone else. */
     memberEarlyDays: integer('member_early_days').notNull().default(0),

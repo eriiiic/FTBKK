@@ -86,6 +86,7 @@ export const EventSchema = z
     mapUrl: optionalUrl,
     capacity: optionalInt,
     registrationOpen: z.boolean().optional().default(false),
+    registrationOpensAt: optionalLocalDate,
     registrationClosesAt: optionalLocalDate,
     memberEarlyDays: optionalInt.transform((v) => v ?? 0),
     memberReservedSeats: optionalInt.transform((v) => v ?? 0),

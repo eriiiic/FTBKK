@@ -13,6 +13,8 @@ import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
 import { getSettings } from '../../../lib/settings';
+import { sendEventCancelled } from '../../../lib/registrations';
+import { env } from 'cloudflare:workers';
 
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -32,6 +34,7 @@ const asValues = (e: Event): Record<string, unknown> => ({
   ...e,
   startsAt: toLocalInput(e.startsAt),
   endsAt: toLocalInput(e.endsAt),
+  registrationOpensAt: toLocalInput(e.registrationOpensAt),
   registrationClosesAt: toLocalInput(e.registrationClosesAt),
 });
 
@@ -52,6 +55,7 @@ let values: Record<string, unknown> = event
         slug: '',
         startsAt: '',
         endsAt: '',
+        registrationOpensAt: '',
         registrationClosesAt: '',
         status: 'draft',
       }
@@ -70,6 +74,12 @@ if (Astro.request.method === 'POST') {
       .update(events)
       .set({ status: 'cancelled', registrationOpen: false, updatedAt: new Date() })
       .where(eq(events.id, event.id));
+    const { results: toNotify } = await env.DB.prepare(
+      `SELECT name, email FROM registrations WHERE event_id = ? AND status IN ('registered', 'waitlist')`,
+    )
+      .bind(event.id)
+      .all<{ name: string; email: string }>();
+    await sendEventCancelled(event, toNotify);
     await audit(
       actor,
       'cancel',
@@ -243,6 +253,13 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
           hint="Empty = unlimited. When full, people join the waitlist."
         />
         <FormField
+          name="registrationOpensAt"
+          label="Registration opens"
+          type="datetime-local"
+          value={str('registrationOpensAt')}
+          hint="Empty = as soon as the event is published."
+        />
+        <FormField
           name="registrationClosesAt"
           label="Registration closes"
           type="datetime-local"
@@ -308,7 +325,7 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
       {event.status !== 'cancelled' && (
         <form
           method="post"
-          data-confirm="Cancel this event? It will show as cancelled and registration closes."
+          data-confirm="Cancel this event? Everyone registered gets an email, and the event shows as cancelled."
         >
           <Button type="submit" name="action" value="cancel" variant="secondary">
             Cancel the event

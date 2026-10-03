@@ -1,17 +1,101 @@
 ---
-// Phase 7 replaces this placeholder with the built-in registration form.
 import Alert from './Alert.astro';
+import Button from './Button.astro';
+import FormField from './FormField.astro';
+import Turnstile from './Turnstile.astro';
+import { HOW_HEARD, type RegistrationState } from '../lib/registrations';
+import { formatDate, formatTime } from '../lib/format';
+
 interface Props {
-  event: { slug: string; registrationOpen: boolean };
+  event: { slug: string; title: string };
+  state: RegistrationState;
+  errors?: Record<string, string>;
+  values?: Record<string, unknown>;
+  result?: { status: 'registered' | 'waitlist' | 'duplicate'; email: string } | null;
 }
-const { event } = Astro.props;
+const { event, state, errors = {}, values = {}, result } = Astro.props;
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 ---
 
-<div id="register" class="rounded-card border border-line p-6">
+<div id="register" class="scroll-mt-24 rounded-card border border-line p-6">
   <h2 class="text-xl">Registration</h2>
-  {event.registrationOpen ? (
-    <Alert class="mt-4">Online registration opens soon. Walk-ins are welcome.</Alert>
+  {result ? (
+    result.status === 'duplicate' ? (
+      <Alert class="mt-4">
+        {result.email} is already registered for this event. Check your inbox for the confirmation
+        email, which has a link to cancel if needed.
+      </Alert>
+    ) : result.status === 'waitlist' ? (
+      <Alert tone="warning" class="mt-4">
+        The event is full, so you are on the waitlist. We will email {result.email} if a seat frees
+        up.
+      </Alert>
+    ) : (
+      <Alert tone="success" class="mt-4">
+        You're registered! A confirmation with a calendar invite is on its way to {result.email}.
+      </Alert>
+    )
+  ) : !state.open ? (
+    <Alert class="mt-4">
+      {state.reason === 'not_yet' && state.opensAt
+        ? `Registration opens on ${formatDate(state.opensAt)} at ${formatTime(state.opensAt)}.`
+        : 'Registration is closed for this event.'}
+    </Alert>
   ) : (
-    <Alert class="mt-4">Registration is closed for this event.</Alert>
+    <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
+      {state.spotsLeft !== null && (
+        <p class={`text-sm font-semibold ${state.full ? 'text-warning' : 'text-success'}`}>
+          {state.full
+            ? 'The event is full. You can join the waitlist.'
+            : `${state.spotsLeft} spot${state.spotsLeft === 1 ? '' : 's'} left`}
+        </p>
+      )}
+      {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+      <FormField
+        name="name"
+        label="Full name"
+        required
+        autocomplete="name"
+        value={str('name')}
+        error={errors.name}
+      />
+      <FormField
+        name="email"
+        label="Email"
+        type="email"
+        required
+        autocomplete="email"
+        value={str('email')}
+        error={errors.email}
+      />
+      <FormField
+        name="company"
+        label="Company"
+        autocomplete="organization"
+        value={str('company')}
+      />
+      <FormField name="role" label="Role" autocomplete="organization-title" value={str('role')} />
+      <FormField
+        name="howHeard"
+        label="How did you hear about us?"
+        value={str('howHeard')}
+        options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
+      />
+      <FormField
+        name="photoConsent"
+        type="checkbox"
+        required
+        checked={!!values.photoConsent}
+        error={errors.photoConsent}
+        label="I understand photos and videos may be taken and shared by La French Tech Bangkok."
+      />
+      <Turnstile />
+      <div>
+        <Button type="submit">{state.full ? 'Join the waitlist' : 'Register'}</Button>
+      </div>
+      <p class="text-xs text-muted">
+        Free. We only use your details for this event and send a reminder the day before.
+      </p>
+    </form>
   )}
 </div>

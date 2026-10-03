@@ -21,6 +21,20 @@ pages refresh within a minute) and recorded in Ecosystem > History.
 - **Capacity** empty means unlimited. When full, people join the waitlist.
 - **Cancel the event** keeps it on the site with a "Cancelled" label and closes registration.
 
+## Registrations
+
+- People register on the event page (name, email, company, role, photo notice). They get a
+  confirmation with a calendar invite and a cancel link, and a reminder the day before.
+- When the event is full, new people join the **waitlist**. If someone cancels, the first person
+  on the waitlist is registered automatically and emailed.
+- **Registrations** (or the count on the Events page): counts, search, check in, register someone
+  from the waitlist (this can go over capacity), cancel, and **Export CSV** for Excel.
+- **Check-in mode** is made for a phone at the door: type a few letters of the name and tap to
+  check the person in. Tap again to undo.
+- Cancelling an event emails everyone registered or on the waitlist.
+- Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
+  are kept). It is never served publicly.
+
 ## Ecosystem
 
 - **To review**: new listing requests, owner changes to name, category, logo or website, claims and
