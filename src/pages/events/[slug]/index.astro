@@ -25,6 +25,10 @@ const event = await eventBySlug(Astro.params.slug!);
 if (!event) return Astro.rewrite('/404');
 
 const upcoming = isUpcoming(event);
+const description =
+  event.summary ||
+  plainText(event.bodyMd) ||
+  `${event.title}, ${formatEventDate(event.startsAt, event.endsAt)}${event.venue ? ` at ${event.venue}` : ''}. A La French Tech Bangkok event.`;
 const settings = await getSettings();
 const now = new Date();
 let state = registrationState(event, await countTaken(event.id), now, {
@@ -88,7 +92,7 @@ const jsonLd = {
     address: event.address ?? 'Bangkok, Thailand',
   },
   image: cover ? new URL(cover, Astro.site).href : undefined,
-  description: event.summary ?? plainText(event.bodyMd),
+  description,
   offers: {
     '@type': 'Offer',
     price: 0,
@@ -103,7 +107,7 @@ const jsonLd = {
 <BaseLayout
   cache={!isPost}
   title={event.title}
-  description={event.summary ?? plainText(event.bodyMd)}
+  description={description}
   image={cover}
   jsonLd={jsonLd}
 >

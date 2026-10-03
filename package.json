@@ -17,7 +17,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply ftbkk --remote",
     "capture": "tsx migration/capture.ts",
     "deploy:ci": "wrangler deploy && wrangler d1 migrations apply ftbkk --remote",
-    "import": "tsx scripts/import.ts"
+    "import": "tsx scripts/import.ts",
+    "check:redirects": "tsx scripts/check-redirects.ts"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",
