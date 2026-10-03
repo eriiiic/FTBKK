@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+# Cloudflare's always-pass Turnstile test secret:
+TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+# Leave empty locally: emails are logged to the console instead of sent.
+RESEND_API_KEY=
+# Local only: requireAdmin() accepts this email when ACCESS_AUD is empty.
+DEV_ADMIN_EMAIL=admin@example.com
