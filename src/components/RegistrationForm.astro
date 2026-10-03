@@ -1,0 +1,17 @@
+---
+// Phase 7 replaces this placeholder with the built-in registration form.
+import Alert from './Alert.astro';
+interface Props {
+  event: { slug: string; registrationOpen: boolean };
+}
+const { event } = Astro.props;
+---
+
+<div id="register" class="rounded-card border border-line p-6">
+  <h2 class="text-xl">Registration</h2>
+  {event.registrationOpen ? (
+    <Alert class="mt-4">Online registration opens soon. Walk-ins are welcome.</Alert>
+  ) : (
+    <Alert class="mt-4">Registration is closed for this event.</Alert>
+  )}
+</div>
