@@ -2,7 +2,7 @@
 
 Rebuild of https://www.french-tech-bangkok.com/ (Wix) as one Cloudflare Worker.
 Public sections: Home, Ecosystem, Events, Blog, About. Private `/admin` for blog posts,
-events, registrations and the ecosystem directory. Full plan: `docs/plan.md`.
+events, registrations and the ecosystem directory. Full plan: `docs/plan.md`. Cloudflare setup: `docs/deploy.md`. Admin guide: `docs/admin.md`.
 
 ## Stack
 
