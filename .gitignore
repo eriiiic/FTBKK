@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.dev.vars
+.env
+*.log
+.DS_Store
+
+# Phase 1 capture: only the extracted data and README are committed.
+migration/*
+!migration/data/
+!migration/README.md
+!migration/capture.ts

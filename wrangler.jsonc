@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ft-bkk-site",
+  // Custom entry: Astro's fetch handler + our scheduled (cron) handler.
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+  },
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ftbkk",
+      // Replace with the id printed by `npx wrangler d1 create ftbkk` (phase 9).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "ftbkk-media",
+    },
+  ],
+  "vars": {
+    // Cloudflare Zero Trust team domain, e.g. "ftbkk.cloudflareaccess.com" (phase 9).
+    "ACCESS_TEAM_DOMAIN": "",
+    // Audience tag of the Access application protecting /admin (phase 9).
+    "ACCESS_AUD": "",
+    // Public Turnstile site key. This is Cloudflare's always-pass test key.
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    "SITE_URL": "https://www.french-tech-bangkok.com",
+    "EMAIL_FROM": "La French Tech Bangkok <hello@french-tech-bangkok.com>",
+  },
+  "triggers": {
+    // 02:00 UTC = 09:00 Asia/Bangkok, daily.
+    "crons": ["0 2 * * *"],
+  },
+}
