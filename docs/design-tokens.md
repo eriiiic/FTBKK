@@ -8,19 +8,19 @@
 
 ## Palette
 
-| Token          | Hex       | Usage                                            |
-| -------------- | --------- | ------------------------------------------------ |
-| `navy`         | `#0B1F3A` | Headings, header and footer background           |
-| `navy-soft`    | `#1A2433` | Footer secondary background                      |
-| `brand`        | `#E4002B` | Primary buttons, highlights (4.8:1 on white)     |
-| `brand-dark`   | `#B80023` | Button hover                                     |
-| `accent`       | `#2F5C9E` | Links, focus ring, secondary accents             |
-| `accent-soft`  | `#A9C1E6` | Links on navy                                    |
-| `ink`          | `#1A2433` | Body text                                        |
-| `muted`        | `#5B6B80` | Secondary text (5.4:1 on white)                  |
-| `line`         | `#D9E1EC` | Borders                                          |
-| `surface`      | `#EEF2F7` | Alternating section background, card backgrounds |
-| `paper`        | `#FFFFFF` | Page background                                  |
+| Token         | Hex       | Usage                                            |
+| ------------- | --------- | ------------------------------------------------ |
+| `navy`        | `#0B1F3A` | Headings, header and footer background           |
+| `navy-soft`   | `#1A2433` | Footer secondary background                      |
+| `brand`       | `#E4002B` | Primary buttons, highlights (4.8:1 on white)     |
+| `brand-dark`  | `#B80023` | Button hover                                     |
+| `accent`      | `#2F5C9E` | Links, focus ring, secondary accents             |
+| `accent-soft` | `#A9C1E6` | Links on navy                                    |
+| `ink`         | `#1A2433` | Body text                                        |
+| `muted`       | `#5B6B80` | Secondary text (5.4:1 on white)                  |
+| `line`        | `#D9E1EC` | Borders                                          |
+| `surface`     | `#EEF2F7` | Alternating section background, card backgrounds |
+| `paper`       | `#FFFFFF` | Page background                                  |
 
 ## Type
 
