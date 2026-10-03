@@ -42,3 +42,16 @@ npm run dev                      # http://localhost:4321, runs in workerd with l
 npm run check                    # astro check + eslint + prettier
 npm run build && npx wrangler dev  # production build served by wrangler
 ```
+
+## Deploy (Cloudflare Workers Builds)
+
+The GitHub repo is connected to Workers Builds. Dashboard settings (Worker > Settings > Build):
+
+- Build command: `npm run build`
+- Deploy command: `npm run deploy:ci` (deploys, then applies D1 migrations remotely)
+- Non-production branch deploy command: `npx wrangler versions upload` (preview URL per branch;
+  previews share the production D1 and migrations are only applied from `main`)
+- Root directory: `/`
+
+The Worker name in the dashboard must be `ft-bkk-site` (the `name` in `wrangler.jsonc`). The first
+deploy auto-creates the `ftbkk` D1 database and `ftbkk-media` R2 bucket.
