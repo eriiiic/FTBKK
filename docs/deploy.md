@@ -3,7 +3,18 @@
 The site is one Cloudflare Worker, `ft-bkk-site`, deployed by **Workers Builds** from GitHub.
 Everything below is done once, in the Cloudflare dashboard, by the account owner.
 
-## 1. Workers Builds (Worker > Settings > Build)
+## 1. Image storage (R2 bucket)
+
+Before the first deploy, create the bucket by hand (wrangler does not create it if R2 has never
+been used on the account):
+
+1. Dashboard > **R2 Object Storage**. If asked, activate R2 (a card is required; the free tier
+   covers this site).
+2. **Create bucket**, name `ftbkk-media`, default location.
+
+## 2. Workers Builds (Worker > Settings > Build)
+
+Set the build command on **both** tabs, Production and Previews Base.
 
 | Setting                              | Value                          |
 | ------------------------------------ | ------------------------------ |
@@ -16,11 +27,11 @@ Everything below is done once, in the Cloudflare dashboard, by the account owner
 Do not use `npx wrangler preview`: it needs a separate `previews` config and skips the build.
 
 Merging to `main` deploys to production and then applies the D1 migrations (`deploy:ci`). The
-first deploy creates the `ftbkk` D1 database and the `ftbkk-media` R2 bucket automatically.
+first deploy creates the `ftbkk` D1 database automatically (the R2 bucket comes from step 1).
 Other branches upload a preview version with its own URL (shown on the PR check). Previews share
 the production database, and migrations only run from `main`.
 
-## 2. Load the content
+## 3. Load the content
 
 On your computer, once: `npx wrangler login`. Then:
 
@@ -32,7 +43,7 @@ npm run import -- --remote     # events, posts, organisations, people, settings 
 The import can be run again safely (it updates rows by slug and never overwrites settings
 edited in the admin unless you pass `--force-settings`).
 
-## 3. Admin login (Cloudflare Access)
+## 4. Admin login (Cloudflare Access)
 
 Until this is done, `/admin` answers **403** in production (it fails closed).
 
@@ -48,7 +59,7 @@ Until this is done, `/admin` answers **403** in production (it fails closed).
 
 To add an admin later, add their email to the policy. Nothing changes in the code.
 
-## 4. Forms anti-spam (Turnstile)
+## 5. Forms anti-spam (Turnstile)
 
 Until this is done, forms use Cloudflare's test keys, which let every submission through.
 
@@ -58,7 +69,7 @@ Until this is done, forms use Cloudflare's test keys, which let every submission
 3. Add the **Secret key** as a secret named `TURNSTILE_SECRET`: Worker > Settings > Variables and
    Secrets > Add > type Secret (or `npx wrangler secret put TURNSTILE_SECRET`).
 
-## 5. Email (Resend)
+## 6. Email (Resend)
 
 Until this is done, no email is sent (confirmations, reminders and listing links are only logged).
 
@@ -70,7 +81,7 @@ Until this is done, no email is sent (confirmations, reminders and listing links
    Turnstile above.
 4. The sender is `EMAIL_FROM` in `wrangler.jsonc` (`hello@french-tech-bangkok.com`).
 
-## 6. In the admin
+## 7. In the admin
 
 - Settings > **Directory moderators**: who gets listing requests and the Monday digest.
 - Settings > **Cloudflare Web Analytics token** (Dashboard > Analytics & Logs > Web Analytics >
