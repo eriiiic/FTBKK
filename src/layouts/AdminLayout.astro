@@ -84,6 +84,15 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           if (!confirm(f.dataset.confirm)) e.preventDefault();
         });
       });
+      // Copy buttons: <button data-copy="text">.
+      document.querySelectorAll<HTMLButtonElement>('button[data-copy]').forEach((b) => {
+        b.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(b.dataset.copy ?? '');
+          const label = b.textContent;
+          b.textContent = 'Copied';
+          setTimeout(() => (b.textContent = label), 1500);
+        });
+      });
     </script>
   </body>
 </html>

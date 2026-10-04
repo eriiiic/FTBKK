@@ -12,13 +12,20 @@ import {
   relatedPosts,
 } from '../../lib/queries';
 import { formatDate, initials, mediaUrl, readingMinutes } from '../../lib/format';
-import { plainText, renderMarkdown } from '../../lib/markdown';
+import { expandDownloads, plainText, renderMarkdown } from '../../lib/markdown';
+import { extractByline } from '../../lib/byline';
 
 const post = await postBySlug(Astro.params.slug!);
 if (!post) return Astro.rewrite('/404');
+// The header shows the author: drop the typed byline Wix posts open with.
+const byline = extractByline(post.bodyMd);
+// The byline names every co-author, where the Wix author field holds one account name.
+const authorName = byline.authorName ?? post.authorName;
+const authorRole = byline.authorRole ?? post.authorRole;
+const body = expandDownloads(byline.body, post.attachments, mediaUrl);
 const [cats, authors, postCats] = await Promise.all([
   categoriesForPost(post.id),
-  peopleNamed(post.authorName),
+  peopleNamed(authorName),
   postCategoryNames(),
 ]);
 const related = await relatedPosts(
@@ -26,9 +33,7 @@ const related = await relatedPosts(
   cats.map((c) => c.id),
 );
 const cover = mediaUrl(post.coverKey);
-const description = post.excerpt ?? plainText(post.bodyMd);
-// Files already linked inside the text (imported Wix download boxes) are not listed twice.
-const downloads = post.attachments.filter((a) => !post.bodyMd.includes(a.key));
+const description = post.excerpt ?? plainText(body);
 const url = new URL(`/blog/${post.slug}`, Astro.site).href;
 const share = [
   {
@@ -116,7 +121,7 @@ const jsonLd = {
           </div>
         )}
         <div class="min-w-0 text-sm">
-          {post.authorName && (
+          {authorName && (
             <p class="font-semibold text-navy">
               {authors.map((a, i) => (
                 <>
@@ -133,11 +138,11 @@ const jsonLd = {
             </p>
           )}
           <p class="text-muted">
-            {post.authorRole && <span>{post.authorRole}, La French Tech Bangkok · </span>}
+            {authorRole && <span>{authorRole}, La French Tech Bangkok · </span>}
             {post.publishedAt && (
               <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
             )}
-            <span> · {readingMinutes(post.bodyMd)} min read</span>
+            <span> · {readingMinutes(body)} min read</span>
           </p>
         </div>
       </div>
@@ -157,27 +162,8 @@ const jsonLd = {
     <div class="container-page max-w-3xl py-10 md:py-14">
       <div
         class="prose prose-lg max-w-none prose-headings:font-display prose-headings:text-navy prose-a:text-accent prose-img:rounded-card"
-        set:html={renderMarkdown(post.bodyMd)}
+        set:html={renderMarkdown(body)}
       />
-      {downloads.length > 0 && (
-        <div class="mt-10 rounded-card border border-line bg-surface p-6">
-          <h2 class="text-lg">Downloads</h2>
-          <ul class="mt-3 space-y-2">
-            {downloads.map((a) => (
-              <li>
-                <a
-                  href={mediaUrl(a.key)}
-                  class="inline-flex items-center gap-2 font-semibold text-accent"
-                  download
-                >
-                  <Icon name="download" class="size-4" />
-                  {a.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       <div class="mt-12 flex flex-wrap items-center gap-3 border-t border-line pt-6">
         <span class="text-sm font-semibold text-navy">Share this article</span>
         {share.map((s) => (

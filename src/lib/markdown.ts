@@ -33,3 +33,32 @@ export function plainText(md: string, max = 160) {
     .trim();
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
+
+/**
+ * Download tags in post text: {{download: file.pdf}} or {{download: file.pdf | Read the report}}
+ * become a link to that attachment (styled as a download button by the page). The file is matched
+ * by its name; a tag naming no attachment is dropped.
+ */
+export function expandDownloads(
+  md: string,
+  attachments: { name: string; key: string; size?: number }[],
+  mediaUrl: (key: string) => string | null,
+) {
+  return (md ?? '').replace(
+    /\{\{\s*download:\s*([^}|]+?)\s*(?:\|\s*([^}]+?)\s*)?\}\}/gi,
+    (_all, name, label) => {
+      const want = String(name).toLowerCase();
+      const file = attachments.find((a) => a.name.toLowerCase() === want || a.key === name);
+      if (!file) return '';
+      const size = file.size ? ` (${formatSize(file.size)})` : '';
+      const text = String(label || file.name).replace(/[[\]]/g, '');
+      return `[${text}${size}](${mediaUrl(file.key)})`;
+    },
+  );
+}
+
+function formatSize(bytes: number) {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
