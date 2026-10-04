@@ -127,3 +127,13 @@ describe('checkAccessJwt reasons', () => {
     expect('reason' in res && res.reason).toContain('ACCESS_TEAM_DOMAIN');
   });
 });
+
+describe('several team domains', () => {
+  it('accepts a token whose issuer is the second listed domain', async () => {
+    const token = await sign({ ...valid(), iss: 'https://old.cloudflareaccess.com' });
+    expect(await verifyAccessJwt(token, `${TEAM},old.cloudflareaccess.com`, AUD)).toBe(
+      'eric@example.com',
+    );
+    expect(await verifyAccessJwt(token, TEAM, AUD)).toBeNull();
+  });
+});

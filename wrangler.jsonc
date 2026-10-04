@@ -26,8 +26,9 @@
     },
   ],
   "vars": {
-    // Cloudflare Zero Trust team domain.
-    "ACCESS_TEAM_DOMAIN": "delattre.cloudflareaccess.com",
+    // Cloudflare Zero Trust team domain(s), comma-separated: the team was renamed from delattre to
+    // ftbkk, keys come from ftbkk while tokens are still issued by delattre.
+    "ACCESS_TEAM_DOMAIN": "ftbkk.cloudflareaccess.com,delattre.cloudflareaccess.com",
     // Audience tag of the Access application protecting /admin. Emptied locally by .dev.vars.
     "ACCESS_AUD": "55b16ed23629446d19a82aaf7ee44d0188f91cf1fd2470504b342112a15d321f",
     // Public Turnstile site key. This is Cloudflare's always-pass test key.
