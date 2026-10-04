@@ -5,6 +5,8 @@ import OrgFormFields from '../../../components/OrgFormFields.astro';
 import FormField from '../../../components/FormField.astro';
 import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
+import ReviewCard from '../../../components/admin/ReviewCard.astro';
+import { DecisionForm, decide, reviewItems } from '../../../lib/moderation';
 import { getDb } from '../../../db';
 import { organisations, type Organisation } from '../../../db/schema';
 import { AdminOrgExtras, inviteToClaim, toDateInput } from '../../../lib/admin';
@@ -44,7 +46,12 @@ if (Astro.request.method === 'POST') {
     await audit(actor, 'delete', 'organisation', org.id, { name: org.name }, null);
     return Astro.redirect('/admin/ecosystem?tab=all&saved=1');
   }
-  if (org && action === 'invite') {
+  if (org && (action === 'approve' || action === 'reject')) {
+    const parsed = DecisionForm.safeParse(Object.fromEntries(form));
+    const err = parsed.success ? await decide(parsed.data, actor) : 'Something was missing.';
+    if (!err) return Astro.redirect(`/admin/ecosystem/${org.id}?saved=1`);
+    errors.review = err;
+  } else if (org && action === 'invite') {
     const to = String(form.get('inviteEmail') ?? '')
       .trim()
       .toLowerCase();
@@ -122,6 +129,7 @@ if (Astro.request.method === 'POST') {
     }
   }
 }
+const pending = org ? await reviewItems(org.id) : [];
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 const badges = (values.badges as string[] | undefined) ?? [];
 ---
@@ -145,10 +153,25 @@ const badges = (values.badges as string[] | undefined) ?? [];
       {notice}
     </Alert>
   )}
-  {Object.keys(errors).length > 0 && (
+  {errors.review && (
+    <Alert tone="danger" class="mb-6">
+      {errors.review}
+    </Alert>
+  )}
+  {Object.keys(errors).some((k) => k !== 'review') && (
     <Alert tone="danger" class="mb-6">
       Please fix the highlighted fields.
     </Alert>
+  )}
+  {pending.length > 0 && (
+    <section aria-labelledby="pending-title" class="mb-6 grid gap-3">
+      <h2 id="pending-title" class="text-lg">
+        Waiting for review
+      </h2>
+      {pending.map((it) => (
+        <ReviewCard item={it} />
+      ))}
+    </section>
   )}
   <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
     <div class="admin-panel">
@@ -174,7 +197,10 @@ const badges = (values.badges as string[] | undefined) ?? [];
           <Button type="submit" name="action" value="save">
             Save
           </Button>
-          <Button href="/admin/ecosystem?tab=all" variant="ghost">
+          <Button
+            href={pending.length ? '/admin/ecosystem?tab=queue' : '/admin/ecosystem?tab=all'}
+            variant="ghost"
+          >
             Back
           </Button>
         </div>

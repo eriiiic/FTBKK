@@ -7,10 +7,11 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import { getDb } from '../../../db';
 import { auditLog, organisations } from '../../../db/schema';
-import { moderationQueue } from '../../../lib/cron-directory';
-import { MODERATION_TARGET_DAYS, ageDays, daysUntil } from '../../../lib/lifecycle';
-import { approveListing, orgById, rejectListing } from '../../../lib/orgs';
-import { decideChange, decideClaim, decideMembership, inviteToClaim } from '../../../lib/admin';
+import ReviewCard from '../../../components/admin/ReviewCard.astro';
+import { MODERATION_TARGET_DAYS, daysUntil } from '../../../lib/lifecycle';
+import { orgById } from '../../../lib/orgs';
+import { inviteToClaim } from '../../../lib/admin';
+import { DecisionForm, decide, reviewItems } from '../../../lib/moderation';
 import { CATEGORIES, ORG_STATUSES } from '../../../lib/directory';
 import { formatDate } from '../../../lib/format';
 
@@ -25,96 +26,29 @@ const tab = tabs.find((t) => t.key === Astro.url.searchParams.get('tab'))?.key ?
 let error = '';
 
 if (Astro.request.method === 'POST') {
-  const parsed = z
-    .object({
-      action: z.enum(['approve', 'reject', 'invite']),
-      kind: z.enum(['listing', 'change', 'claim', 'membership']).optional(),
-      id: z.coerce.number().int(),
-      reason: z.string().max(2000).optional().default(''),
-      email: z.string().optional().default(''),
-    })
-    .safeParse(Object.fromEntries(await Astro.request.formData()));
-  if (!parsed.success) error = 'Something was missing in that form.';
-  else {
-    const { action, kind, id, reason } = parsed.data;
-    const approve = action === 'approve';
-    if (action === 'reject' && reason.trim().length < 5) {
-      error = 'Write a short reason when you reject. It is emailed to the person.';
-    } else if (action === 'invite') {
-      const to = z.email().safeParse(parsed.data.email.trim().toLowerCase());
-      const org = await orgById(id);
-      if (!to.success || !org) error = 'Enter a valid email address to invite.';
-      else await inviteToClaim(org, to.data, actor);
-    } else if (kind === 'listing') {
-      const org = await orgById(id);
-      if (org?.status === 'pending') {
-        if (approve) await approveListing(org, actor);
-        else await rejectListing(org, reason.trim(), actor);
-      }
-    } else if (kind === 'change') await decideChange(id, approve, reason.trim(), actor);
-    else if (kind === 'claim') await decideClaim(id, approve, reason.trim(), actor);
-    else if (kind === 'membership') await decideMembership(id, approve, reason.trim(), actor);
-    if (!error) return Astro.redirect(`/admin/ecosystem?tab=${tab}&saved=1`);
+  const form = Object.fromEntries(await Astro.request.formData());
+  if (form.action === 'invite') {
+    const id = z.coerce.number().int().safeParse(form.id);
+    const to = z.email().safeParse(
+      String(form.email ?? '')
+        .trim()
+        .toLowerCase(),
+    );
+    const org = id.success ? await orgById(id.data) : null;
+    if (!to.success || !org) error = 'Enter a valid email address to invite.';
+    else await inviteToClaim(org, to.data, actor);
+  } else {
+    const parsed = DecisionForm.safeParse(form);
+    error = parsed.success
+      ? ((await decide(parsed.data, actor)) ?? '')
+      : 'Something was missing in that form.';
   }
+  if (!error) return Astro.redirect(`/admin/ecosystem?tab=${tab}&saved=1`);
 }
 
 const db = getDb();
 const now = new Date();
-const queue = tab === 'queue' ? await moderationQueue() : null;
-const items = queue
-  ? [
-      ...queue.pendingOrgs.map((o) => ({
-        kind: 'listing' as const,
-        id: o.id,
-        org: o,
-        at: o.submittedAt ?? o.updatedAt,
-        title: `New listing: ${o.name}`,
-        lines: [
-          `${CATEGORIES[o.category].label} · ${o.website ?? 'no website'}`,
-          o.pitch ?? '',
-          `Submitted by ${o.ownerEmails.join(', ')}`,
-        ],
-      })),
-      ...queue.changes.map(({ change, org }) => ({
-        kind: 'change' as const,
-        id: change.id,
-        org,
-        at: change.createdAt,
-        title: `Change to ${org.name}`,
-        lines: [
-          `Asked by ${change.email}`,
-          ...Object.entries(change.changes).map(
-            ([k, v]) =>
-              `${k}: ${String((org as unknown as Record<string, unknown>)[k] ?? '–')} → ${String(v ?? '–')}`,
-          ),
-        ],
-      })),
-      ...queue.pendingClaims.map(({ claim, org }) => ({
-        kind: 'claim' as const,
-        id: claim.id,
-        org,
-        at: claim.createdAt,
-        title: `Claim for ${org.name}`,
-        lines: [
-          `${claim.name ?? ''} (${claim.role ?? 'no role'}) <${claim.email}>`,
-          claim.domainMatches
-            ? 'Email domain matches the website.'
-            : `Email domain does NOT match the website (${org.website ?? 'none'}).`,
-          org.ownerEmails.length
-            ? `Current owners: ${org.ownerEmails.join(', ')}`
-            : 'Unclaimed until now.',
-        ],
-      })),
-      ...queue.applications.map(({ app, org }) => ({
-        kind: 'membership' as const,
-        id: app.id,
-        org,
-        at: app.createdAt,
-        title: `Membership: ${org.name}`,
-        lines: [`${app.contactName} (${app.contactRole ?? '-'}) <${app.email}>`, app.motivation],
-      })),
-    ].sort((a, b) => a.at.getTime() - b.at.getTime())
-  : [];
+const items = tab === 'queue' ? await reviewItems() : [];
 
 const status = Astro.url.searchParams.get('status') ?? '';
 const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
@@ -182,7 +116,7 @@ const short = (v: unknown) => {
           class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper"
         >
           {t.label}
-          {t.key === 'queue' && queue && ` (${items.length})`}
+          {t.key === 'queue' && tab === 'queue' && ` (${items.length})`}
         </a>
       ))}
     </nav>
@@ -203,54 +137,9 @@ const short = (v: unknown) => {
         to the person, with your reason when you reject.
       </p>
       {items.length === 0 && <div class="admin-panel text-muted">Nothing to review. 🎉</div>}
-      {items.map((it) => {
-        const age = ageDays(it.at, now);
-        return (
-          <article class="admin-panel">
-            <div class="flex flex-wrap items-start justify-between gap-2">
-              <h2 class="text-base">
-                <a href={`/admin/ecosystem/${it.org.id}`}>{it.title}</a>
-              </h2>
-              <Badge
-                tone={age > MODERATION_TARGET_DAYS ? 'danger' : age >= 3 ? 'warning' : 'neutral'}
-              >
-                {age} day{age === 1 ? '' : 's'} old
-              </Badge>
-            </div>
-            <ul class="mt-2 grid gap-1 text-sm">
-              {it.lines.filter(Boolean).map((l) => (
-                <li class="break-words whitespace-pre-line">{l}</li>
-              ))}
-            </ul>
-            <div class="mt-4 flex flex-wrap items-end gap-3">
-              <form method="post">
-                <input type="hidden" name="kind" value={it.kind} />
-                <input type="hidden" name="id" value={it.id} />
-                <Button type="submit" name="action" value="approve" size="sm">
-                  Approve
-                </Button>
-              </form>
-              <form method="post" class="flex flex-1 flex-wrap items-end gap-2">
-                <input type="hidden" name="kind" value={it.kind} />
-                <input type="hidden" name="id" value={it.id} />
-                <label class="min-w-56 flex-1 text-sm">
-                  <span class="sr-only">Reason for rejecting</span>
-                  <input
-                    name="reason"
-                    required
-                    minlength={5}
-                    placeholder="Reason (sent to them)"
-                    class="w-full rounded-lg border border-line px-3 py-1.5"
-                  />
-                </label>
-                <Button type="submit" name="action" value="reject" size="sm" variant="secondary">
-                  Reject
-                </Button>
-              </form>
-            </div>
-          </article>
-        );
-      })}
+      {items.map((it) => (
+        <ReviewCard item={it} link />
+      ))}
     </div>
   )}
 
