@@ -40,7 +40,7 @@ const groups = [
     <section class="admin-panel mb-6 overflow-x-auto">
       <h2 class="mb-3 text-lg">{g.title}</h2>
       {g.rows.length ? (
-        <table class="admin-table">
+        <table class="admin-table" data-sortable>
           <thead>
             <tr>
               <th>Event</th>
@@ -52,20 +52,22 @@ const groups = [
           <tbody>
             {g.rows.map((e) => (
               <tr>
-                <td>
+                <td data-sort={e.title}>
                   <a href={`/admin/events/${e.id}`} class="font-semibold">
                     {e.title}
                   </a>
                   <span class="block text-xs text-muted">{e.series}</span>
                 </td>
-                <td class="whitespace-nowrap">{formatEventDate(e.startsAt, e.endsAt)}</td>
-                <td>
+                <td class="whitespace-nowrap" data-sort={e.startsAt.getTime()}>
+                  {formatEventDate(e.startsAt, e.endsAt)}
+                </td>
+                <td data-sort={e.registered}>
                   <a href={`/admin/registrations?event=${e.id}`}>
                     {e.registered}
                     {e.capacity ? ` / ${e.capacity}` : ''}
                   </a>
                 </td>
-                <td>
+                <td data-sort={e.status}>
                   <Badge
                     tone={
                       e.status === 'published'
