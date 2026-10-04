@@ -6,6 +6,8 @@ interface Option {
 interface Props {
   name: string;
   label: string;
+  /** Needed when several fields share a name (repeated rows). */
+  id?: string;
   type?: astroHTML.JSX.HTMLInputTypeAttribute;
   value?: string | number | null;
   required?: boolean;
@@ -23,6 +25,7 @@ interface Props {
 const {
   name,
   label,
+  id = `f-${name}`,
   type = 'text',
   value,
   required,
@@ -37,7 +40,6 @@ const {
   multiple,
   checked,
 } = Astro.props;
-const id = `f-${name}`;
 const describedBy =
   [hint && `${id}-hint`, error && `${id}-err`].filter(Boolean).join(' ') || undefined;
 const input =

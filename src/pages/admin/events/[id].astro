@@ -67,7 +67,7 @@ if (Astro.request.method === 'POST') {
   if (event && action === 'delete') {
     await db.delete(events).where(eq(events.id, event.id));
     await audit(actor, 'delete', 'event', event.id, { title: event.title }, null);
-    return Astro.redirect('/admin/events?saved=1');
+    return Astro.redirect('/admin/events?saved=deleted');
   }
   if (event && action === 'cancel') {
     await db
@@ -93,13 +93,22 @@ if (Astro.request.method === 'POST') {
   values = formToObject(form);
   const parsed = EventSchema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
-  const cover = await storeUpload(form.get('cover'), {
-    prefix: 'events',
-    maxBytes: 5 * 1024 * 1024,
-    types: IMAGE_TYPES,
-  });
+  // Cancelling goes through "Cancel the event", which tells the people registered.
+  if (parsed.success && parsed.data.status === 'cancelled' && event?.status !== 'cancelled')
+    errors.status =
+      'To cancel, use "Cancel the event" at the bottom: it emails everyone registered.';
+  const picked = form.get('cover');
+  const hasFile = picked instanceof File && picked.size > 0;
+  // Upload only once the rest is valid, so a rejected form leaves no orphan file in R2.
+  const cover = Object.keys(errors).length
+    ? { key: null, error: hasFile ? 'Choose the image again after fixing the other fields.' : null }
+    : await storeUpload(picked, {
+        prefix: 'events',
+        maxBytes: 5 * 1024 * 1024,
+        types: IMAGE_TYPES,
+      });
   if (cover.error) errors.cover = cover.error;
-  if (parsed.success && !cover.error) {
+  if (parsed.success && !Object.keys(errors).length) {
     const d = parsed.data;
     const slug = await uniqueContentSlug(events, d.slug || slugify(d.title), event?.id);
     const keepCover = values.removeCover
@@ -153,7 +162,12 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
       Please fix the highlighted fields.
     </Alert>
   )}
-  <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+  <form
+    method="post"
+    enctype="multipart/form-data"
+    data-warn-unsaved
+    class="grid gap-6 lg:grid-cols-[1fr_20rem]"
+  >
     <div class="grid content-start gap-6">
       <div class="admin-panel grid content-start gap-4">
         <FormField name="title" label="Title" required value={str('title')} error={errors.title} />
@@ -194,8 +208,20 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
       </div>
       <div class="admin-panel grid gap-4">
         <h2 class="text-lg">Venue</h2>
-        <FormField name="venue" label="Venue name" value={str('venue')} />
-        <FormField name="address" label="Address" value={str('address')} />
+        <FormField
+          name="venue"
+          label="Venue name"
+          maxlength={200}
+          value={str('venue')}
+          error={errors.venue}
+        />
+        <FormField
+          name="address"
+          label="Address"
+          maxlength={1000}
+          value={str('address')}
+          error={errors.address}
+        />
         <FormField
           name="mapUrl"
           label="Map link"
@@ -213,10 +239,11 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
           label="Status"
           required
           value={str('status')}
+          error={errors.status}
           options={[
             { value: 'draft', label: 'Draft (not visible)' },
             { value: 'published', label: 'Published' },
-            { value: 'cancelled', label: 'Cancelled' },
+            ...(event?.status === 'cancelled' ? [{ value: 'cancelled', label: 'Cancelled' }] : []),
           ]}
         />
         <FormField
@@ -311,7 +338,12 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
             {event ? (
               <FormField name="removeCover" label="Remove the cover" type="checkbox" />
             ) : (
-              <FormField name="copyCover" label="Use this cover" type="checkbox" checked />
+              <FormField
+                name="copyCover"
+                label="Use this cover"
+                type="checkbox"
+                checked={Astro.request.method === 'POST' ? !!values.copyCover : true}
+              />
             )}
           </>
         )}

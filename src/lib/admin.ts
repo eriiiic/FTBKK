@@ -177,7 +177,7 @@ async function sendOwnerWelcome(org: Organisation, to: string) {
     to,
     subject: `You can now manage ${org.name} on La French Tech Bangkok`,
     paragraphs: [
-      `Your request was approved: you can now update the ${org.name} listing in the French Tech Bangkok ecosystem directory.`,
+      `Your request was approved: you can now update the ${org.name} listing in La French Tech Bangkok's ecosystem directory.`,
       'Once a year we will ask you to confirm the listing is still accurate.',
     ],
     action: { label: 'Update the listing', url: siteUrl('/ecosystem/manage') },
@@ -278,7 +278,7 @@ export async function decideClaim(id: number, approve: boolean, reason: string, 
       to: claim.email,
       subject: `Your request to manage ${org.name}`,
       paragraphs: [
-        `We could not approve your request to manage ${org.name} in the French Tech Bangkok directory:`,
+        `We could not approve your request to manage ${org.name} in La French Tech Bangkok's directory:`,
         reason || 'No reason given.',
         'Reply to this email if you think this is a mistake.',
       ],
@@ -342,9 +342,9 @@ export async function decideMembership(
 export async function inviteToClaim(org: Organisation, to: string, actor: string) {
   await sendEmail({
     to,
-    subject: `${org.name} is listed in the French Tech Bangkok directory`,
+    subject: `${org.name} is listed in La French Tech Bangkok's directory`,
     paragraphs: [
-      `${org.name} is listed in the French Tech Bangkok ecosystem directory, but nobody manages the listing yet.`,
+      `${org.name} is listed in La French Tech Bangkok's ecosystem directory, but nobody manages the listing yet.`,
       'Claim it to keep it accurate: update the description, logo and links, and confirm it once a year. It is free.',
     ],
     action: { label: 'Claim the listing', url: siteUrl(`/ecosystem/${org.slug}/claim`) },

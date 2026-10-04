@@ -8,6 +8,12 @@ interface Props {
 const { title } = Astro.props;
 const adminEmail = Astro.locals.adminEmail;
 const flash = Astro.url.searchParams.get('saved');
+const flashText =
+  flash === 'deleted'
+    ? 'Deleted.'
+    : flash === 'done'
+      ? 'Done.'
+      : 'Saved. Public pages refresh within a minute.';
 const nav = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/events', label: 'Events' },
@@ -45,7 +51,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
     <aside class="bg-navy text-paper md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0">
       <div class="flex items-center justify-between p-4 md:block">
         <a href="/admin" class="no-underline">
-          <Logo tone="light" />
+          <Logo tone="light" class="h-12" />
         </a>
         <a href="/" class="text-xs text-accent-soft md:mt-3 md:block">
           View site ↗
@@ -76,7 +82,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           data-toast
           class="mb-6 rounded-xl border border-success/30 bg-success/5 p-4 text-success"
         >
-          Saved. Public pages refresh within a minute.
+          {flashText}
         </div>
       )}
       <slot />
@@ -85,11 +91,22 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       document.querySelectorAll<HTMLElement>('[data-toast]').forEach((t) => {
         setTimeout(() => t.remove(), 6000);
       });
-      // Confirm destructive actions: <form data-confirm="Delete this post?">
-      document.querySelectorAll<HTMLFormElement>('form[data-confirm]').forEach((f) => {
+      // Confirm destructive actions: <form data-confirm="Delete this post?">, or data-confirm on
+      // the one submit button of a form that needs it.
+      document.querySelectorAll<HTMLFormElement>('form').forEach((f) => {
         f.addEventListener('submit', (e) => {
-          if (!confirm(f.dataset.confirm)) e.preventDefault();
+          const msg = (e.submitter as HTMLElement | null)?.dataset.confirm ?? f.dataset.confirm;
+          if (msg && !confirm(msg)) e.preventDefault();
         });
+      });
+      // Editors warn before leaving with unsaved changes: <form data-warn-unsaved>.
+      let dirty = false;
+      document.querySelectorAll<HTMLFormElement>('form[data-warn-unsaved]').forEach((f) => {
+        f.addEventListener('input', () => (dirty = true));
+        f.addEventListener('submit', () => (dirty = false));
+      });
+      addEventListener('beforeunload', (e) => {
+        if (dirty) e.preventDefault();
       });
       // Copy buttons: <button data-copy="text">, including ones added to the page later.
       document.addEventListener('click', async (e) => {

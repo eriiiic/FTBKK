@@ -26,9 +26,9 @@ const join = whatsapp || '/about#join';
   >
     Skip to content
   </a>
-  <div class="container-page flex h-16 items-center justify-between gap-4">
+  <div class="container-page flex h-16 items-center justify-between gap-4 md:h-20">
     <a href="/" class="no-underline" aria-label="La French Tech Bangkok, home">
-      <Logo />
+      <Logo class="h-14 md:h-[4.25rem]" />
     </a>
     <nav aria-label="Main" class="hidden md:block">
       <ul class="flex items-center gap-1">
@@ -52,13 +52,14 @@ const join = whatsapp || '/about#join';
     </div>
     <button
       type="button"
-      class="rounded-lg p-2 text-navy md:hidden"
+      class="group rounded-lg p-2 text-navy md:hidden"
       aria-controls="mobile-menu"
       aria-expanded="false"
       data-menu-toggle
     >
-      <span class="sr-only">Open menu</span>
-      <Icon name="menu" class="size-6" />
+      <span class="sr-only">Menu</span>
+      <Icon name="menu" class="size-6 group-aria-expanded:hidden" />
+      <Icon name="close" class="hidden size-6 group-aria-expanded:block" />
     </button>
   </div>
   <nav id="mobile-menu" aria-label="Main" class="hidden border-t border-line bg-paper md:hidden">
@@ -86,9 +87,14 @@ const join = whatsapp || '/about#join';
 <script>
   const btn = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
   const menu = document.getElementById('mobile-menu');
-  btn?.addEventListener('click', () => {
-    const open = btn.getAttribute('aria-expanded') === 'true';
-    btn.setAttribute('aria-expanded', String(!open));
-    menu?.classList.toggle('hidden', open);
+  const setOpen = (open: boolean) => {
+    btn?.setAttribute('aria-expanded', String(open));
+    menu?.classList.toggle('hidden', !open);
+  };
+  btn?.addEventListener('click', () => setOpen(btn.getAttribute('aria-expanded') !== 'true'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || btn?.getAttribute('aria-expanded') !== 'true') return;
+    setOpen(false);
+    btn.focus();
   });
 </script>

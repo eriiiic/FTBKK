@@ -63,7 +63,8 @@ them in Settings > Directory moderators.
 
 ## People, Messages, Settings
 
-- **People**: board and institutional partners on the About page. Use ↑ ↓ to reorder.
+- **People**: board and institutional partners on the About page, with their job title and
+  company. Use ↑ ↓ to reorder.
 - **Messages**: contact form messages, filed in folders: Inbox, Answered, Handled, Spam and
   Deleted. Nothing is ever removed, so every folder keeps a record; "Back to inbox" undoes any
   move. **Reply** opens your mail app with the message quoted; mark it answered afterwards.
@@ -75,7 +76,10 @@ them in Settings > Directory moderators.
   name and the time; "Save and mark answered" files the message in the same click. Every move
   between folders is logged under the message too.
 - **Settings**: home and about texts, social links, contact email, moderators, membership switches
-  and the analytics token.
+  and the analytics token. Long texts ("Who we are", "Official French Tech Community", the
+  mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
+  Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
+  appear on Home and About, one per line as `Title | text | link`, where the link is optional.
 
 ## For developers
 

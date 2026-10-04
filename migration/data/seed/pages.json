@@ -37,20 +37,24 @@
     ]
   },
   "about": {
-    "intro": "La French Tech Bangkok is a volunteer-run community, labelled by La French Tech since 2019. It is free and open to all: French and Thai founders, startups, corporates, investors and anyone who wants to build tech in Thailand.",
+    "intro": "La French Tech Bangkok is a local community of volunteers, bridging the French and the Thai entrepreneurial ecosystems through networking events, knowledge exchange and contact sharing.\n\nLaunched in 2014 by the French government, \"La French Tech\" is a global initiative and a collective brand with the ambition to give visibility to French tech entrepreneurs and French know-how around the world. This movement is locally driven by its members in each major cities, in coordination with other French Tech communities to create a global network of people that can support each other. In 2019, La French Tech Bangkok was labelled as an official \"French Tech Community\" by the French government.\n\nLa French Tech Bangkok community is open to everyone, whether you are French, Thai or any other nationality, French-speaking or not. It is entirely free and welcomes all good initiatives.",
     "join": [
       {
-        "title": "Individuals",
-        "text": "Come to our monthly French Tech Connect and Talks, join the WhatsApp group and meet the community."
+        "title": "An individual",
+        "text": "Join our WhatsApp group and our free English-speaking events.",
+        "link": "/events"
       },
       {
-        "title": "Startups",
-        "text": "Get listed in the ecosystem directory and apply for the free French Tech Bangkok membership."
+        "title": "A startup",
+        "text": "You want your startup to be a certified French Tech member? It is free.",
+        "link": "/ecosystem/submit"
       },
       {
-        "title": "Business partners",
-        "text": "Support the community, host an event or share your expertise with founders."
+        "title": "A business partner",
+        "text": "You represent a corporation, a VC fund or an institution and you want to get in touch? Contact us to learn more.",
+        "link": "/about#contact"
       }
-    ]
+    ],
+    "community": "## An official French Tech Community\n\nLa French Tech Bangkok is one of the French Tech Communities labelled by the Mission French Tech, the French State's team behind La French Tech. The label lasts three years: ours was [renewed for 2026–2028](/blog/la-french-tech-bangkok-officially-relabelled-for-2026-2028).\n\n### Using our name and logo\n\nThe French Tech brand belongs to the French State and can't be used to promote a product or a service. Partners, members and institutions can use the La French Tech Bangkok logo with our agreement: [write to us](/about#contact) and we'll send the official files. Please use the logo as it is, without changing its colours, layout or lettering."
   }
 }

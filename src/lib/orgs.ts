@@ -162,7 +162,7 @@ export async function approveListing(org: Organisation, actor: string, now = new
       to: owner,
       subject: `${org.name} is now listed on La French Tech Bangkok`,
       paragraphs: [
-        `Good news: ${org.name} is now published in the French Tech Bangkok ecosystem directory.`,
+        `Good news: ${org.name} is now published in La French Tech Bangkok's ecosystem directory.`,
         `Once a year we'll ask you to confirm the listing is still accurate, so the directory stays reliable. You can update it any time from the link below.`,
       ],
       action: { label: 'See your listing', url: siteUrl(`/ecosystem/${org.slug}`) },
@@ -192,7 +192,7 @@ export async function rejectListing(org: Organisation, reason: string, actor: st
       to: org.ownerEmails,
       subject: `Your listing request for ${org.name}`,
       paragraphs: [
-        `Thank you for submitting ${org.name} to the French Tech Bangkok ecosystem directory. We couldn't publish it as it is:`,
+        `Thank you for submitting ${org.name} to La French Tech Bangkok's ecosystem directory. We couldn't publish it as it is:`,
         reason,
         'You are welcome to submit it again with the changes.',
       ],
@@ -249,7 +249,7 @@ export async function sendRenewalReminder(org: Organisation, offset: number) {
       to: owner,
       subject,
       paragraphs: [
-        `Once a year we ask every organisation in the French Tech Bangkok directory to confirm its listing, so the directory only shows organisations that are really active.`,
+        `Once a year we ask every organisation in La French Tech Bangkok's directory to confirm its listing, so the directory only shows organisations that are really active.`,
         `Please confirm ${org.name} by ${due}. One click is enough if nothing changed. Listings that are not confirmed are hidden 30 days after that date.`,
       ],
       action: {
@@ -271,7 +271,7 @@ export async function sendExpiredNotice(org: Organisation) {
       to: owner,
       subject: `${org.name} is now hidden from the directory`,
       paragraphs: [
-        `We didn't get a confirmation for ${org.name}, so the listing is now hidden from the French Tech Bangkok directory.`,
+        `We didn't get a confirmation for ${org.name}, so the listing is now hidden from La French Tech Bangkok's directory.`,
         'You can bring it back at any time in the next 12 months with one click.',
       ],
       action: { label: 'Reactivate my listing', url: siteUrl(`/ecosystem/confirm?token=${token}`) },

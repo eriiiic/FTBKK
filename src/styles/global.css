@@ -5,20 +5,19 @@
 
 /*
  * Design tokens. Source of truth: docs/design-tokens.md.
- * PLACEHOLDER palette (from the project deck) until `npm run capture` extracts the Wix values;
- * then only this block changes.
+ * Colours follow the French Tech usage charter (palette for Capitals and Communities, section 7.3).
  */
 @theme {
-  --color-navy: #0b1f3a;
-  --color-navy-soft: #1a2433;
-  --color-brand: #e4002b;
-  --color-brand-dark: #b80023;
-  --color-accent: #2f5c9e;
-  --color-accent-soft: #a9c1e6;
-  --color-ink: #1a2433;
-  --color-muted: #5b6b80;
-  --color-line: #d9e1ec;
-  --color-surface: #eef2f7;
+  --color-navy: #160b47; /* Bleu marine */
+  --color-navy-soft: #2a1f63;
+  --color-brand: #d6223d; /* Rouge azalée #e62a45, darkened to pass AA with small text */
+  --color-brand-dark: #b01a31;
+  --color-accent: #0062ff; /* Bleu électrique */
+  --color-accent-soft: #b3cdff;
+  --color-ink: #1a1530;
+  --color-muted: #5c5a73;
+  --color-line: #e0dfe8;
+  --color-surface: #f5f5f5; /* Gris clair */
   --color-paper: #ffffff;
   --color-success: #1f7a4d;
   --color-warning: #8a5a00;
@@ -29,12 +28,12 @@
 
   --radius-card: 1rem;
   --radius-button: 999px;
-  --shadow-card: 0 1px 2px rgb(11 31 58 / 0.06), 0 8px 24px rgb(11 31 58 / 0.08);
+  --shadow-card: 0 1px 2px rgb(22 11 71 / 0.06), 0 8px 24px rgb(22 11 71 / 0.08);
 }
 
 @layer base {
   html {
-    @apply bg-paper font-sans text-ink antialiased;
+    @apply scroll-pt-24 bg-paper font-sans text-ink antialiased;
   }
   h1,
   h2,
@@ -43,6 +42,9 @@
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-accent;
+  }
+  .bg-navy :focus-visible {
+    @apply outline-accent-soft;
   }
   a {
     @apply underline-offset-2;
@@ -87,6 +89,14 @@
   & th[aria-sort='descending'] .sort-button::after {
     content: '↓';
     @apply opacity-100;
+  }
+}
+
+/* Quotes in articles already carry their own quotation marks. */
+@layer components {
+  .prose blockquote p::before,
+  .prose blockquote p::after {
+    content: none;
   }
 }
 

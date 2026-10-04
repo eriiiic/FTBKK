@@ -6,12 +6,26 @@ interface Props {
   value?: string | null;
   rows?: number;
   error?: string;
+  hint?: string;
+  /** Keep single line breaks, as the public page does for settings texts. */
+  breaks?: boolean;
+  /** Show the image and PDF upload buttons. */
+  uploads?: boolean;
 }
-const { name, label, value, rows = 18, error } = Astro.props;
+const {
+  name,
+  label,
+  value,
+  rows = 18,
+  error,
+  hint = 'Markdown: **bold**, *italic*, ## heading, - list, [link](https://…). Images upload to the site.',
+  breaks = false,
+  uploads = true,
+} = Astro.props;
 const id = `md-${name}`;
 ---
 
-<div data-md-editor class="grid gap-2">
+<div data-md-editor data-md-breaks={breaks ? '' : undefined} class="grid gap-2">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <label for={id} class="text-sm font-semibold text-ink">
       {label}
@@ -23,19 +37,23 @@ const id = `md-${name}`;
       <button type="button" data-md-tab="preview" aria-pressed="false" class="md-btn">
         Preview
       </button>
-      <label class="md-btn cursor-pointer">
-        Insert image
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          class="sr-only"
-          data-md-upload="image"
-        />
-      </label>
-      <label class="md-btn cursor-pointer">
-        Attach PDF
-        <input type="file" accept="application/pdf" class="sr-only" data-md-upload="file" />
-      </label>
+      {uploads && (
+        <>
+          <label class="md-btn cursor-pointer">
+            Insert image
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              class="sr-only"
+              data-md-upload="image"
+            />
+          </label>
+          <label class="md-btn cursor-pointer">
+            Attach PDF
+            <input type="file" accept="application/pdf" class="sr-only" data-md-upload="file" />
+          </label>
+        </>
+      )}
     </div>
   </div>
   <textarea
@@ -43,7 +61,7 @@ const id = `md-${name}`;
     name={name}
     rows={rows}
     aria-describedby={`${id}-hint`}
-    class="block w-full rounded-lg border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:border-accent"
+    class="block min-h-40 w-full resize-y rounded-lg border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:border-accent"
     set:text={value ?? ''}
   ></textarea>
   <div
@@ -51,8 +69,8 @@ const id = `md-${name}`;
     hidden
     class="prose min-h-40 max-w-none rounded-lg border border-line bg-paper p-4"
   ></div>
-  <p id={`${id}-hint`} class="text-sm text-muted" data-md-status>
-    Markdown: **bold**, *italic*, ## heading, - list, [link](https://…). Images upload to the site.
+  <p id={`${id}-hint`} class="text-sm text-muted" data-md-status aria-live="polite">
+    {hint}
   </p>
   {error && <p class="text-sm text-danger">{error}</p>}
 </div>
@@ -82,6 +100,18 @@ const id = `md-${name}`;
     const status = root.querySelector('[data-md-status]') as unknown as HTMLElement;
     const tabs = root.querySelectorAll<HTMLButtonElement>('[data-md-tab]');
     const hint = status.textContent;
+    const offline =
+      'Could not reach the server. Your admin login may have expired: open the admin in a new tab to sign in again, then retry. Your text is still here.';
+    /** POST and read JSON; null when the request fails or the answer is not JSON (a login page). */
+    const postJson = async <T,>(url: string, init: RequestInit): Promise<T | null> => {
+      try {
+        const res = await fetch(url, { method: 'POST', ...init });
+        if (!res.headers.get('content-type')?.includes('json')) return null;
+        return (await res.json()) as T;
+      } catch {
+        return null;
+      }
+    };
 
     tabs.forEach((tab) =>
       tab.addEventListener('click', async () => {
@@ -93,16 +123,16 @@ const id = `md-${name}`;
         preview.textContent = 'Loading…';
         // On the post editor, download tags preview with the post's attachments.
         const files = document.querySelector<HTMLInputElement>('[data-attachments-json]');
-        const res = await fetch('/api/admin/preview', {
-          method: 'POST',
+        const data = await postJson<{ html?: string }>('/api/admin/preview', {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             md: ta.value,
             attachments: files ? JSON.parse(files.value || '[]') : undefined,
+            breaks: root.hasAttribute('data-md-breaks'),
           }),
         });
-        const data = (await res.json()) as { html?: string };
-        preview.innerHTML = data.html ?? '<p>Preview failed.</p>';
+        if (!data) preview.textContent = offline;
+        else preview.innerHTML = data.html ?? '<p>Preview failed.</p>';
       }),
     );
 
@@ -132,11 +162,13 @@ const id = `md-${name}`;
         const body = new FormData();
         body.append('file', file);
         body.append('kind', input.dataset.mdUpload ?? 'image');
-        const res = await fetch('/api/admin/upload', { method: 'POST', body });
-        const data = (await res.json()) as { key?: string; url?: string; error?: string };
+        const data = await postJson<{ key?: string; url?: string; error?: string }>(
+          '/api/admin/upload',
+          { body },
+        );
         input.value = '';
-        if (!data.url || !data.key) {
-          status.textContent = data.error ?? 'Upload failed.';
+        if (!data?.url || !data.key) {
+          status.textContent = data ? (data.error ?? 'Upload failed.') : offline;
           return;
         }
         const label = file.name.replace(/\.[^.]+$/, '');

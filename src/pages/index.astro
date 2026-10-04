@@ -5,30 +5,27 @@ import Button from '../components/Button.astro';
 import EventCard from '../components/EventCard.astro';
 import PostCard from '../components/PostCard.astro';
 import OrgCard from '../components/OrgCard.astro';
-import PersonCard from '../components/PersonCard.astro';
+import JoinUs from '../components/JoinUs.astro';
+import PillarIcon from '../components/PillarIcon.astro';
 import Icon from '../components/Icon.astro';
 import { getSettings } from '../lib/settings';
 import {
   featuredOrganisations,
   latestPosts,
   organisationCounts,
-  peopleByGroup,
   postCategoryNames,
   upcomingEvents,
 } from '../lib/queries';
 import { CATEGORIES, CATEGORY_KEYS } from '../lib/directory';
 
 const settings = await getSettings();
-const [nextEvents, posts, featured, counts, board, institutional, postCats] = await Promise.all([
+const [nextEvents, posts, featured, counts, postCats] = await Promise.all([
   upcomingEvents(2),
   latestPosts(3),
   featuredOrganisations(6),
   organisationCounts(),
-  peopleByGroup('board'),
-  peopleByGroup('institutional'),
   postCategoryNames(),
 ]);
-const pillarIcons = ['bulb', 'users', 'chart'] as const;
 const totalOrgs = Object.values(counts).reduce((a, b) => a + b, 0);
 const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
   key: k,
@@ -59,7 +56,9 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
       </p>
       <h1 class="max-w-3xl text-4xl text-paper md:text-6xl">{settings.heroTagline}</h1>
       {settings.mission && (
-        <p class="mt-6 max-w-2xl text-lg text-accent-soft">{settings.mission}</p>
+        <p class="mt-6 max-w-2xl text-lg whitespace-pre-line text-accent-soft">
+          {settings.mission}
+        </p>
       )}
       <div class="mt-8 flex flex-wrap gap-3">
         <Button href="/events">See upcoming events</Button>
@@ -104,20 +103,27 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
   </Section>
 
   {settings.pillars.length > 0 && (
-    <Section tone="surface" title={settings.ecosystemHeading}>
-      <div class="grid gap-6 md:grid-cols-3">
-        {settings.pillars.map((p, i) => (
-          <div class="rounded-card bg-paper p-6 shadow-card">
-            <span class="mb-4 flex size-12 items-center justify-center rounded-xl bg-brand/10 text-brand">
-              <Icon name={pillarIcons[i % pillarIcons.length]!} class="size-6" />
-            </span>
-            <h3 class="text-lg">{p.title}</h3>
-            <p class="mt-2 text-muted">{p.text}</p>
-          </div>
-        ))}
+    <section class="bg-navy py-16 text-paper md:py-24">
+      <div class="container-page">
+        {settings.ecosystemHeading && (
+          <h2 class="mx-auto max-w-4xl text-center text-3xl leading-tight text-balance text-paper uppercase md:text-5xl">
+            {settings.ecosystemHeading}
+          </h2>
+        )}
+        <ul class="mt-12 grid gap-12 md:mt-16 md:grid-cols-3 md:gap-8">
+          {settings.pillars.map((p, i) => (
+            <li class="flex flex-col items-center text-center">
+              <PillarIcon index={i} class="size-14 text-paper" />
+              <h3 class="mt-6 text-xl text-paper">{p.title}</h3>
+              <p class="mt-3 max-w-xs text-paper/90">{p.text}</p>
+            </li>
+          ))}
+        </ul>
       </div>
-    </Section>
+    </section>
   )}
+
+  <JoinUs paths={settings.joinPaths} />
 
   <Section
     eyebrow="Ecosystem"
@@ -130,7 +136,7 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
           <li>
             <a
               href={`/ecosystem?category=${s.key}`}
-              class="block rounded-card border border-line p-4 no-underline hover:border-navy"
+              class="block h-full rounded-card border border-line p-4 no-underline hover:border-navy"
             >
               <span class="block font-display text-3xl font-bold text-brand">{s.n}</span>
               <span class="text-sm text-muted">{s.label}</span>
@@ -166,42 +172,6 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
           All articles →
         </a>
       </p>
-    </Section>
-  )}
-
-  {board.length > 0 && (
-    <Section eyebrow="Board" title="Meet the board">
-      <div class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
-        {board.map((p) => (
-          <PersonCard person={{ ...p, organisation: p.organisationName }} />
-        ))}
-      </div>
-    </Section>
-  )}
-
-  {institutional.length > 0 && (
-    <Section tone="surface" eyebrow="Partners" title="Institutional partners">
-      <div class="grid grid-cols-2 gap-8 md:grid-cols-3">
-        {institutional.map((p) => (
-          <PersonCard person={{ ...p, organisation: p.organisationName }} />
-        ))}
-      </div>
-    </Section>
-  )}
-
-  {settings.socials.whatsapp && (
-    <Section tone="navy">
-      <div class="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-        <div>
-          <h2 class="text-2xl text-paper md:text-3xl">Join the community</h2>
-          <p class="mt-2 text-accent-soft">
-            Event announcements, job posts and help from fellow founders, in one WhatsApp group.
-          </p>
-        </div>
-        <Button href={settings.socials.whatsapp} rel="noopener">
-          <Icon name="whatsapp" /> Join our WhatsApp
-        </Button>
-      </div>
     </Section>
   )}
 </BaseLayout>

@@ -15,14 +15,15 @@ const Input = z.object({
     )
     .max(200)
     .optional(),
+  breaks: z.boolean().optional(),
 });
 
 // Admin only (guarded in middleware). Renders Markdown exactly as the public pages do.
 export const POST: APIRoute = async ({ request }) => {
   const parsed = Input.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: 'Invalid input.' }, { status: 400 });
-  const { md, attachments } = parsed.data;
+  const { md, attachments, breaks } = parsed.data;
   return Response.json({
-    html: renderMarkdown(attachments ? expandDownloads(md, attachments, mediaUrl) : md),
+    html: renderMarkdown(attachments ? expandDownloads(md, attachments, mediaUrl) : md, { breaks }),
   });
 };

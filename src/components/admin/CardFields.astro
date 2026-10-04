@@ -1,0 +1,55 @@
+---
+// Repeated "card" rows (title, text, optional link) for the settings page. Rows left empty are
+// dropped on save; one empty row is offered for adding a card.
+import FormField from '../FormField.astro';
+import type { Card } from '../../lib/settings';
+
+interface Props {
+  prefix: string;
+  legend: string;
+  items: Card[];
+  hint?: string;
+  error?: string;
+  withLink?: boolean;
+  max?: number;
+}
+const { prefix, legend, items, hint, error, withLink = false, max = 6 } = Astro.props;
+const rows: Card[] = items.length < max ? [...items, { title: '', text: '' }] : items;
+---
+
+<fieldset class="grid gap-3">
+  <legend class="text-sm font-semibold text-ink">{legend}</legend>
+  {hint && <p class="-mt-1 text-sm text-muted">{hint}</p>}
+  {error && <p class="text-sm text-danger">{error}</p>}
+  {rows.map((c, i) => (
+    <div class="grid gap-3 rounded-lg border border-line bg-surface/60 p-3 sm:grid-cols-[12rem_1fr]">
+      <FormField
+        id={`${prefix}-title-${i}`}
+        name={`${prefix}Title`}
+        label={i < items.length ? `Card ${i + 1}: title` : 'New card: title'}
+        value={c.title}
+        maxlength={80}
+      />
+      <FormField
+        id={`${prefix}-text-${i}`}
+        name={`${prefix}Text`}
+        label="Text"
+        rows={2}
+        value={c.text}
+        maxlength={400}
+      />
+      {withLink && (
+        <div class="sm:col-start-2">
+          <FormField
+            id={`${prefix}-link-${i}`}
+            name={`${prefix}Link`}
+            label="Link (optional)"
+            value={c.link ?? ''}
+            placeholder="/events or https://…"
+            maxlength={300}
+          />
+        </div>
+      )}
+    </div>
+  ))}
+</fieldset>

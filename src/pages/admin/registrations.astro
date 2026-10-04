@@ -15,7 +15,10 @@ import { promoteFromWaitlist, sendPromotion } from '../../lib/registrations';
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
 const allEvents = await db.select().from(events).orderBy(desc(events.startsAt));
-const eventId = Number(Astro.url.searchParams.get('event')) || allEvents[0]?.id;
+// Without a choice, open the next event (the soonest one not over yet), else the latest.
+const now = new Date();
+const nextUp = allEvents.findLast((e) => (e.endsAt ?? e.startsAt) >= now);
+const eventId = Number(Astro.url.searchParams.get('event')) || nextUp?.id || allEvents[0]?.id;
 const event: Event | undefined = allEvents.find((e) => e.id === eventId);
 let error = '';
 
@@ -53,6 +56,12 @@ if (Astro.request.method === 'POST' && event) {
       else error = 'No free seat, or nobody on the waitlist.';
     } else if (action === 'cancel' && reg) {
       await db.update(registrations).set({ status: 'cancelled' }).where(where);
+      // A freed seat goes to the next person on the waitlist, as when people cancel themselves.
+      if (reg.status === 'registered') {
+        const settings = await getSettings();
+        const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+        if (row) await sendPromotion(event, row);
+      }
     }
     if (reg)
       await audit(
@@ -63,7 +72,13 @@ if (Astro.request.method === 'POST' && event) {
         { status: reg.status },
         null,
       );
-    if (!error) return Astro.redirect(`/admin/registrations?event=${event.id}&saved=1`);
+    if (!error) {
+      // Keep the search and filter, so the next person can be checked in straight away.
+      const back = new URLSearchParams(Astro.url.search);
+      back.set('event', String(event.id));
+      back.set('saved', 'done');
+      return Astro.redirect(`/admin/registrations?${back}`);
+    }
   }
 }
 
@@ -102,7 +117,12 @@ const tone = (s: string) =>
     <label for="event" class="text-sm font-semibold">
       Event
     </label>
-    <select id="event" name="event" class="rounded-lg border border-line bg-paper px-3 py-1.5">
+    <select
+      id="event"
+      name="event"
+      class="max-w-full min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 py-1.5 sm:flex-none"
+      onchange="this.form.requestSubmit()"
+    >
       {allEvents.map((e) => (
         <option value={e.id} selected={e.id === eventId}>
           {formatDate(e.startsAt)} · {e.title}
@@ -273,6 +293,7 @@ const tone = (s: string) =>
                           value="cancel"
                           size="sm"
                           variant="ghost"
+                          data-confirm={`Cancel ${r.name}'s registration?`}
                         >
                           Cancel
                         </Button>

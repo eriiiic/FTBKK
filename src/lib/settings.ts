@@ -20,7 +20,10 @@ export interface Settings {
   ecosystemHeading: string;
   pillars: { title: string; text: string }[];
   aboutIntro: string;
-  joinPaths: { title: string; text: string }[];
+  /** "An official French Tech Community" section on the About page (Markdown). */
+  communityText: string;
+  /** "You can join us" cards on the home and About pages; link is optional. */
+  joinPaths: { title: string; text: string; link?: string }[];
   membershipOpen: boolean;
   memberPriority: boolean;
   analyticsToken: string;
@@ -40,11 +43,33 @@ export const defaultSettings: Settings = {
   ecosystemHeading: '',
   pillars: [],
   aboutIntro: '',
+  communityText: '',
   joinPaths: [],
   membershipOpen: false,
   memberPriority: false,
   analyticsToken: '',
 };
+
+export type Card = Settings['joinPaths'][number];
+
+/**
+ * Cards edited as repeated form rows (`<prefix>Title`, `<prefix>Text`, `<prefix>Link` arrays)
+ * back into a list. Empty rows are dropped; the link is kept only when `withLink`.
+ */
+export function cardsFromForm(form: Record<string, unknown>, prefix: string, withLink = false) {
+  const list = (k: string) => (Array.isArray(form[k]) ? (form[k] as string[]) : []);
+  const [titles, texts, links] = ['Title', 'Text', 'Link'].map((k) => list(`${prefix}${k}`));
+  return titles!
+    .map((t, i): Card => {
+      const link = withLink ? links![i]?.trim() : '';
+      return {
+        title: t.trim(),
+        text: (texts![i] ?? '').replace(/\r\n?/g, '\n').trim(),
+        ...(link ? { link } : {}),
+      };
+    })
+    .filter((c) => c.title || c.text || c.link);
+}
 
 export async function getSettings(db: D1Database = env.DB): Promise<Settings> {
   try {

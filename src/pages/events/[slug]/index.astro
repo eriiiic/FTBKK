@@ -5,7 +5,7 @@ import Button from '../../../components/Button.astro';
 import Icon from '../../../components/Icon.astro';
 import Alert from '../../../components/Alert.astro';
 import RegistrationForm from '../../../components/RegistrationForm.astro';
-import { eventBySlug, isUpcoming } from '../../../lib/queries';
+import { eventBySlug, isUpcoming, upcomingEvents } from '../../../lib/queries';
 import { formatEventDate, mediaUrl } from '../../../lib/format';
 import { plainText, renderMarkdown } from '../../../lib/markdown';
 import { clientIp, fieldErrors, formToObject } from '../../../lib/forms';
@@ -25,6 +25,10 @@ const event = await eventBySlug(Astro.params.slug!);
 if (!event) return Astro.rewrite('/404');
 
 const upcoming = isUpcoming(event);
+// A past event points to the next one instead of leaving its side column empty.
+const [nextEvent] = upcoming
+  ? []
+  : (await upcomingEvents(2)).filter((e) => e.id !== event.id && e.status !== 'cancelled');
 // Imported Wix descriptions can end with the label of Wix's collapse button.
 const bodyMd = event.bodyMd.replace(/\s*\**\s*Show (?:More|Less)\s*\**\s*$/i, '');
 const description =
@@ -173,7 +177,7 @@ const jsonLd = {
       </div>
     </header>
     <div class="container-page grid gap-10 py-12 md:grid-cols-5">
-      <div class="prose max-w-none md:col-span-3" set:html={renderMarkdown(bodyMd)} />
+      <div class="prose max-w-none break-words md:col-span-3" set:html={renderMarkdown(bodyMd)} />
       <aside class="self-start md:sticky md:top-24 md:col-span-2">
         {event.status === 'cancelled' ? (
           <Alert tone="danger">This event has been cancelled.</Alert>
@@ -185,7 +189,23 @@ const jsonLd = {
             values={values}
             result={result}
           />
-        ) : null}
+        ) : (
+          <div class="rounded-card bg-surface p-6">
+            <p class="font-semibold text-navy">This event has passed.</p>
+            {nextEvent ? (
+              <>
+                <p class="mt-2 text-sm text-muted">Next up: {nextEvent.title}</p>
+                <Button href={`/events/${nextEvent.slug}`} class="mt-4">
+                  See the next event
+                </Button>
+              </>
+            ) : (
+              <Button href="/events" class="mt-4">
+                See all events
+              </Button>
+            )}
+          </div>
+        )}
       </aside>
     </div>
   </article>

@@ -34,13 +34,14 @@ const esc = (s: string) =>
 
 /** One branded template for every email on the site (HTML + plain text). */
 export function renderEmail(m: EmailMessage) {
-  const navy = '#0b1f3a';
-  const brand = '#e4002b';
+  // Inline copies of the theme tokens (src/styles/global.css): email clients ignore stylesheets.
+  const navy = '#160b47';
+  const brand = '#d6223d';
   const details = m.details?.length
     ? `<table role="presentation" style="margin:16px 0;border-collapse:collapse">${m.details
         .map(
           ([k, v]) =>
-            `<tr><td style="padding:4px 12px 4px 0;color:#5b6b80;vertical-align:top">${esc(k)}</td><td style="padding:4px 0;color:#1a2433">${esc(v)}</td></tr>`,
+            `<tr><td style="padding:4px 12px 4px 0;color:#5c5a73;vertical-align:top">${esc(k)}</td><td style="padding:4px 0;color:#1a1530">${esc(v)}</td></tr>`,
         )
         .join('')}</table>`
     : '';
@@ -49,26 +50,26 @@ export function renderEmail(m: EmailMessage) {
     : '';
   const links = m.links?.length
     ? `<p style="margin:8px 0;font-size:14px">${m.links
-        .map((l) => `<a href="${esc(l.url)}" style="color:#2f5c9e">${esc(l.label)}</a>`)
+        .map((l) => `<a href="${esc(l.url)}" style="color:#0062ff">${esc(l.label)}</a>`)
         .join(' &nbsp;·&nbsp; ')}</p>`
     : '';
   const ticket = m.ticket
-    ? `<table role="presentation" style="margin:20px 0;border:1px solid #d9e1ec;border-radius:12px;width:100%"><tr><td align="center" style="padding:20px">
-<p style="margin:0 0 8px;font-size:13px;letter-spacing:.08em;color:#5b6b80;text-transform:uppercase">Your ticket</p>
+    ? `<table role="presentation" style="margin:20px 0;border:1px solid #e0dfe8;border-radius:12px;width:100%"><tr><td align="center" style="padding:20px">
+<p style="margin:0 0 8px;font-size:13px;letter-spacing:.08em;color:#5c5a73;text-transform:uppercase">Your ticket</p>
 <img src="cid:${esc(m.ticket.qrCid)}" width="200" height="200" alt="QR code for ticket ${esc(m.ticket.code)}" style="display:block;width:200px;height:200px">
 <p style="margin:8px 0 0;font-family:'Courier New',monospace;font-size:22px;font-weight:700;letter-spacing:.12em;color:${navy}">${esc(m.ticket.code)}</p>
-<p style="margin:8px 0 0;font-size:13px;color:#5b6b80">Show it at the entrance. <a href="${esc(m.ticket.url)}" style="color:#2f5c9e">Open it on your phone</a></p>
+<p style="margin:8px 0 0;font-size:13px;color:#5c5a73">Show it at the entrance. <a href="${esc(m.ticket.url)}" style="color:#0062ff">Open it on your phone</a></p>
 </td></tr></table>`
     : '';
-  const html = `<!doctype html><html><body style="margin:0;background:#eef2f7;font-family:Arial,Helvetica,sans-serif">
-<table role="presentation" width="100%" style="background:#eef2f7;padding:24px 0"><tr><td align="center">
+  const html = `<!doctype html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif">
+<table role="presentation" width="100%" style="background:#f5f5f5;padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" style="max-width:560px;width:100%;background:#fff;border-radius:16px;overflow:hidden">
-<tr><td style="background:${navy};padding:20px 28px;color:#fff;font-weight:800;letter-spacing:.05em">LA FRENCH TECH <span style="color:${brand}">BANGKOK</span></td></tr>
-<tr><td style="padding:28px;color:#1a2433;font-size:16px;line-height:1.6">
+<tr><td style="background:${navy};padding:20px 28px;color:#fff;font-weight:700;font-size:18px">La French Tech Bangkok</td></tr>
+<tr><td style="padding:28px;color:#1a1530;font-size:16px;line-height:1.6">
 ${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p)}</p>`).join('')}
 ${details}${ticket}${button}${links}
 </td></tr>
-<tr><td style="padding:16px 28px;background:#f6f8fb;color:#5b6b80;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>
+<tr><td style="padding:16px 28px;background:#f5f5f5;color:#5c5a73;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [
     ...m.paragraphs,

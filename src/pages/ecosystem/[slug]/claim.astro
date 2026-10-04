@@ -58,7 +58,7 @@ if (Astro.request.method === 'POST' && !claimed) {
       to: parsed.data.email,
       subject: `Confirm your claim for ${org.name}`,
       paragraphs: [
-        `You asked to manage the ${org.name} listing in the French Tech Bangkok directory.`,
+        `You asked to manage the ${org.name} listing in La French Tech Bangkok's directory.`,
         'Confirm your email and a moderator will approve the claim, usually within 5 days.',
       ],
       action: { label: 'Confirm my email', url: siteUrl(`/ecosystem/claim/verify?token=${token}`) },
