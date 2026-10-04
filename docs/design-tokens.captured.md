@@ -1,6 +1,6 @@
 # Design tokens
 
-Extracted from the live Wix site by `npm run capture` on 2026-10-03.
+Extracted from the live Wix site by `npm run capture` on 2026-10-04.
 Raw values are in `migration/data/tokens.json`. The Tailwind theme in `src/styles/global.css` maps these.
 
 ## /

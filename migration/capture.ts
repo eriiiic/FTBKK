@@ -177,61 +177,24 @@ async function expandCollapsed(page: Page) {
 }
 
 /**
- * Wix file widgets in blog posts have no link in the HTML: the file is fetched when "Download" is
- * clicked. Click each one and record where the file came from (a download, a new tab or a request
- * to Wix's file storage).
+ * Wix file widgets in blog posts have no link in the HTML: the file is only fetched (from a signed,
+ * expiring URL) when the block is clicked. Click each one and save the download under files/.
  */
 async function fileWidgets(page: Page) {
   const out: { name: string; url: string; file?: string }[] = [];
-  const buttons = page
-    .locator('article, main')
-    .first()
-    .getByText(/^\s*Download\b/i);
-  const n = await buttons.count();
-  for (let i = 0; i < n; i++) {
-    const button = buttons.nth(i);
-    const name = await button
-      .evaluate((el) => {
-        let node: Element | null = el;
-        for (let k = 0; k < 6 && node; k++) {
-          const m = node.textContent?.match(/[\w\-.() ]+\.(pdf|docx?|xlsx?|pptx?|zip)/i);
-          if (m) return m[0].trim();
-          node = node.parentElement;
-        }
-        return null;
-      })
-      .catch(() => null);
-    const isFile = (u: string) =>
-      /usrfiles\.com|\/ugd\/|\.(pdf|docx?|xlsx?|pptx?|zip)(\?|$)/i.test(u);
-    const caught = Promise.race([
-      page.waitForEvent('download', { timeout: 15_000 }).then(async (d) => {
-        const fileName = name || d.suggestedFilename();
-        const rel = `files/${fileName}`;
-        await mkdir(path.join(ROOT, 'files'), { recursive: true });
-        await d.saveAs(path.join(ROOT, rel));
-        return { url: d.url(), file: rel, fileName };
-      }),
-      page
-        .context()
-        .waitForEvent('page', { timeout: 15_000 })
-        .then(async (tab) => {
-          await tab.waitForLoadState('domcontentloaded').catch(() => {});
-          const url = tab.url();
-          await tab.close();
-          return { url };
-        }),
-      page
-        .waitForRequest((r) => isFile(r.url()), { timeout: 15_000 })
-        .then((r) => ({ url: r.url() })),
-    ]).catch(() => null);
-    await button.click({ timeout: 5_000 }).catch(() => {});
-    const hit = await caught;
-    if (hit?.url && isFile(hit.url)) {
-      out.push({
-        name: name || decodeURIComponent(hit.url.split('/').pop()?.split('?')[0] || 'file.pdf'),
-        url: hit.url,
-        ...('file' in hit && hit.file ? { file: hit.file } : {}),
-      });
+  for (const viewer of await page.$$('[data-hook="file-upload-viewer"]')) {
+    try {
+      const [dl] = await Promise.all([
+        page.waitForEvent('download', { timeout: 20_000 }),
+        viewer.click({ force: true }),
+      ]);
+      const name = dl.suggestedFilename();
+      const rel = `files/${name}`;
+      await mkdir(path.join(ROOT, 'files'), { recursive: true });
+      await dl.saveAs(path.join(ROOT, rel));
+      out.push({ name, url: dl.url(), file: rel });
+    } catch (e) {
+      console.warn(`\nfile widget on ${page.url()}: ${(e as Error).message.split('\n')[0]}`);
     }
   }
   return out;
@@ -285,7 +248,16 @@ function series(title: string) {
 
 async function extractEvent(page: Page, url: string) {
   const slug = slugOf(url);
+  // A DOM click: the cookie banner covers the button and makes pointer clicks time out.
+  const expanded = await page.$$eval(
+    '[data-hook="about-section-button"]',
+    (els) =>
+      els.filter((e) => /more/i.test(e.textContent || '')).map((e) => (e as HTMLElement).click())
+        .length,
+  );
+  if (expanded) await page.waitForTimeout(800);
   await expandCollapsed(page);
+  await page.$$eval('[data-hook="about-section-button"]', (els) => els.forEach((e) => e.remove()));
   const ld = (await jsonLd(page)).find((x) => String(x['@type']).includes('Event')) || {};
   const loc = (ld.location || {}) as Record<string, any>;
   const title = decodeEntities(String(ld.name || (await page.title()).split('|')[0].trim()));
@@ -324,9 +296,15 @@ async function extractPost(page: Page, url: string) {
     '[data-id="content-viewer"]',
     'article',
   ]);
+  // The post's own labels: category links except the blog's menu (class blog-navigation…).
   const categories = await page
-    .$$eval('[data-hook="category-label-list"] a', (els) => [
-      ...new Set(els.map((e) => e.textContent?.trim()).filter(Boolean)),
+    .$$eval('a[href*="/blog/categories/"]', (els) => [
+      ...new Set(
+        els
+          .filter((e) => !e.className.includes('blog-navigation'))
+          .map((e) => e.textContent?.trim())
+          .filter(Boolean),
+      ),
     ])
     .catch(() => [] as string[]);
   const linked = await page.$$eval('a[href$=".pdf"], a[href*="/ugd/"]', (els) =>
@@ -374,7 +352,8 @@ async function extractSponsor(page: Page, url: string) {
       ),
   );
   const linkedin = links.find((l) => l.includes('linkedin.com') && !l.includes('14602794'));
-  const imgs = await imagesOn(page);
+  // Page content only: the first image on the page is the site's own logo in the header.
+  const imgs = await imagesOn(page, '#PAGES_CONTAINER');
   const longest = [...texts].sort((a, b) => b.length - a.length)[0] || '';
   return {
     slug,
@@ -590,6 +569,12 @@ async function downloadImages() {
 // ---------- main ----------
 
 async function main() {
+  // Start from the previous run's image paths, so a partial run (--only=posts) records the same
+  // local path for an image another page type downloaded first (merging afterwards let the old
+  // path win in images.json while the data kept the new one, so the import found no file).
+  if (existsSync(path.join(DATA, 'images.json'))) {
+    Object.assign(images, JSON.parse(await readFile(path.join(DATA, 'images.json'), 'utf8')));
+  }
   const index = await fetchText(`${SITE}/sitemap.xml`);
   const urls: Record<UrlType, string[]> = {
     pages: [],
@@ -611,7 +596,10 @@ async function main() {
   const browser: Browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
   });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const page = await browser.newPage({
+    viewport: { width: 1440, height: 900 },
+    acceptDownloads: true,
+  });
   // tsx (esbuild keepNames) wraps functions in __name(); define it inside the page too.
   await page.addInitScript('window.__name = (f) => f');
   const want = (t: string) => !only || only === t;
@@ -658,8 +646,10 @@ async function main() {
   if (want('posts')) {
     const posts = await run('posts', urls.posts, (u) => extractPost(page, u));
     const cats = await categoryMap(page, urls.categories);
+    // Category pages only fill in posts whose page showed no labels ("All Posts" is not one).
     for (const p of posts) {
-      if (cats[p.slug]?.length) p.categories = cats[p.slug];
+      if (!p.categories.length && cats[p.slug]?.length)
+        p.categories = cats[p.slug].filter((c) => c !== 'All Posts');
     }
     console.log(
       `categories: ${Object.keys(cats).length} posts mapped from ${urls.categories.length} category pages`,
@@ -703,10 +693,6 @@ async function main() {
   if (logo) queueImage(logo, 'brand');
   await browser.close();
 
-  const prev = existsSync(path.join(DATA, 'images.json'))
-    ? JSON.parse(await readFile(path.join(DATA, 'images.json'), 'utf8'))
-    : {};
-  Object.assign(images, prev, images);
   await save(path.join(DATA, 'images.json'), images);
   const dl = await downloadImages();
   console.log(`images: ${dl.ok} saved, ${dl.failed.length} failed`);
