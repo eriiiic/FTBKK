@@ -19,11 +19,26 @@ function b64urlToBytes(s: string) {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+/**
+ * ACCESS_TEAM_DOMAIN may list several comma-separated domains: a renamed Zero Trust team serves
+ * its signing keys under the new name while tokens can still carry the old one as issuer.
+ */
+export const teamDomains = (value: string) =>
+  value
+    .split(',')
+    .map((d) => d.trim())
+    .filter(Boolean);
+
 async function getKeys(teamDomain: string) {
   if (jwksCache && Date.now() - jwksCache.at < 3600_000) return jwksCache.keys;
-  const res = await fetch(`https://${teamDomain}/cdn-cgi/access/certs`);
-  if (!res.ok) throw new Error(`Access certs ${res.status}`);
-  const { keys } = (await res.json()) as { keys: Jwk[] };
+  const keys: Jwk[] = [];
+  const failures: string[] = [];
+  for (const domain of teamDomains(teamDomain)) {
+    const res = await fetch(`https://${domain}/cdn-cgi/access/certs`);
+    if (res.ok) keys.push(...((await res.json()) as { keys: Jwk[] }).keys);
+    else failures.push(`${domain} ${res.status}`);
+  }
+  if (!keys.length) throw new Error(`Access certs ${failures.join(', ')}`);
   jwksCache = { at: Date.now(), keys };
   return keys;
 }
@@ -77,8 +92,8 @@ export async function checkAccessJwt(
     };
   }
   if (payload.exp * 1000 < Date.now()) return { reason: 'The Access login has expired.' };
-  if (payload.iss !== `https://${teamDomain}`) {
-    return { reason: `The token was issued by ${payload.iss}, not https://${teamDomain}.` };
+  if (!teamDomains(teamDomain).some((d) => payload.iss === `https://${d}`)) {
+    return { reason: `The token was issued by ${payload.iss}, not ${teamDomain}.` };
   }
   if (!payload.email) return { reason: 'The Access login carries no email address.' };
   return { email: payload.email };
