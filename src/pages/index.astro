@@ -13,18 +13,20 @@ import {
   latestPosts,
   organisationCounts,
   peopleByGroup,
+  postCategoryNames,
   upcomingEvents,
 } from '../lib/queries';
 import { CATEGORIES, CATEGORY_KEYS } from '../lib/directory';
 
 const settings = await getSettings();
-const [nextEvents, posts, featured, counts, board, institutional] = await Promise.all([
+const [nextEvents, posts, featured, counts, board, institutional, postCats] = await Promise.all([
   upcomingEvents(2),
   latestPosts(3),
   featuredOrganisations(6),
   organisationCounts(),
   peopleByGroup('board'),
   peopleByGroup('institutional'),
+  postCategoryNames(),
 ]);
 const pillarIcons = ['bulb', 'users', 'chart'] as const;
 const totalOrgs = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -156,7 +158,7 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
     <Section tone="surface" eyebrow="Blog" title="Latest from the community">
       <div class="grid gap-6 md:grid-cols-3">
         {posts.map((p) => (
-          <PostCard post={p} />
+          <PostCard post={p} categories={postCats.get(p.id)} />
         ))}
       </div>
       <p class="mt-8">

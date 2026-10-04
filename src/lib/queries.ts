@@ -106,6 +106,18 @@ export async function categoriesForPost(postId: number) {
     .where(eq(postCategories.postId, postId));
 }
 
+/** Category names of every post, in menu order, for post cards. */
+export async function postCategoryNames() {
+  const rows = await getDb()
+    .select({ postId: postCategories.postId, name: categories.name })
+    .from(postCategories)
+    .innerJoin(categories, eq(categories.id, postCategories.categoryId))
+    .orderBy(asc(categories.sortOrder), asc(categories.name));
+  const byPost = new Map<number, string[]>();
+  for (const r of rows) byPost.set(r.postId, [...(byPost.get(r.postId) ?? []), r.name]);
+  return byPost;
+}
+
 /** Posts sharing a category first, then the latest ones. */
 export async function relatedPosts(postId: number, categoryIds: number[], limit = 3) {
   const db = getDb();
