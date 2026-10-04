@@ -113,16 +113,19 @@ if (pages && !Array.isArray(pages.data)) {
 }
 
 // Categories.
+// Wix spells it "Studies & ressources": keep the slug the posts are linked under, fix the name.
 const CATS = [
-  'Ecosystem News',
-  'Founder Guides',
-  'Tech Insights',
-  'Events & Community',
-  'Studies & Resources',
+  ['Ecosystem News'],
+  ['Founder Guides'],
+  ['Tech Insights'],
+  ['Events & Community'],
+  ['Studies & ressources', 'Studies & Resources'],
 ];
-CATS.forEach((name, i) =>
-  sql.push(upsert('categories', { slug: slugify(name), name, sort_order: i })),
+CATS.forEach(([wix, name], i) =>
+  sql.push(upsert('categories', { slug: slugify(wix!), name: name ?? wix, sort_order: i })),
 );
+// An earlier import made a second, empty "Studies & Resources" under the corrected spelling.
+sql.push(`DELETE FROM categories WHERE slug = ${q(slugify('Studies & Resources'))};`);
 
 // Events.
 const ev = load<any[]>('events.json');
