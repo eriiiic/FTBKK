@@ -79,7 +79,11 @@ Until this is done, no email is sent (confirmations, reminders and listing links
    Verify.
 3. Create an API key (sending access) and add it as a secret named `RESEND_API_KEY`, as for
    Turnstile above.
-4. The sender is `EMAIL_FROM` in `wrangler.jsonc` (`hello@french-tech-bangkok.com`).
+4. The sender is `EMAIL_FROM` in `wrangler.jsonc`. Until the domain is verified it is Resend's
+   test sender `onboarding@resend.dev`, which only delivers to the email address of the Resend
+   account: register and submit forms with that address to test. Once verified, set it to
+   `La French Tech Bangkok <hello@french-tech-bangkok.com>`. Verifying the domain only adds DNS
+   records: the Wix site and the domain's existing mailboxes keep working.
 
 ## 7. In the admin
 
@@ -98,5 +102,6 @@ Until this is done, no email is sent (confirmations, reminders and listing links
 
 When the site is ready to replace Wix: move `french-tech-bangkok.com` DNS to Cloudflare (or add a
 CNAME), add `www.french-tech-bangkok.com` as a Custom Domain on the Worker, add the hostname to
-the Access application and the Turnstile widget, then run
+the Access application and the Turnstile widget, set `SITE_URL` in `wrangler.jsonc` back to
+`https://www.french-tech-bangkok.com` (links in emails use it), then run
 `npm run check:redirects -- https://www.french-tech-bangkok.com`.

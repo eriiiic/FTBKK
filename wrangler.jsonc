@@ -33,8 +33,12 @@
     "ACCESS_AUD": "55b16ed23629446d19a82aaf7ee44d0188f91cf1fd2470504b342112a15d321f",
     // Public Turnstile site key. This is Cloudflare's always-pass test key.
     "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-    "SITE_URL": "https://www.french-tech-bangkok.com",
-    "EMAIL_FROM": "La French Tech Bangkok <hello@french-tech-bangkok.com>",
+    // Base of the links in emails. The workers.dev address until the domain moves here (phase 10),
+    // since www.french-tech-bangkok.com still serves the Wix site.
+    "SITE_URL": "https://ft-bkk-site.edelattre.workers.dev",
+    // Resend's test sender, which only delivers to the Resend account's own address. Switch to
+    // "La French Tech Bangkok <hello@french-tech-bangkok.com>" once that domain is verified.
+    "EMAIL_FROM": "La French Tech Bangkok <onboarding@resend.dev>",
   },
   "triggers": {
     // 02:00 UTC = 09:00 Asia/Bangkok, daily.
