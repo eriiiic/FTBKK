@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
-import type { Event, Registration } from '../db/schema';
+import { registrations, type Event, type Registration } from '../db/schema';
 import { email } from './forms';
 import { DAY_MS } from './lifecycle';
 import { formatEventDate } from './format';
@@ -287,3 +288,14 @@ export async function sendEventCancelled(e: Event, rows: { name: string; email: 
     })),
   );
 }
+
+/**
+ * Registrations per event as a column of a select on `events`. The outer id is written out as
+ * "events"."id": Drizzle prints ${events.id} as a bare "id", which inside the subquery means the
+ * registration's own id, so the count was wrong.
+ */
+export const registrationCount = (statuses: Registration['status'][]) =>
+  sql<number>`(select count(*) from ${registrations} r where r.event_id = "events"."id" and r.status in (${sql.join(
+    statuses.map((s) => sql`${s}`),
+    sql`, `,
+  )}))`;
