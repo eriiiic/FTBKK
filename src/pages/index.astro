@@ -26,6 +26,7 @@ const [nextEvents, posts, featured, counts, board, institutional] = await Promis
   peopleByGroup('board'),
   peopleByGroup('institutional'),
 ]);
+const pillarIcons = ['bulb', 'users', 'chart'] as const;
 const totalOrgs = Object.values(counts).reduce((a, b) => a + b, 0);
 const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
   key: k,
@@ -67,9 +68,14 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
         )}
       </div>
       {settings.values.length > 0 && (
-        <ul class="mt-12 grid gap-4 sm:grid-cols-3">
+        <ul class="mt-12 flex flex-col gap-3 border-t border-paper/15 pt-8 sm:flex-row sm:flex-wrap sm:gap-x-10">
           {settings.values.map((v) => (
-            <li class="rounded-card border border-paper/15 bg-paper/5 p-4 text-sm">{v}</li>
+            <li class="flex items-center gap-2 text-sm font-medium text-paper">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand">
+                <Icon name="check" class="size-3.5" />
+              </span>
+              {v}
+            </li>
           ))}
         </ul>
       )}
@@ -98,8 +104,11 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
   {settings.pillars.length > 0 && (
     <Section tone="surface" title={settings.ecosystemHeading}>
       <div class="grid gap-6 md:grid-cols-3">
-        {settings.pillars.map((p) => (
+        {settings.pillars.map((p, i) => (
           <div class="rounded-card bg-paper p-6 shadow-card">
+            <span class="mb-4 flex size-12 items-center justify-center rounded-xl bg-brand/10 text-brand">
+              <Icon name={pillarIcons[i % pillarIcons.length]!} class="size-6" />
+            </span>
             <h3 class="text-lg">{p.title}</h3>
             <p class="mt-2 text-muted">{p.text}</p>
           </div>

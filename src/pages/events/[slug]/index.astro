@@ -172,7 +172,7 @@ const jsonLd = {
     </header>
     <div class="container-page grid gap-10 py-12 md:grid-cols-5">
       <div class="prose max-w-none md:col-span-3" set:html={renderMarkdown(event.bodyMd)} />
-      <aside class="md:col-span-2">
+      <aside class="self-start md:sticky md:top-24 md:col-span-2">
         {event.status === 'cancelled' ? (
           <Alert tone="danger">This event has been cancelled.</Alert>
         ) : upcoming ? (
@@ -184,10 +184,6 @@ const jsonLd = {
             result={result}
           />
         ) : null}
-        <p class="mt-6 text-sm text-muted">
-          Photos and videos may be taken during our events and shared on our website and social
-          media. Let the organisers know on the day if you prefer not to appear.
-        </p>
       </aside>
     </div>
   </article>

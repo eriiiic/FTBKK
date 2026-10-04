@@ -1,0 +1,43 @@
+---
+import Badge from './Badge.astro';
+import DateBlock from './DateBlock.astro';
+import Icon from './Icon.astro';
+import { formatEventDate } from '../lib/format';
+
+interface Props {
+  event: {
+    slug: string;
+    title: string;
+    series: string;
+    startsAt: Date;
+    endsAt: Date | null;
+    venue: string | null;
+    status?: string;
+  };
+}
+const { event } = Astro.props;
+---
+
+<a
+  href={`/events/${event.slug}`}
+  class="group flex items-center gap-4 rounded-card p-3 no-underline transition-colors hover:bg-surface sm:gap-5 sm:p-4"
+>
+  <DateBlock date={event.startsAt} />
+  <div class="min-w-0 flex-1">
+    <div class="flex flex-wrap items-center gap-2">
+      <Badge tone="accent">{event.series}</Badge>
+      {event.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
+    </div>
+    <h3 class="mt-1.5 text-base group-hover:text-brand sm:text-lg">{event.title}</h3>
+    <p class="mt-1 text-sm text-muted">
+      <time datetime={event.startsAt.toISOString()}>
+        {formatEventDate(event.startsAt, event.endsAt)}
+      </time>
+      {event.venue && <span> · {event.venue}</span>}
+    </p>
+  </div>
+  <Icon
+    name="arrow"
+    class="hidden size-5 shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-brand sm:block"
+  />
+</a>

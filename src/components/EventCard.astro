@@ -2,6 +2,7 @@
 import Card from './Card.astro';
 import Badge from './Badge.astro';
 import Icon from './Icon.astro';
+import DateBlock from './DateBlock.astro';
 import { formatEventDate, mediaUrl } from '../lib/format';
 
 interface Props {
@@ -24,7 +25,7 @@ const cover = mediaUrl(event.coverKey);
 
 <Card href={`/events/${event.slug}`}>
   {!compact && (
-    <div class="aspect-[16/9] bg-surface">
+    <div class="relative aspect-[16/9] bg-surface">
       {cover ? (
         <img src={cover} alt="" loading="lazy" class="size-full object-cover" />
       ) : (
@@ -32,6 +33,7 @@ const cover = mediaUrl(event.coverKey);
           {event.series}
         </div>
       )}
+      <DateBlock date={event.startsAt} class="absolute top-4 left-4 border-0 shadow-card" />
     </div>
   )}
   <div class="flex flex-1 flex-col gap-2 p-5">

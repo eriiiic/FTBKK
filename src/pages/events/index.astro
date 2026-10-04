@@ -1,9 +1,13 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Section from '../../components/Section.astro';
-import EventCard from '../../components/EventCard.astro';
+import EventRow from '../../components/EventRow.astro';
+import DateBlock from '../../components/DateBlock.astro';
+import Badge from '../../components/Badge.astro';
+import Button from '../../components/Button.astro';
+import Icon from '../../components/Icon.astro';
 import { pastEvents, upcomingEvents } from '../../lib/queries';
-import { TZ } from '../../lib/format';
+import { TZ, formatEventDate, mediaUrl } from '../../lib/format';
 
 const series = Astro.url.searchParams.get('series');
 const [upcoming, past] = await Promise.all([upcomingEvents(), pastEvents()]);
@@ -18,6 +22,8 @@ const pastByYear = Object.entries(
     return acc;
   }, {}),
 ).sort((a, b) => Number(b[0]) - Number(a[0]));
+const [next, ...later] = bySeries(upcoming);
+const nextCover = mediaUrl(next?.coverKey);
 const chip =
   'rounded-full border px-3 py-1 text-sm no-underline border-line hover:border-navy aria-[current=true]:border-navy aria-[current=true]:bg-navy aria-[current=true]:text-paper';
 ---
@@ -48,15 +54,74 @@ const chip =
         ))}
       </nav>
     )}
-    <h2 class="mt-12 mb-6 text-2xl">Upcoming</h2>
-    {bySeries(upcoming).length ? (
-      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {bySeries(upcoming).map((e) => (
-          <EventCard event={e} />
-        ))}
-      </div>
+    {next ? (
+      <>
+        <h2 class="mt-12 mb-6 text-2xl">Next event</h2>
+        <article class="grid overflow-hidden rounded-card border border-line bg-paper shadow-card md:grid-cols-2">
+          <a
+            href={`/events/${next.slug}`}
+            class="relative block aspect-[16/9] bg-navy md:aspect-auto"
+          >
+            {nextCover ? (
+              <img src={nextCover} alt="" class="size-full object-cover" />
+            ) : (
+              <span class="flex size-full min-h-48 items-center justify-center font-display text-2xl font-bold text-paper">
+                {next.series}
+              </span>
+            )}
+          </a>
+          <div class="flex flex-col gap-4 p-6 md:p-8">
+            <div class="flex items-center gap-4">
+              <DateBlock date={next.startsAt} />
+              <div class="flex flex-wrap gap-2">
+                <Badge tone="accent">{next.series}</Badge>
+                {next.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
+              </div>
+            </div>
+            <h3 class="text-2xl md:text-3xl">
+              <a href={`/events/${next.slug}`} class="no-underline hover:text-brand">
+                {next.title}
+              </a>
+            </h3>
+            <div class="space-y-2 text-muted">
+              <p class="flex items-center gap-2">
+                <Icon name="calendar" class="size-5 shrink-0 text-brand" />
+                <time datetime={next.startsAt.toISOString()}>
+                  {formatEventDate(next.startsAt, next.endsAt)}
+                </time>
+              </p>
+              {next.venue && (
+                <p class="flex items-center gap-2">
+                  <Icon name="pin" class="size-5 shrink-0 text-brand" />
+                  {next.venue}
+                </p>
+              )}
+            </div>
+            {next.summary && <p class="line-clamp-3">{next.summary}</p>}
+            <div class="mt-auto flex flex-wrap gap-3 pt-2">
+              <Button href={`/events/${next.slug}#register`}>Register, it's free</Button>
+              <Button href={`/events/${next.slug}`} variant="secondary">
+                Details
+              </Button>
+            </div>
+          </div>
+        </article>
+        {later.length > 0 && (
+          <>
+            <h2 class="mt-14 mb-4 text-2xl">Coming up</h2>
+            <div class="divide-y divide-line rounded-card border border-line bg-paper p-1 sm:p-2">
+              {later.map((e) => (
+                <EventRow event={e} />
+              ))}
+            </div>
+          </>
+        )}
+      </>
     ) : (
-      <p class="text-muted">Nothing scheduled yet. Check back soon.</p>
+      <>
+        <h2 class="mt-12 mb-6 text-2xl">Upcoming</h2>
+        <p class="text-muted">Nothing scheduled yet. Check back soon.</p>
+      </>
     )}
   </Section>
   {pastByYear.length > 0 && (
@@ -64,9 +129,9 @@ const chip =
       {pastByYear.map(([y, list]) => (
         <div class="mb-10">
           <h3 class="mb-4 text-xl">{y}</h3>
-          <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div class="grid gap-x-6 gap-y-1 rounded-card bg-paper p-1 shadow-card sm:p-2 lg:grid-cols-2">
             {list.map((e) => (
-              <EventCard event={e} compact />
+              <EventRow event={e} />
             ))}
           </div>
         </div>
