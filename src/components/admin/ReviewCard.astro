@@ -1,0 +1,95 @@
+---
+/** One request waiting for a moderator: its details and the Approve / Reject buttons. */
+import Badge from '../Badge.astro';
+import Button from '../Button.astro';
+import type { ReviewItem } from '../../lib/moderation';
+import { MODERATION_TARGET_DAYS, ageDays } from '../../lib/lifecycle';
+
+interface Props {
+  item: ReviewItem;
+  /** Link the title and show "Open" (in the queue); off on the organisation's own page. */
+  link?: boolean;
+  /** Where the forms post (defaults to the current page). */
+  action?: string;
+}
+const { item: it, link = false, action } = Astro.props;
+const age = ageDays(it.at, new Date());
+const href = `/admin/ecosystem/${it.org.id}`;
+const hints: Record<ReviewItem['kind'], string> = {
+  listing: 'To fix something first, edit the fields below and Save, then Approve.',
+  change: 'Approve applies these values to the listing. You can still edit it afterwards.',
+  claim: 'Approve adds this person to the owners of the listing.',
+  membership: 'Approve makes the organisation a member.',
+};
+---
+
+<article class="admin-panel">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h2 class="text-base">{link ? <a href={href}>{it.title}</a> : it.title}</h2>
+    <Badge tone={age > MODERATION_TARGET_DAYS ? 'danger' : age >= 3 ? 'warning' : 'neutral'}>
+      {age} day{age === 1 ? '' : 's'} old
+    </Badge>
+  </div>
+  <dl class="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[9rem_1fr]">
+    {it.details.map(([k, v]) => (
+      <>
+        <dt class="text-muted">{k}</dt>
+        <dd class="break-words whitespace-pre-line">{v}</dd>
+      </>
+    ))}
+  </dl>
+  {it.diff && it.diff.length > 0 && (
+    <div class="mt-3 overflow-x-auto">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Now</th>
+            <th>Requested</th>
+          </tr>
+        </thead>
+        <tbody>
+          {it.diff.map(([field, now, wanted]) => (
+            <tr>
+              <td class="font-semibold">{field}</td>
+              <td class="break-words whitespace-pre-line text-muted">{now}</td>
+              <td class="break-words whitespace-pre-line">{wanted}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+  {!link && <p class="mt-3 text-xs text-muted">{hints[it.kind]}</p>}
+  <div class="mt-4 flex flex-wrap items-end gap-3">
+    {link && (
+      <Button href={href} size="sm" variant="secondary">
+        Open details and edit
+      </Button>
+    )}
+    <form method="post" action={action}>
+      <input type="hidden" name="kind" value={it.kind} />
+      <input type="hidden" name="id" value={it.id} />
+      <Button type="submit" name="action" value="approve" size="sm">
+        Approve
+      </Button>
+    </form>
+    <form method="post" action={action} class="flex flex-1 flex-wrap items-end gap-2">
+      <input type="hidden" name="kind" value={it.kind} />
+      <input type="hidden" name="id" value={it.id} />
+      <label class="min-w-56 flex-1 text-sm">
+        <span class="sr-only">Reason for rejecting</span>
+        <input
+          name="reason"
+          required
+          minlength={5}
+          placeholder="Reason (sent to them)"
+          class="w-full rounded-lg border border-line px-3 py-1.5"
+        />
+      </label>
+      <Button type="submit" name="action" value="reject" size="sm" variant="secondary">
+        Reject
+      </Button>
+    </form>
+  </div>
+</article>
