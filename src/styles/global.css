@@ -69,6 +69,21 @@
   & tr:last-child td {
     @apply border-b-0;
   }
+  & .sort-button {
+    @apply inline-flex cursor-pointer items-center gap-1 font-semibold tracking-wide uppercase hover:text-navy;
+  }
+  & .sort-button::after {
+    content: '↕';
+    @apply opacity-40;
+  }
+  & th[aria-sort='ascending'] .sort-button::after {
+    content: '↑';
+    @apply opacity-100;
+  }
+  & th[aria-sort='descending'] .sort-button::after {
+    content: '↓';
+    @apply opacity-100;
+  }
 }
 
 /* File links inside articles (e.g. the Tech Pulse PDFs) read as download buttons. */

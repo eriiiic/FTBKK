@@ -47,7 +47,7 @@ const now = new Date();
   </div>
   <div class="admin-panel overflow-x-auto">
     {rows.length ? (
-      <table class="admin-table">
+      <table class="admin-table" data-sortable>
         <thead>
           <tr>
             <th>Title</th>
@@ -59,20 +59,30 @@ const now = new Date();
         <tbody>
           {rows.map((p) => (
             <tr>
-              <td>
+              <td data-sort={p.title}>
                 <a href={`/admin/posts/${p.id}`} class="font-semibold">
                   {p.title}
                 </a>
               </td>
-              <td>
+              <td
+                data-sort={
+                  p.status === 'published' && p.publishedAt && p.publishedAt > now
+                    ? 'scheduled'
+                    : p.status
+                }
+              >
                 {p.status === 'published' && p.publishedAt && p.publishedAt > now ? (
                   <Badge tone="accent">scheduled</Badge>
                 ) : (
                   <Badge tone={p.status === 'published' ? 'success' : 'neutral'}>{p.status}</Badge>
                 )}
               </td>
-              <td class="whitespace-nowrap">{p.publishedAt ? formatDate(p.publishedAt) : '–'}</td>
-              <td class="whitespace-nowrap text-muted">{formatDate(p.updatedAt)}</td>
+              <td class="whitespace-nowrap" data-sort={p.publishedAt?.getTime() ?? 0}>
+                {p.publishedAt ? formatDate(p.publishedAt) : '–'}
+              </td>
+              <td class="whitespace-nowrap text-muted" data-sort={p.updatedAt.getTime()}>
+                {formatDate(p.updatedAt)}
+              </td>
             </tr>
           ))}
         </tbody>
