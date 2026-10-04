@@ -30,7 +30,7 @@ const [queue, upcoming, [drafts], [unread], [listed], [renewSoon]] = await Promi
     .orderBy(asc(events.startsAt))
     .limit(5),
   db.select({ n: count() }).from(posts).where(eq(posts.status, 'draft')),
-  db.select({ n: count() }).from(submissions).where(eq(submissions.handled, false)),
+  db.select({ n: count() }).from(submissions).where(eq(submissions.status, 'new')),
   db.select({ n: count() }).from(organisations).where(eq(organisations.status, 'published')),
   db
     .select({ n: count() })

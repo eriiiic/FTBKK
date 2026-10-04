@@ -16,6 +16,7 @@ import { rateLimit } from '../lib/ratelimit';
 import { sendEmail } from '../lib/email';
 import { getDb } from '../db';
 import { submissions } from '../db/schema';
+import { blockedBy } from '../lib/messages';
 
 const settings = await getSettings();
 const [board, institutional, counts] = await Promise.all([
@@ -54,19 +55,36 @@ if (isPost) {
     if (!parsed.success) {
       errors = fieldErrors(parsed.error);
     } else {
-      await getDb().insert(submissions).values({ type: 'contact', payload: parsed.data });
-      await sendEmail({
-        to: settings.contactEmail,
-        replyTo: parsed.data.email,
-        subject: `Website contact (${parsed.data.topic}): ${parsed.data.name}`,
-        paragraphs: [parsed.data.message],
-        details: [
-          ['From', `${parsed.data.name} <${parsed.data.email}>`],
-          ['Company', parsed.data.company ?? '-'],
-          ['Topic', parsed.data.topic],
-        ],
-        footer: 'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
-      });
+      // A blocked sender sees the usual thank-you; the message is kept in Spam, unannounced.
+      const blocked = await blockedBy(parsed.data.email);
+      await getDb()
+        .insert(submissions)
+        .values({
+          type: 'contact',
+          payload: parsed.data,
+          ...(blocked
+            ? {
+                status: 'spam' as const,
+                handled: true,
+                statusAt: new Date(),
+                statusBy: `blocked: ${blocked}`,
+              }
+            : {}),
+        });
+      if (!blocked)
+        await sendEmail({
+          to: settings.contactEmail,
+          replyTo: parsed.data.email,
+          subject: `Website contact (${parsed.data.topic}): ${parsed.data.name}`,
+          paragraphs: [parsed.data.message],
+          details: [
+            ['From', `${parsed.data.name} <${parsed.data.email}>`],
+            ['Company', parsed.data.company ?? '-'],
+            ['Topic', parsed.data.topic],
+          ],
+          footer:
+            'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
+        });
       sent = true;
       values = {};
     }

@@ -64,7 +64,13 @@ them in Settings > Directory moderators.
 ## People, Messages, Settings
 
 - **People**: board and institutional partners on the About page. Use ↑ ↓ to reorder.
-- **Messages**: contact form messages. Mark them handled once answered.
+- **Messages**: contact form messages, filed in folders: Inbox, Answered, Handled, Spam and
+  Deleted. Nothing is ever removed, so every folder keeps a record; "Back to inbox" undoes any
+  move. **Reply** opens your mail app with the message quoted; mark it answered afterwards.
+  **Spam…** blocks the sender's address (or their whole company domain; webmail domains like
+  gmail.com can only be blocked address by address). Later messages from a blocked sender land
+  in Spam silently, with no email to the team. Manage the list under Spam > Blocked senders.
+  Tick several messages to move them at once; search covers every field.
 - **Settings**: home and about texts, social links, contact email, moderators, membership switches
   and the analytics token.
 

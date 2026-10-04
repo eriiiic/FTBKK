@@ -1,74 +1,350 @@
 ---
-import { desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, sql } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import Alert from '../../components/Alert.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
 import { getDb } from '../../db';
-import { submissions } from '../../db/schema';
+import { blockedSenders, submissions } from '../../db/schema';
 import { formatDate } from '../../lib/format';
+import {
+  FOLDERS,
+  MessageAction,
+  applyMessageAction,
+  canBlockDomain,
+  domainOf,
+  replyLink,
+  type MessageStatus,
+} from '../../lib/messages';
 
+// Messages from the contact form. Nothing is ever removed: every action files the message in a
+// folder (Inbox, Answered, Handled, Spam, Deleted), and blocked senders go straight to Spam.
 const db = getDb();
-const show = Astro.url.searchParams.get('show') === 'all' ? 'all' : 'open';
+const actor = Astro.locals.adminEmail ?? 'admin';
+const params = Astro.url.searchParams;
+const folder: MessageStatus =
+  FOLDERS.find((f) => f.status === params.get('folder'))?.status ?? 'new';
+const q = (params.get('q') ?? '').trim().slice(0, 100);
+const here = (extra: Record<string, string> = {}) => {
+  const p = new URLSearchParams({ folder, ...(q ? { q } : {}), ...extra });
+  return `/admin/submissions?${p}`;
+};
+
+let error = '';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  const id = Number(form.get('id'));
-  const handled = form.get('action') === 'done';
-  if (id) await db.update(submissions).set({ handled }).where(eq(submissions.id, id));
-  return Astro.redirect(`/admin/submissions?show=${show}`);
+  // "spam" blocks the address; "spam-domain" the whole domain; "spam-only" blocks nobody.
+  const [action, block] = String(form.get('action') ?? '').split('-');
+  const parsed = MessageAction.safeParse({
+    action,
+    ids: form.getAll('ids'),
+    block:
+      action === 'spam'
+        ? ({ domain: 'domain', only: 'none' }[block ?? ''] ?? 'address')
+        : undefined,
+    pattern: form.get('pattern') ?? undefined,
+  });
+  if (parsed.success) {
+    const done = await applyMessageAction(parsed.data, actor);
+    return Astro.redirect(here({ done }));
+  }
+  const issue = parsed.error.issues[0];
+  error =
+    issue?.path[0] === 'ids'
+      ? 'Select at least one message first.'
+      : (issue?.message ?? 'That did not work.');
 }
-const rows = await db
-  .select()
-  .from(submissions)
-  .where(show === 'open' ? eq(submissions.handled, false) : undefined)
-  .orderBy(desc(submissions.createdAt))
-  .limit(200);
+const done = params.get('done');
+
+const search = q
+  ? sql`lower(${submissions.payload}) like ${`%${q.toLowerCase().replace(/[%_]/g, '')}%`}`
+  : undefined;
+const [rows, counts, blocked] = await Promise.all([
+  db
+    .select()
+    .from(submissions)
+    .where(and(eq(submissions.status, folder), search))
+    .orderBy(desc(submissions.createdAt))
+    .limit(200),
+  db
+    .select({ status: submissions.status, n: count() })
+    .from(submissions)
+    .groupBy(submissions.status),
+  folder === 'spam'
+    ? db.select().from(blockedSenders).orderBy(desc(blockedSenders.createdAt))
+    : Promise.resolve([]),
+]);
+const countOf = (s: MessageStatus) => counts.find((c) => c.status === s)?.n ?? 0;
 const str = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+const stamp = (d: Date) => formatDate(d, { hour: '2-digit', minute: '2-digit' });
+const label = (s: MessageStatus) => FOLDERS.find((f) => f.status === s)!.label;
+// The moves offered from each folder (the current one is left out).
+const moves = (
+  [
+    ['answered', 'Answered'],
+    ['handled', 'Handled'],
+    ['deleted', 'Delete'],
+  ] as const
+).filter(([s]) => s !== folder);
 ---
 
 <AdminLayout title="Messages">
-  <p class="mb-4 text-sm">
-    {show === 'open' ? (
-      <a href="?show=all">Show handled messages too</a>
-    ) : (
-      <a href="?show=open">Show only open messages</a>
-    )}
-  </p>
-  {rows.length === 0 && <div class="admin-panel text-muted">No messages.</div>}
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <nav aria-label="Message folders" class="flex flex-wrap gap-2">
+      {FOLDERS.map((f) => (
+        <a
+          href={`?folder=${f.status}`}
+          aria-current={f.status === folder ? 'page' : undefined}
+          class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper"
+        >
+          {f.label} ({countOf(f.status)})
+        </a>
+      ))}
+    </nav>
+    <form method="get" role="search" class="flex gap-2">
+      <input type="hidden" name="folder" value={folder} />
+      <label for="q" class="sr-only">
+        Search messages
+      </label>
+      <input
+        id="q"
+        name="q"
+        type="search"
+        value={q}
+        placeholder="Search name, email, text…"
+        class="admin-input w-56"
+      />
+      <Button type="submit" size="sm" variant="secondary">
+        Search
+      </Button>
+    </form>
+  </div>
+
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+  {done && (
+    <Alert tone="success" class="mb-4">
+      {done}
+    </Alert>
+  )}
+
+  {rows.length > 0 && (
+    <form
+      method="post"
+      id="bulk"
+      class="admin-panel sticky top-0 z-10 mb-4 flex flex-wrap items-center gap-2 py-3"
+    >
+      <label class="mr-2 inline-flex items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" data-all class="size-4" />
+        Select all
+      </label>
+      <span class="text-sm text-muted" data-selected>
+        0 selected
+      </span>
+      <span class="flex-1" />
+      {folder !== 'new' && (
+        <Button type="submit" name="action" value="new" size="sm" variant="ghost">
+          Back to inbox
+        </Button>
+      )}
+      {moves.map(([s, text]) => (
+        <Button type="submit" name="action" value={s} size="sm" variant="ghost">
+          {text}
+        </Button>
+      ))}
+      {folder !== 'spam' && (
+        <Button type="submit" name="action" value="spam" size="sm" variant="ghost">
+          Spam and block
+        </Button>
+      )}
+    </form>
+  )}
+
+  {rows.length === 0 && (
+    <div class="admin-panel text-muted">
+      {q ? `No message in ${label(folder)} matches “${q}”.` : `${label(folder)} is empty.`}
+    </div>
+  )}
+
   <div class="grid gap-4">
     {rows.map((s) => {
       const p = s.payload;
+      const email = str(p.email);
       return (
-        <article class={`admin-panel ${s.handled ? 'opacity-70' : ''}`}>
+        <article class="admin-panel" aria-labelledby={`m${s.id}`}>
           <div class="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 class="text-base">
-                {str(p.name) || 'Anonymous'}
-                {p.company ? <span class="font-normal text-muted"> · {str(p.company)}</span> : null}
-              </h2>
-              <p class="text-sm">
-                {p.email ? <a href={`mailto:${str(p.email)}`}>{str(p.email)}</a> : null}
-              </p>
+            <div class="flex min-w-0 gap-3">
+              <input
+                type="checkbox"
+                form="bulk"
+                name="ids"
+                value={s.id}
+                data-pick
+                class="mt-1 size-4 shrink-0"
+                aria-label={`Select the message from ${str(p.name) || 'Anonymous'}`}
+              />
+              <div class="min-w-0">
+                <h2 id={`m${s.id}`} class="text-base">
+                  {str(p.name) || 'Anonymous'}
+                  {p.company ? (
+                    <span class="font-normal text-muted"> · {str(p.company)}</span>
+                  ) : null}
+                </h2>
+                <p class="text-sm break-all">
+                  {email ? <a href={`mailto:${email}`}>{email}</a> : null}
+                </p>
+              </div>
             </div>
             <div class="flex items-center gap-2 text-sm text-muted">
               <Badge tone="accent">{str(p.topic) || s.type}</Badge>
-              {formatDate(s.createdAt, { hour: '2-digit', minute: '2-digit' })}
+              {stamp(s.createdAt)}
             </div>
           </div>
           <p class="mt-3 text-sm whitespace-pre-line">{str(p.message)}</p>
-          <form method="post" class="mt-4">
-            <input type="hidden" name="id" value={s.id} />
-            {s.handled ? (
-              <Button type="submit" name="action" value="reopen" size="sm" variant="ghost">
-                Mark as open
+          {s.status !== 'new' && s.statusAt && (
+            <p class="mt-3 text-xs text-muted">
+              {label(s.status)} on {stamp(s.statusAt)}
+              {s.statusBy ? ` by ${s.statusBy}` : ''}
+            </p>
+          )}
+          <form method="post" class="mt-4 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="ids" value={s.id} />
+            {email && s.status !== 'spam' && (
+              <Button href={replyLink(s)} size="sm">
+                Reply
               </Button>
-            ) : (
-              <Button type="submit" name="action" value="done" size="sm" variant="secondary">
-                Mark as handled
+            )}
+            {s.status !== 'new' && (
+              <Button type="submit" name="action" value="new" size="sm" variant="secondary">
+                Back to inbox
               </Button>
+            )}
+            {moves.map(([st, text]) => (
+              <Button
+                type="submit"
+                name="action"
+                value={st}
+                size="sm"
+                variant={st === 'deleted' ? 'ghost' : 'secondary'}
+              >
+                {st === 'deleted' ? text : `Mark ${text.toLowerCase()}`}
+              </Button>
+            ))}
+            {s.status !== 'spam' && (
+              <details class="relative">
+                <summary class="cursor-pointer list-none rounded-button px-4 py-1.5 text-sm font-semibold text-danger hover:bg-surface">
+                  Spam…
+                </summary>
+                <div class="absolute right-0 z-10 mt-1 grid w-64 gap-1 rounded-xl border border-line bg-paper p-2 shadow-card sm:left-0">
+                  {email && (
+                    <button
+                      type="submit"
+                      name="action"
+                      value="spam"
+                      class="rounded-lg px-3 py-2 text-left text-sm hover:bg-surface"
+                    >
+                      Spam and block <strong class="break-all">{email}</strong>
+                    </button>
+                  )}
+                  {email && canBlockDomain(email) && (
+                    <button
+                      type="submit"
+                      name="action"
+                      value="spam-domain"
+                      class="rounded-lg px-3 py-2 text-left text-sm hover:bg-surface"
+                    >
+                      Spam and block everyone at <strong>@{domainOf(email)}</strong>
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    name="action"
+                    value="spam-only"
+                    class="rounded-lg px-3 py-2 text-left text-sm hover:bg-surface"
+                  >
+                    Spam, don't block the sender
+                  </button>
+                </div>
+              </details>
             )}
           </form>
         </article>
       );
     })}
   </div>
+
+  {folder === 'spam' && (
+    <section class="admin-panel mt-8" aria-labelledby="blocked-title">
+      <h2 id="blocked-title" class="text-lg">
+        Blocked senders
+      </h2>
+      <p class="mt-1 text-sm text-muted">
+        Messages from these addresses or domains still arrive here, in Spam, but nobody is emailed
+        about them.
+      </p>
+      <form method="post" class="mt-4 flex flex-wrap gap-2">
+        <input type="hidden" name="action" value="block" />
+        <label for="pattern" class="sr-only">
+          Address or domain to block
+        </label>
+        <input
+          id="pattern"
+          name="pattern"
+          required
+          placeholder="name@example.com or @example.com"
+          class="admin-input w-72"
+        />
+        <Button type="submit" size="sm" variant="secondary">
+          Block
+        </Button>
+      </form>
+      {blocked.length > 0 ? (
+        <ul class="mt-4 divide-y divide-line">
+          {blocked.map((b) => (
+            <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <span class="break-all">
+                <strong>{b.pattern}</strong>
+                <span class="text-muted">
+                  {' '}
+                  · {formatDate(b.createdAt)}
+                  {b.createdBy ? ` by ${b.createdBy}` : ''}
+                </span>
+              </span>
+              <form method="post">
+                <input type="hidden" name="action" value="unblock" />
+                <input type="hidden" name="pattern" value={b.pattern} />
+                <Button type="submit" size="sm" variant="ghost">
+                  Unblock
+                </Button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="mt-4 text-sm text-muted">Nobody is blocked.</p>
+      )}
+    </section>
+  )}
+
+  <script>
+    const all = document.querySelector<HTMLInputElement>('[data-all]');
+    const picks = [...document.querySelectorAll<HTMLInputElement>('[data-pick]')];
+    const shown = document.querySelector('[data-selected]');
+    const update = () => {
+      const n = picks.filter((p) => p.checked).length;
+      if (shown) shown.textContent = `${n} selected`;
+      if (all) {
+        all.checked = n > 0 && n === picks.length;
+        all.indeterminate = n > 0 && n < picks.length;
+      }
+    };
+    all?.addEventListener('change', () => {
+      for (const p of picks) p.checked = all.checked;
+      update();
+    });
+    for (const p of picks) p.addEventListener('change', update);
+  </script>
 </AdminLayout>
