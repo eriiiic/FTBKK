@@ -67,6 +67,7 @@ export const registrations = sqliteTable(
     name: text('name').notNull(),
     email: text('email').notNull(),
     company: text('company'),
+    phone: text('phone'),
     role: text('role'),
     howHeard: text('how_heard'),
     photoConsent: integer('photo_consent', { mode: 'boolean' }).notNull().default(false),

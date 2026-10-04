@@ -8,11 +8,18 @@ import { formatEventDate } from './format';
 import { eventIcs } from './ics';
 import { sendEmail, sendEmailBatch, type EmailMessage } from './email';
 import { randomToken } from './tokens';
+import { qrPng, ticketCode } from './ticket';
 
 export const RegisterSchema = z.object({
   name: z.string().min(2, 'Enter your name.').max(120),
   email,
   company: z.string().max(120).optional().default(''),
+  phone: z
+    .string()
+    .max(40)
+    .regex(/^[+\d\s().-]*$/, 'Enter a phone number (digits, spaces, +).')
+    .optional()
+    .default(''),
   role: z.string().max(120).optional().default(''),
   howHeard: z.string().max(120).optional().default(''),
   photoConsent: z.literal(true, { error: 'Please accept the photo notice to register.' }),
@@ -93,15 +100,15 @@ export async function insertRegistration(
   const token = randomToken(24);
   const row = await db
     .prepare(
-      `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token)
+      `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token, phone)
        SELECT ?1, ?2, ?3, ?4, ?5, ?6, 1,
          CASE WHEN ?7 IS NULL OR (SELECT count(*) FROM registrations
            WHERE event_id = ?1 AND status IN ('registered', 'attended')) < ?7
          THEN 'registered' ELSE 'waitlist' END,
-         ?8
+         ?8, ?9
        WHERE true
        ON CONFLICT (event_id, email) DO UPDATE SET
-         name = excluded.name, company = excluded.company, role = excluded.role,
+         name = excluded.name, company = excluded.company, role = excluded.role, phone = excluded.phone,
          how_heard = excluded.how_heard, status = excluded.status, token = excluded.token,
          created_at = unixepoch(), checked_in_at = NULL, reminder_sent_at = NULL
        WHERE registrations.status = 'cancelled'
@@ -116,6 +123,7 @@ export async function insertRegistration(
       data.howHeard || null,
       capacity,
       token,
+      data.phone || null,
     )
     .first<{ id: number; status: 'registered' | 'waitlist'; token: string }>();
   return row; // null = already registered
@@ -205,6 +213,23 @@ function mapLink(e: Event) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.venue ?? ''} ${e.address}`)}`;
 }
 
+const ticketUrl = (e: Event, token: string) => siteUrl(`/events/${e.slug}/ticket?token=${token}`);
+
+/** The ticket block and its inline QR code for a confirmation email. */
+async function ticket(e: Event, token: string) {
+  const code = await ticketCode(token);
+  const png = await qrPng(code);
+  return {
+    ticket: { code, qrCid: 'ticket-qr', url: ticketUrl(e, token) },
+    attachment: {
+      filename: `ticket-${code}.png`,
+      content: btoa(String.fromCharCode(...png)),
+      contentType: 'image/png',
+      contentId: 'ticket-qr',
+    },
+  };
+}
+
 export async function sendConfirmation(
   e: Event,
   r: { name: string; email: string; status: string; token: string },
@@ -212,6 +237,7 @@ export async function sendConfirmation(
   const cancelUrl = siteUrl(`/events/${e.slug}/cancel?token=${r.token}`);
   const map = mapLink(e);
   const waitlist = r.status === 'waitlist';
+  const t = waitlist ? null : await ticket(e, r.token);
   await sendEmail({
     to: r.email,
     subject: waitlist ? `You're on the waitlist: ${e.title}` : `You're registered: ${e.title}`,
@@ -227,11 +253,13 @@ export async function sendConfirmation(
       { label: 'Event page', url: siteUrl(`/events/${e.slug}`) },
       { label: waitlist ? 'Leave the waitlist' : "Can't come? Cancel", url: cancelUrl },
     ],
-    attachments: waitlist ? undefined : [icsAttachment(e)],
+    ticket: t?.ticket,
+    attachments: t ? [icsAttachment(e), t.attachment] : undefined,
   });
 }
 
 export async function sendPromotion(e: Event, r: RegistrationRow) {
+  const t = await ticket(e, r.token);
   await sendEmail({
     to: r.email,
     subject: `A seat opened up: you're registered for ${e.title}`,
@@ -244,7 +272,8 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
       { label: 'Event page', url: siteUrl(`/events/${e.slug}`) },
       { label: 'Cancel', url: siteUrl(`/events/${e.slug}/cancel?token=${r.token}`) },
     ],
-    attachments: [icsAttachment(e)],
+    ticket: t.ticket,
+    attachments: [icsAttachment(e), t.attachment],
   });
 }
 
@@ -260,6 +289,7 @@ export function reminderEmail(
     details: eventDetails(e),
     action: map ? { label: 'Open the map', url: map } : undefined,
     links: [
+      { label: 'Show my ticket', url: ticketUrl(e, r.token) },
       {
         label: "Can't come any more? Cancel",
         url: siteUrl(`/events/${e.slug}/cancel?token=${r.token}`),

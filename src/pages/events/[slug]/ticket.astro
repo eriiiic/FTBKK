@@ -1,0 +1,65 @@
+---
+import { env } from 'cloudflare:workers';
+import { renderSVG } from 'uqr';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Alert from '../../../components/Alert.astro';
+import Button from '../../../components/Button.astro';
+import { eventBySlug } from '../../../lib/queries';
+import { formatEventDate } from '../../../lib/format';
+import { ticketCode } from '../../../lib/ticket';
+
+// The ticket to show at the entrance, opened from the confirmation or reminder email.
+const event = await eventBySlug(Astro.params.slug!);
+if (!event) return Astro.rewrite('/404');
+const token = Astro.url.searchParams.get('token') ?? '';
+const reg = token
+  ? await env.DB.prepare(
+      `SELECT name, status, checked_in_at FROM registrations WHERE token = ? AND event_id = ?`,
+    )
+      .bind(token, event.id)
+      .first<{ name: string; status: string; checked_in_at: number | null }>()
+  : null;
+const valid = reg && (reg.status === 'registered' || reg.status === 'attended');
+const code = valid ? await ticketCode(token) : '';
+// Black on white whatever the theme, so scanners read it.
+const svg = valid
+  ? renderSVG(code, { ecc: 'M', border: 2, whiteColor: 'white', blackColor: 'black' })
+  : '';
+---
+
+<BaseLayout title={`Ticket · ${event.title}`} noindex cache={false}>
+  <section class="container-page max-w-md py-10 md:py-16">
+    <h1 class="text-2xl md:text-3xl">Your ticket</h1>
+    {valid ? (
+      <div class="mt-6 rounded-card border border-line bg-paper p-6 text-center shadow-card">
+        <p class="text-lg font-semibold text-navy">{event.title}</p>
+        <p class="mt-1 text-sm text-muted">{formatEventDate(event.startsAt, event.endsAt)}</p>
+        {event.venue && <p class="text-sm text-muted">{event.venue}</p>}
+        <div
+          class="mx-auto mt-6 w-64 max-w-full rounded-lg bg-paper p-2"
+          role="img"
+          aria-label={`QR code for ticket ${code}`}
+          set:html={svg}
+        />
+        <p class="mt-4 font-mono text-2xl font-bold tracking-widest text-navy">{code}</p>
+        <p class="mt-2 text-sm">{reg!.name}</p>
+        {reg!.status === 'attended' && (
+          <p class="mt-3 text-sm font-semibold text-success">Checked in. Enjoy the event!</p>
+        )}
+        <p class="mt-6 text-xs text-muted">
+          Show this screen at the entrance. Turning up your screen brightness helps the scan.
+        </p>
+      </div>
+    ) : (
+      <Alert tone="warning" class="mt-6">
+        This ticket link is not valid any more: the registration may have been cancelled or is still
+        on the waitlist.
+      </Alert>
+    )}
+    <div class="mt-6">
+      <Button href={`/events/${event.slug}`} variant="ghost">
+        Event page
+      </Button>
+    </div>
+  </section>
+</BaseLayout>

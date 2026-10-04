@@ -1,0 +1,148 @@
+---
+/**
+ * A small server-rendered line chart (SVG, no library). Colors come from the theme. Points carry a
+ * <title> tooltip, and a hidden table gives screen readers the same numbers.
+ */
+interface Series {
+  name: string;
+  values: (number | null)[];
+  tone: 'brand' | 'accent' | 'navy' | 'muted';
+  dashed?: boolean;
+}
+interface Props {
+  title: string;
+  labels: string[];
+  series: Series[];
+  /** Short x-axis labels (defaults to labels). */
+  ticks?: string[];
+  empty?: string;
+}
+const { title, labels, series, ticks = labels, empty = 'No data yet.' } = Astro.props;
+
+const W = 640;
+const H = 240;
+const pad = { top: 16, right: 32, bottom: 36, left: 36 };
+const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
+const hasData = all.some((v) => v > 0);
+// A round maximum so the grid lines land on whole numbers.
+const raw = Math.max(1, ...all);
+const step = 10 ** Math.floor(Math.log10(raw));
+const max = Math.ceil(raw / step) * step;
+const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f));
+const n = labels.length;
+const x = (i: number) => pad.left + (n <= 1 ? 0.5 : i / (n - 1)) * (W - pad.left - pad.right);
+const y = (v: number) => pad.top + (1 - v / max) * (H - pad.top - pad.bottom);
+const every = Math.max(1, Math.ceil(n / 8));
+const path = (values: (number | null)[]) => {
+  let d = '';
+  let pen = false;
+  values.forEach((v, i) => {
+    if (v === null) {
+      pen = false;
+      return;
+    }
+    d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+    pen = true;
+  });
+  return d;
+};
+const stroke = {
+  brand: 'stroke-brand',
+  accent: 'stroke-accent',
+  navy: 'stroke-navy',
+  muted: 'stroke-muted',
+};
+const fill = { brand: 'fill-brand', accent: 'fill-accent', navy: 'fill-navy', muted: 'fill-muted' };
+const swatch = { brand: 'bg-brand', accent: 'bg-accent', navy: 'bg-navy', muted: 'bg-muted' };
+---
+
+<figure class="admin-panel relative">
+  <figcaption class="flex flex-wrap items-baseline justify-between gap-2">
+    <span class="font-semibold text-navy">{title}</span>
+    <span class="flex flex-wrap gap-3 text-xs text-muted" aria-hidden="true">
+      {series.map((s) => (
+        <span class="inline-flex items-center gap-1">
+          <span class={`inline-block h-1 w-4 rounded ${swatch[s.tone]}`} />
+          {s.name}
+        </span>
+      ))}
+    </span>
+  </figcaption>
+  {hasData ? (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      class="mt-3 h-auto w-full"
+      role="img"
+      aria-label={`${title}: chart, numbers in the table that follows`}
+    >
+      {grid.map((g) => (
+        <g>
+          <line
+            x1={pad.left}
+            x2={W - pad.right}
+            y1={y(g)}
+            y2={y(g)}
+            class="stroke-line"
+            stroke-width="1"
+          />
+          <text x={pad.left - 6} y={y(g) + 4} text-anchor="end" class="fill-muted text-[11px]">
+            {g}
+          </text>
+        </g>
+      ))}
+      {ticks.map((t, i) =>
+        i % every === 0 || i === n - 1 ? (
+          <text x={x(i)} y={H - 12} text-anchor="middle" class="fill-muted text-[11px]">
+            {t}
+          </text>
+        ) : null,
+      )}
+      {series.map((s) => (
+        <g>
+          <path
+            d={path(s.values)}
+            fill="none"
+            class={stroke[s.tone]}
+            stroke-width="2.5"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+            stroke-dasharray={s.dashed ? '6 5' : undefined}
+          />
+          {n <= 40 &&
+            s.values.map((v, i) =>
+              v === null ? null : (
+                <circle cx={x(i)} cy={y(v)} r="3.5" class={fill[s.tone]}>
+                  <title>{`${labels[i]}: ${v} ${s.name.toLowerCase()}`}</title>
+                </circle>
+              ),
+            )}
+        </g>
+      ))}
+    </svg>
+  ) : (
+    <p class="mt-6 mb-4 text-sm text-muted">{empty}</p>
+  )}
+  <div class="sr-only">
+    <table>
+      <caption>{title}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Point</th>
+          {series.map((s) => (
+            <th scope="col">{s.name}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {labels.map((l, i) => (
+          <tr>
+            <th scope="row">{l}</th>
+            {series.map((s) => (
+              <td>{s.values[i] ?? '–'}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</figure>

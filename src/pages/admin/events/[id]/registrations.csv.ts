@@ -26,6 +26,7 @@ export const GET: APIRoute = async ({ params }) => {
   const header = [
     'Name',
     'Email',
+    'Phone',
     'Company',
     'Role',
     'How heard',
@@ -38,6 +39,7 @@ export const GET: APIRoute = async ({ params }) => {
     [
       r.name,
       r.email,
+      r.phone,
       r.company,
       r.role,
       r.howHeard,

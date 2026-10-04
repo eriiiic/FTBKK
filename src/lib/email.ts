@@ -4,6 +4,8 @@ export interface EmailAttachment {
   filename: string;
   content: string; // base64
   contentType?: string;
+  /** Set to show the attachment inline: <img src="cid:…">. */
+  contentId?: string;
 }
 
 export interface EmailMessage {
@@ -18,6 +20,8 @@ export interface EmailMessage {
   /** Optional secondary links under the button. */
   links?: { label: string; url: string }[];
   footer?: string;
+  /** Event ticket: QR code (an inline attachment with this content id) and its code. */
+  ticket?: { code: string; qrCid: string; url: string };
   replyTo?: string;
   attachments?: EmailAttachment[];
 }
@@ -48,19 +52,30 @@ export function renderEmail(m: EmailMessage) {
         .map((l) => `<a href="${esc(l.url)}" style="color:#2f5c9e">${esc(l.label)}</a>`)
         .join(' &nbsp;·&nbsp; ')}</p>`
     : '';
+  const ticket = m.ticket
+    ? `<table role="presentation" style="margin:20px 0;border:1px solid #d9e1ec;border-radius:12px;width:100%"><tr><td align="center" style="padding:20px">
+<p style="margin:0 0 8px;font-size:13px;letter-spacing:.08em;color:#5b6b80;text-transform:uppercase">Your ticket</p>
+<img src="cid:${esc(m.ticket.qrCid)}" width="200" height="200" alt="QR code for ticket ${esc(m.ticket.code)}" style="display:block;width:200px;height:200px">
+<p style="margin:8px 0 0;font-family:'Courier New',monospace;font-size:22px;font-weight:700;letter-spacing:.12em;color:${navy}">${esc(m.ticket.code)}</p>
+<p style="margin:8px 0 0;font-size:13px;color:#5b6b80">Show it at the entrance. <a href="${esc(m.ticket.url)}" style="color:#2f5c9e">Open it on your phone</a></p>
+</td></tr></table>`
+    : '';
   const html = `<!doctype html><html><body style="margin:0;background:#eef2f7;font-family:Arial,Helvetica,sans-serif">
 <table role="presentation" width="100%" style="background:#eef2f7;padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" style="max-width:560px;width:100%;background:#fff;border-radius:16px;overflow:hidden">
 <tr><td style="background:${navy};padding:20px 28px;color:#fff;font-weight:800;letter-spacing:.05em">LA FRENCH TECH <span style="color:${brand}">BANGKOK</span></td></tr>
 <tr><td style="padding:28px;color:#1a2433;font-size:16px;line-height:1.6">
 ${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p)}</p>`).join('')}
-${details}${button}${links}
+${details}${ticket}${button}${links}
 </td></tr>
 <tr><td style="padding:16px 28px;background:#f6f8fb;color:#5b6b80;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [
     ...m.paragraphs,
     ...(m.details ?? []).map(([k, v]) => `${k}: ${v}`),
+    ...(m.ticket
+      ? [`Your ticket: ${m.ticket.code} (show it at the entrance): ${m.ticket.url}`]
+      : []),
     ...(m.action ? [`${m.action.label}: ${m.action.url}`] : []),
     ...(m.links ?? []).map((l) => `${l.label}: ${l.url}`),
     '',
@@ -93,6 +108,7 @@ export async function sendEmail(m: EmailMessage): Promise<{ ok: boolean; error?:
         filename: a.filename,
         content: a.content,
         content_type: a.contentType,
+        content_id: a.contentId,
       })),
     }),
   });

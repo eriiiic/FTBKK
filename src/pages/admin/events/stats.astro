@@ -1,0 +1,263 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Button from '../../../components/Button.astro';
+import Badge from '../../../components/Badge.astro';
+import LineChart from '../../../components/admin/LineChart.astro';
+import { getDb } from '../../../db';
+import { events, registrations } from '../../../db/schema';
+import { eventStats } from '../../../lib/event-stats';
+import { formatDate, formatEventDate } from '../../../lib/format';
+import { DAY_MS } from '../../../lib/lifecycle';
+
+const db = getDb();
+const now = new Date();
+const [eventRows, regRows] = await Promise.all([
+  db
+    .select({
+      id: events.id,
+      title: events.title,
+      series: events.series,
+      startsAt: events.startsAt,
+      capacity: events.capacity,
+      status: events.status,
+    })
+    .from(events),
+  db
+    .select({
+      eventId: registrations.eventId,
+      email: registrations.email,
+      status: registrations.status,
+      createdAt: registrations.createdAt,
+      checkedInAt: registrations.checkedInAt,
+      howHeard: registrations.howHeard,
+    })
+    .from(registrations),
+]);
+const s = eventStats(eventRows, regRows, now);
+const pct = (v: number | null) => (v === null ? '–' : `${Math.round(v * 100)}%`);
+const shortDate = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'Asia/Bangkok',
+});
+const next = s.next;
+const daysToGo = next ? Math.ceil((next.event.startsAt.getTime() - now.getTime()) / DAY_MS) : 0;
+const heardMax = Math.max(1, ...s.howHeard.map(([, n]) => n));
+const kpis = [
+  { label: 'Registrations, last 12 months', value: String(s.totals.registrations12m) },
+  { label: 'Check-ins, last 12 months', value: String(s.totals.checkIns12m) },
+  {
+    label: 'Show-up rate',
+    value: pct(s.totals.showUp),
+    hint: 'Checked in ÷ registered, events where check-in was used',
+  },
+  {
+    label: 'Average per event',
+    value: s.totals.avgPerEvent === null ? '–' : String(Math.round(s.totals.avgPerEvent)),
+    hint: 'Registrations per past event',
+  },
+  {
+    label: 'People who came',
+    value: String(s.totals.uniqueAttendees),
+    hint: s.totals.uniqueAttendees
+      ? `${s.totals.returning} came more than once (${pct(s.totals.returning / s.totals.uniqueAttendees)})`
+      : 'Counted from check-ins',
+  },
+  { label: 'Upcoming events', value: String(s.upcomingCount) },
+];
+---
+
+<AdminLayout title="Event stats">
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <p class="text-sm text-muted">
+      Registrations made on this site and check-ins at the door. Events imported from Wix have no
+      registrations here.
+    </p>
+    <Button href="/admin/events" size="sm" variant="secondary">
+      All events
+    </Button>
+  </div>
+
+  {next && (
+    <section class="admin-panel mb-6" aria-labelledby="next-title">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold tracking-wider text-brand uppercase">
+            Next event · in {daysToGo} day{daysToGo === 1 ? '' : 's'}
+          </p>
+          <h2 id="next-title" class="mt-1 text-xl">
+            <a href={`/admin/events/${next.event.id}`}>{next.event.title}</a>
+          </h2>
+          <p class="text-sm text-muted">{formatEventDate(next.event.startsAt)}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button href={`/admin/registrations?event=${next.event.id}`} size="sm" variant="ghost">
+            Registrations
+          </Button>
+          <Button href={`/admin/events/${next.event.id}/checkin`} size="sm">
+            Open check-in
+          </Button>
+        </div>
+      </div>
+      <dl class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div>
+          <dt class="text-xs text-muted">Registered</dt>
+          <dd class="text-2xl font-bold text-navy">
+            {next.registered}
+            {next.event.capacity !== null && (
+              <span class="text-base font-normal text-muted"> / {next.event.capacity}</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs text-muted">Waitlist</dt>
+          <dd class="text-2xl font-bold text-navy">{next.waitlist}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-muted">Cancelled</dt>
+          <dd class="text-2xl font-bold text-navy">{next.cancelled}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-muted">Checked in</dt>
+          <dd class="text-2xl font-bold text-navy">{next.attended}</dd>
+        </div>
+      </dl>
+      {next.event.capacity !== null && next.event.capacity > 0 && (
+        <div
+          class="mt-4 h-2 overflow-hidden rounded-full bg-surface"
+          role="img"
+          aria-label={`${Math.round((next.registered / next.event.capacity) * 100)}% of seats taken`}
+        >
+          <div
+            class="h-full rounded-full bg-brand"
+            style={`width:${Math.min(100, (next.registered / next.event.capacity) * 100)}%`}
+          />
+        </div>
+      )}
+    </section>
+  )}
+
+  <section
+    aria-label="Key numbers"
+    class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6"
+  >
+    {kpis.map((k) => (
+      <div class="admin-panel">
+        <p class="text-xs text-muted">{k.label}</p>
+        <p class="mt-1 text-3xl font-bold text-navy">{k.value}</p>
+        {k.hint && <p class="mt-1 text-xs text-muted">{k.hint}</p>}
+      </div>
+    ))}
+  </section>
+
+  <div class="mb-6 grid gap-6 xl:grid-cols-2">
+    <LineChart
+      title="Registered and checked in, per event"
+      labels={s.perEvent.labels.map((l, i) => `${l} (${formatDate(s.perEvent.dates[i]!)})`)}
+      ticks={s.perEvent.dates.map((d) => shortDate.format(d))}
+      series={[
+        { name: 'Registered', values: s.perEvent.registered, tone: 'navy' },
+        { name: 'Checked in', values: s.perEvent.attended, tone: 'brand' },
+      ]}
+      empty="No past event with registrations yet."
+    />
+    <LineChart
+      title="New registrations and check-ins, per month"
+      labels={s.monthly.labels}
+      series={[
+        { name: 'Registrations', values: s.monthly.registrations, tone: 'accent' },
+        { name: 'Check-ins', values: s.monthly.checkIns, tone: 'brand' },
+      ]}
+    />
+    <LineChart
+      title="Registration pace, 30 days before the event"
+      labels={s.pace.labels}
+      series={[
+        ...(s.pace.next && next
+          ? [{ name: next.event.title, values: s.pace.next, tone: 'brand' as const }]
+          : []),
+        ...(s.pace.previous
+          ? [
+              {
+                name: s.pace.previousTitle ?? 'Previous event',
+                values: s.pace.previous,
+                tone: 'muted' as const,
+                dashed: true,
+              },
+            ]
+          : []),
+      ]}
+      empty="Shows once events have registrations."
+    />
+    <figure class="admin-panel">
+      <figcaption class="font-semibold text-navy">
+        How people heard about the events (last 12 months)
+      </figcaption>
+      {s.howHeard.length ? (
+        <ul class="mt-4 grid gap-3">
+          {s.howHeard.map(([label, n]) => (
+            <li class="grid grid-cols-[8rem_1fr_2.5rem] items-center gap-3 text-sm">
+              <span class="truncate">{label}</span>
+              <span class="h-3 overflow-hidden rounded-full bg-surface">
+                <span
+                  class="block h-full rounded-full bg-accent"
+                  style={`width:${(n / heardMax) * 100}%`}
+                />
+              </span>
+              <span class="text-right font-semibold">{n}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="mt-6 mb-4 text-sm text-muted">No data yet.</p>
+      )}
+    </figure>
+  </div>
+
+  <section class="admin-panel relative overflow-x-auto" aria-labelledby="per-event-title">
+    <h2 id="per-event-title" class="mb-3 text-lg">
+      Per event
+    </h2>
+    <table class="admin-table" data-sortable>
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Date</th>
+          <th>Registered</th>
+          <th>Checked in</th>
+          <th>Show-up</th>
+          <th>Waitlist</th>
+          <th>Cancelled</th>
+        </tr>
+      </thead>
+      <tbody>
+        {s.rows.map((r) => (
+          <tr>
+            <td data-sort={r.event.title}>
+              <a href={`/admin/registrations?event=${r.event.id}`} class="font-semibold">
+                {r.event.title}
+              </a>
+              <span class="block text-xs text-muted">{r.event.series}</span>
+            </td>
+            <td class="whitespace-nowrap" data-sort={r.event.startsAt.getTime()}>
+              {formatDate(r.event.startsAt)}
+              {r.event.startsAt >= now && (
+                <Badge tone="accent" class="ml-1">
+                  upcoming
+                </Badge>
+              )}
+            </td>
+            <td data-sort={r.registered}>
+              {r.registered}
+              {r.event.capacity !== null && <span class="text-muted"> / {r.event.capacity}</span>}
+            </td>
+            <td data-sort={r.attended}>{r.attended}</td>
+            <td data-sort={r.showUp ?? -1}>{pct(r.showUp)}</td>
+            <td data-sort={r.waitlist}>{r.waitlist}</td>
+            <td data-sort={r.cancelled}>{r.cancelled}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</AdminLayout>
