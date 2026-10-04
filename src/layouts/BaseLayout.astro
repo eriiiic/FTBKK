@@ -25,7 +25,8 @@ const {
   cache = true,
 } = Astro.props;
 const fullTitle = title ? `${title} | ${settings.siteTitle}` : settings.siteTitle;
-const ogImage = image ? new URL(image, Astro.site).href : undefined;
+// Pages without their own image share the French Tech Connect visual the Wix site used.
+const ogImage = new URL(image || '/brand/og-default.jpg', Astro.site).href;
 Astro.response.headers.set(
   'Cache-Control',
   cache ? 'public, s-maxage=60, stale-while-revalidate=300' : 'private, no-store',
@@ -35,6 +36,7 @@ const orgLd = {
   '@type': 'Organization',
   name: 'La French Tech Bangkok',
   url: Astro.site?.href,
+  logo: new URL('/brand/icon-512.png', Astro.site).href,
   email: settings.contactEmail,
   sameAs: Object.values(settings.socials).filter(Boolean),
 };
@@ -50,15 +52,17 @@ const ld = [orgLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
     {description && <meta name="description" content={description} />}
     <link rel="canonical" href={canonical} />
     {noindex && <meta name="robots" content="noindex" />}
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/brand/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="application/rss+xml" title="Blog" href="/rss.xml" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="La French Tech Bangkok" />
     <meta property="og:title" content={fullTitle} />
     {description && <meta property="og:description" content={description} />}
     <meta property="og:url" content={canonical} />
-    {ogImage && <meta property="og:image" content={ogImage} />}
-    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
     <script type="application/ld+json" set:html={JSON.stringify(ld)} />
     {settings.analyticsToken && (
       <script

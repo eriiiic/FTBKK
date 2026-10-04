@@ -1,5 +1,6 @@
 ---
-// Text wordmark until the real logo is captured (migration/images/brand). Swap for an <img> then.
+// The rooster pin from the Wix logo (public/brand/pin.png, transparent) next to a text wordmark,
+// which stays readable at header size, unlike the text baked into the original 200px logo.
 interface Props {
   tone?: 'dark' | 'light';
 }
@@ -7,7 +8,7 @@ const { tone = 'dark' } = Astro.props;
 ---
 
 <span class="inline-flex items-center gap-2 font-display leading-none font-extrabold">
-  <span class="inline-block size-7 rounded-md bg-brand" aria-hidden="true"></span>
+  <img src="/brand/pin.png" alt="" width="36" height="44" class="h-10 w-auto" />
   <span class={tone === 'light' ? 'text-paper' : 'text-navy'}>
     <span class="block text-[0.65rem] tracking-[0.2em] uppercase">La French Tech</span>
     <span class="block text-lg">Bangkok</span>
