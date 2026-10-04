@@ -16,6 +16,8 @@ const related = await relatedPosts(
   cats.map((c) => c.id),
 );
 const cover = mediaUrl(post.coverKey);
+// Files already linked inside the text (imported Wix download boxes) are not listed twice.
+const downloads = post.attachments.filter((a) => !post.bodyMd.includes(a.key));
 const description = post.excerpt ?? plainText(post.bodyMd);
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -55,11 +57,11 @@ const jsonLd = {
     </p>
     {cover && <img src={cover} alt="" class="mt-8 w-full rounded-card object-cover" />}
     <div class="prose prose-lg mt-8 max-w-none" set:html={renderMarkdown(post.bodyMd)} />
-    {post.attachments.length > 0 && (
+    {downloads.length > 0 && (
       <div class="mt-10 rounded-card border border-line p-6">
         <h2 class="text-lg">Downloads</h2>
         <ul class="mt-3 space-y-2">
-          {post.attachments.map((a) => (
+          {downloads.map((a) => (
             <li>
               <a href={mediaUrl(a.key)} class="inline-flex items-center gap-2 text-accent" download>
                 <Icon name="download" class="size-4" />

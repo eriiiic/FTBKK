@@ -15,7 +15,14 @@ import { existsSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { slugify } from '../src/lib/format';
+import { plainText } from '../src/lib/markdown';
 import { mapWixCategory, sectorsFor } from './lib/wix-categories';
+import {
+  cleanWixMarkdown,
+  dropLeadingCoverImage,
+  extractByline,
+  inlineAttachments,
+} from './lib/clean-wix';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DATA = path.join(ROOT, 'migration', 'data');
@@ -129,7 +136,7 @@ if (ev) {
         title: e.title,
         series: e.series ?? 'Other',
         summary: e.summary || null,
-        body_md: rewriteImages(e.bodyMd ?? ''),
+        body_md: rewriteImages(cleanWixMarkdown(e.bodyMd ?? '')),
         starts_at: startsAt,
         ends_at: toTs(e.endsAt),
         timezone: 'Asia/Bangkok',
@@ -159,14 +166,25 @@ if (po) {
         toUpload.set(key, path.join(ROOT, 'migration', a.file));
         return { name: a.name, key };
       });
+    const byline = extractByline(cleanWixMarkdown(p.bodyMd ?? ''));
+    const coverKey = imageKey(p.cover);
+    const body = dropLeadingCoverImage(
+      inlineAttachments(rewriteImages(byline.body), attachments),
+      coverKey,
+    );
     sql.push(
       upsert('posts', {
         slug: p.slug,
         title: p.title,
-        excerpt: p.excerpt || null,
-        body_md: rewriteImages(p.bodyMd ?? ''),
-        cover_key: imageKey(p.cover),
-        author_name: p.author || null,
+        // Some Wix excerpts start with the flattened byline ("Bangkok, ThailandBy …"): rebuild those.
+        excerpt: /^Bangkok,\s*Thailand/i.test(p.excerpt ?? '')
+          ? plainText(byline.body, 200)
+          : p.excerpt || null,
+        body_md: body,
+        cover_key: coverKey,
+        // The byline typed in the post is right where Wix's author field is not (e.g. "master6942").
+        author_name: byline.authorName ?? p.author ?? null,
+        author_role: byline.authorRole,
         published_at: toTs(p.publishedAt) ?? now,
         status: 'published',
         attachments,
