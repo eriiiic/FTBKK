@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   cleanWixMarkdown,
+  decodeEntities,
   dropLeadingCoverImage,
   extractByline,
   inlineAttachments,
+  postCategories,
 } from '../scripts/lib/clean-wix';
 
 describe('cleanWixMarkdown', () => {
@@ -58,5 +60,40 @@ describe('dropLeadingCoverImage', () => {
     expect(dropLeadingCoverImage('![](/media/posts/b.jpg)\n\nText', 'posts/a.jpg')).toBe(
       '![](/media/posts/b.jpg)\n\nText',
     );
+  });
+});
+
+describe('decodeEntities', () => {
+  it('decodes the entities left in Wix plain text', () => {
+    expect(decodeEntities('Speaker &amp; topic &#8211; soon')).toBe('Speaker & topic – soon');
+  });
+});
+
+describe('long Wix headings', () => {
+  it('turns an intro paragraph styled as h5 back into a paragraph', () => {
+    const intro = 'x'.repeat(130);
+    expect(cleanWixMarkdown(`##### ${intro}\n\n## Real heading`)).toBe(
+      `${intro}\n\n## Real heading`,
+    );
+  });
+});
+
+describe('postCategories', () => {
+  const all = [
+    'Ecosystem News',
+    'Founder Guides',
+    'Tech Insights',
+    'Events & Community',
+    'Studies & ressources',
+  ];
+  it('keeps real categories and sorts posts that came back with the whole menu', () => {
+    expect(postCategories('Anything', ['Tech Insights'])).toEqual(['Tech Insights']);
+    expect(postCategories('Start a Business in Thailand: Founder’s Guide (Part 1/4)', all)).toEqual(
+      ['Founder Guides'],
+    );
+    expect(postCategories('Thailand Tech Pulse Q3 2026', all)).toEqual([
+      'Studies & ressources',
+      'Ecosystem News',
+    ]);
   });
 });

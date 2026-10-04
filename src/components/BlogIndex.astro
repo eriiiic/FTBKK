@@ -2,6 +2,7 @@
 import Section from './Section.astro';
 import PostCard from './PostCard.astro';
 import type { Post } from '../db/schema';
+import { formatDate, mediaUrl, readingMinutes } from '../lib/format';
 
 interface Props {
   posts: Post[];
@@ -11,6 +12,10 @@ interface Props {
   intro?: string;
 }
 const { posts, categories, active, heading, intro } = Astro.props;
+// The newest article leads the unfiltered list, the rest follow in the grid.
+const featured = !active && posts.length > 3 ? posts[0] : null;
+const rest = featured ? posts.slice(1) : posts;
+const featuredCover = featured ? mediaUrl(featured.coverKey) : null;
 const chip =
   'rounded-full border px-3 py-1 text-sm no-underline border-line hover:border-navy aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper';
 ---
@@ -34,13 +39,39 @@ const chip =
         </a>
       ))}
   </nav>
-  {posts.length ? (
-    <div class="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {posts.map((p) => (
+  {featured && (
+    <a
+      href={`/blog/${featured.slug}`}
+      class="group mt-10 grid overflow-hidden rounded-card border border-line bg-paper no-underline shadow-card transition hover:-translate-y-0.5 md:grid-cols-2"
+    >
+      <div class="aspect-[16/9] bg-surface md:aspect-auto">
+        {featuredCover && (
+          <img src={featuredCover} alt="" class="size-full object-cover" fetchpriority="high" />
+        )}
+      </div>
+      <div class="flex flex-col justify-center gap-3 p-6 md:p-10">
+        <p class="text-xs font-semibold tracking-[0.15em] text-brand uppercase">Latest article</p>
+        <h2 class="text-2xl leading-tight group-hover:text-brand md:text-3xl">{featured.title}</h2>
+        {featured.excerpt && <p class="line-clamp-3 text-muted">{featured.excerpt}</p>}
+        <p class="mt-2 text-sm text-muted">
+          {featured.authorName && <span>{featured.authorName} · </span>}
+          {featured.publishedAt && (
+            <time datetime={featured.publishedAt.toISOString()}>
+              {formatDate(featured.publishedAt)}
+            </time>
+          )}
+          <span> · {readingMinutes(featured.bodyMd)} min read</span>
+        </p>
+      </div>
+    </a>
+  )}
+  {rest.length ? (
+    <div class="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {rest.map((p) => (
         <PostCard post={p} />
       ))}
     </div>
   ) : (
-    <p class="mt-10 text-muted">No articles yet.</p>
+    !featured && <p class="mt-10 text-muted">No articles yet.</p>
   )}
 </Section>

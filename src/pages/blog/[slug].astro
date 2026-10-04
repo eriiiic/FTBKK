@@ -4,21 +4,42 @@ import Section from '../../components/Section.astro';
 import PostCard from '../../components/PostCard.astro';
 import Badge from '../../components/Badge.astro';
 import Icon from '../../components/Icon.astro';
-import { categoriesForPost, postBySlug, relatedPosts } from '../../lib/queries';
-import { formatDate, mediaUrl, readingMinutes } from '../../lib/format';
+import { categoriesForPost, peopleNamed, postBySlug, relatedPosts } from '../../lib/queries';
+import { formatDate, initials, mediaUrl, readingMinutes } from '../../lib/format';
 import { plainText, renderMarkdown } from '../../lib/markdown';
 
 const post = await postBySlug(Astro.params.slug!);
 if (!post) return Astro.rewrite('/404');
-const cats = await categoriesForPost(post.id);
+const [cats, authors] = await Promise.all([
+  categoriesForPost(post.id),
+  peopleNamed(post.authorName),
+]);
 const related = await relatedPosts(
   post.id,
   cats.map((c) => c.id),
 );
 const cover = mediaUrl(post.coverKey);
+const description = post.excerpt ?? plainText(post.bodyMd);
 // Files already linked inside the text (imported Wix download boxes) are not listed twice.
 const downloads = post.attachments.filter((a) => !post.bodyMd.includes(a.key));
-const description = post.excerpt ?? plainText(post.bodyMd);
+const url = new URL(`/blog/${post.slug}`, Astro.site).href;
+const share = [
+  {
+    label: 'Share on LinkedIn',
+    icon: 'linkedin',
+    href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+  },
+  {
+    label: 'Share on WhatsApp',
+    icon: 'whatsapp',
+    href: `https://wa.me/?text=${encodeURIComponent(`${post.title} ${url}`)}`,
+  },
+  {
+    label: 'Share by email',
+    icon: 'mail',
+    href: `mailto:?subject=${encodeURIComponent(post.title)}&body=${encodeURIComponent(url)}`,
+  },
+] as const;
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'BlogPosting',
@@ -27,51 +48,144 @@ const jsonLd = {
   image: cover ? new URL(cover, Astro.site).href : undefined,
   datePublished: post.publishedAt?.toISOString(),
   dateModified: post.updatedAt.toISOString(),
-  author: post.authorName ? { '@type': 'Person', name: post.authorName } : undefined,
+  author: authors.length
+    ? authors.map((a) => ({
+        '@type': 'Person',
+        name: a.person?.name ?? a.name,
+        url: a.person?.linkedin ?? undefined,
+      }))
+    : undefined,
   publisher: { '@type': 'Organization', name: 'La French Tech Bangkok' },
-  mainEntityOfPage: new URL(`/blog/${post.slug}`, Astro.site).href,
+  mainEntityOfPage: url,
 };
 ---
 
 <BaseLayout title={post.title} description={description} image={cover} jsonLd={jsonLd}>
-  <article class="container-page max-w-3xl py-12">
-    <div class="flex flex-wrap gap-2">
-      {cats.map((c) => (
-        <a href={`/blog/category/${c.slug}`} class="no-underline">
-          <Badge tone="accent">{c.name}</Badge>
-        </a>
-      ))}
-    </div>
-    <h1 class="mt-3 text-3xl md:text-5xl">{post.title}</h1>
-    <p class="mt-4 text-sm text-muted">
-      {post.authorName && (
-        <span>
-          {post.authorName}
-          {post.authorRole && `, ${post.authorRole}`} ·{' '}
-        </span>
-      )}
-      {post.publishedAt && (
-        <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
-      )}
-      <span> · {readingMinutes(post.bodyMd)} min read</span>
-    </p>
-    {cover && <img src={cover} alt="" class="mt-8 w-full rounded-card object-cover" />}
-    <div class="prose prose-lg mt-8 max-w-none" set:html={renderMarkdown(post.bodyMd)} />
-    {downloads.length > 0 && (
-      <div class="mt-10 rounded-card border border-line p-6">
-        <h2 class="text-lg">Downloads</h2>
-        <ul class="mt-3 space-y-2">
-          {downloads.map((a) => (
-            <li>
-              <a href={mediaUrl(a.key)} class="inline-flex items-center gap-2 text-accent" download>
-                <Icon name="download" class="size-4" />
-                {a.name}
-              </a>
-            </li>
+  <article>
+    <header class="container-page max-w-3xl pt-10 md:pt-16">
+      <a
+        href="/blog"
+        class="inline-flex items-center gap-1 text-sm font-medium text-muted no-underline hover:text-navy"
+      >
+        <Icon name="arrow" class="size-4 rotate-180" />
+        All articles
+      </a>
+      {cats.length > 0 && (
+        <div class="mt-6 flex flex-wrap gap-2">
+          {cats.map((c) => (
+            <a href={`/blog/category/${c.slug}`} class="no-underline">
+              <Badge tone="accent">{c.name}</Badge>
+            </a>
           ))}
-        </ul>
+        </div>
+      )}
+      <h1 class="mt-4 text-3xl leading-tight text-balance md:text-5xl md:leading-[1.1]">
+        {post.title}
+      </h1>
+      {post.excerpt && (
+        <p class="mt-5 text-lg leading-relaxed text-muted md:text-xl">{post.excerpt}</p>
+      )}
+      <div class="mt-8 flex items-center gap-4 border-y border-line py-5">
+        {authors.length > 0 && (
+          <div class="flex shrink-0 -space-x-3">
+            {authors.map((a) =>
+              a.person?.photoKey ? (
+                <img
+                  src={mediaUrl(a.person.photoKey)}
+                  alt=""
+                  width="48"
+                  height="48"
+                  class="size-12 rounded-full object-cover ring-2 ring-paper"
+                />
+              ) : (
+                <span
+                  class="grid size-12 place-items-center rounded-full bg-navy text-sm font-bold text-paper ring-2 ring-paper"
+                  aria-hidden="true"
+                >
+                  {initials(a.person?.name ?? a.name)}
+                </span>
+              ),
+            )}
+          </div>
+        )}
+        <div class="min-w-0 text-sm">
+          {post.authorName && (
+            <p class="font-semibold text-navy">
+              {authors.map((a, i) => (
+                <>
+                  {i > 0 && (i === authors.length - 1 ? ' and ' : ', ')}
+                  {a.person?.linkedin ? (
+                    <a href={a.person.linkedin} rel="noopener" class="text-navy hover:text-brand">
+                      {a.person.name}
+                    </a>
+                  ) : (
+                    <span>{a.person?.name ?? a.name}</span>
+                  )}
+                </>
+              ))}
+            </p>
+          )}
+          <p class="text-muted">
+            {post.authorRole && <span>{post.authorRole}, La French Tech Bangkok · </span>}
+            {post.publishedAt && (
+              <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
+            )}
+            <span> · {readingMinutes(post.bodyMd)} min read</span>
+          </p>
+        </div>
+      </div>
+    </header>
+
+    {cover && (
+      <div class="container-page mt-10 max-w-5xl">
+        <img
+          src={cover}
+          alt=""
+          class="aspect-[16/9] w-full rounded-card object-cover shadow-card"
+          fetchpriority="high"
+        />
       </div>
     )}
+
+    <div class="container-page max-w-3xl py-10 md:py-14">
+      <div
+        class="prose prose-lg max-w-none prose-headings:font-display prose-headings:text-navy prose-a:text-accent prose-img:rounded-card"
+        set:html={renderMarkdown(post.bodyMd)}
+      />
+      {downloads.length > 0 && (
+        <div class="mt-10 rounded-card border border-line bg-surface p-6">
+          <h2 class="text-lg">Downloads</h2>
+          <ul class="mt-3 space-y-2">
+            {downloads.map((a) => (
+              <li>
+                <a
+                  href={mediaUrl(a.key)}
+                  class="inline-flex items-center gap-2 font-semibold text-accent"
+                  download
+                >
+                  <Icon name="download" class="size-4" />
+                  {a.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div class="mt-12 flex flex-wrap items-center gap-3 border-t border-line pt-6">
+        <span class="text-sm font-semibold text-navy">Share this article</span>
+        {share.map((s) => (
+          <a
+            href={s.href}
+            rel="noopener"
+            target="_blank"
+            aria-label={s.label}
+            class="grid size-10 place-items-center rounded-full border border-line text-navy no-underline hover:border-navy"
+          >
+            <Icon name={s.icon} class="size-4" />
+          </a>
+        ))}
+      </div>
+    </div>
   </article>
   {related.length > 0 && (
     <Section tone="surface" title="Read next">
