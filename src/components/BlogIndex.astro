@@ -3,6 +3,7 @@ import Section from './Section.astro';
 import PostCard from './PostCard.astro';
 import type { Post } from '../db/schema';
 import { formatDate, mediaUrl, readingMinutes } from '../lib/format';
+import { postCategoryNames } from '../lib/queries';
 
 interface Props {
   posts: Post[];
@@ -15,6 +16,7 @@ const { posts, categories, active, heading, intro } = Astro.props;
 // The newest article leads the unfiltered list, the rest follow in the grid.
 const featured = !active && posts.length > 3 ? posts[0] : null;
 const rest = featured ? posts.slice(1) : posts;
+const cats = await postCategoryNames();
 const featuredCover = featured ? mediaUrl(featured.coverKey) : null;
 const chip =
   'rounded-full border px-3 py-1 text-sm no-underline border-line hover:border-navy aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper';
@@ -50,7 +52,9 @@ const chip =
         )}
       </div>
       <div class="flex flex-col justify-center gap-3 p-6 md:p-10">
-        <p class="text-xs font-semibold tracking-[0.15em] text-brand uppercase">Latest article</p>
+        <p class="text-xs font-semibold tracking-[0.15em] text-brand uppercase">
+          Latest article{cats.get(featured.id)?.[0] && ` · ${cats.get(featured.id)![0]}`}
+        </p>
         <h2 class="text-2xl leading-tight group-hover:text-brand md:text-3xl">{featured.title}</h2>
         {featured.excerpt && <p class="line-clamp-3 text-muted">{featured.excerpt}</p>}
         <p class="mt-2 text-sm text-muted">
@@ -68,7 +72,7 @@ const chip =
   {rest.length ? (
     <div class="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {rest.map((p) => (
-        <PostCard post={p} />
+        <PostCard post={p} categories={cats.get(p.id)} />
       ))}
     </div>
   ) : (

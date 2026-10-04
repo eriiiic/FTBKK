@@ -8,7 +8,8 @@ import Button from '../components/Button.astro';
 import Alert from '../components/Alert.astro';
 import Turnstile from '../components/Turnstile.astro';
 import { getSettings } from '../lib/settings';
-import { peopleByGroup } from '../lib/queries';
+import { organisationCounts, peopleByGroup } from '../lib/queries';
+import Icon from '../components/Icon.astro';
 import { clientIp, email, fieldErrors, formToObject, optionalText } from '../lib/forms';
 import { verifyTurnstile } from '../lib/turnstile';
 import { rateLimit } from '../lib/ratelimit';
@@ -17,10 +18,16 @@ import { getDb } from '../db';
 import { submissions } from '../db/schema';
 
 const settings = await getSettings();
-const [board, institutional] = await Promise.all([
+const [board, institutional, counts] = await Promise.all([
   peopleByGroup('board'),
   peopleByGroup('institutional'),
+  organisationCounts(),
 ]);
+const stats = [
+  { n: Object.values(counts).reduce((a, b) => a + b, 0), label: 'organisations in the directory' },
+  { n: board.length, label: 'volunteer board members' },
+].filter((s) => s.n > 0);
+const joinIcons = ['users', 'chart', 'bulb'] as const;
 
 const ContactSchema = z.object({
   name: z.string().min(1, 'Tell us your name.').max(120),
@@ -72,17 +79,38 @@ if (isPost) {
   description="La French Tech Bangkok is a volunteer-run community connecting French and Thai tech entrepreneurs since 2019."
   cache={!isPost}
 >
-  <Section>
-    <h1 class="text-4xl md:text-5xl">About La French Tech Bangkok</h1>
-    {settings.aboutIntro && <p class="mt-6 max-w-3xl text-lg">{settings.aboutIntro}</p>}
-    {settings.mission && <p class="mt-4 max-w-3xl text-lg text-muted">{settings.mission}</p>}
-  </Section>
+  <section class="bg-navy text-paper">
+    <div class="container-page py-16 md:py-24">
+      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">About us</p>
+      <h1 class="max-w-3xl text-4xl text-paper md:text-5xl">About La French Tech Bangkok</h1>
+      {settings.aboutIntro && <p class="mt-6 max-w-3xl text-lg">{settings.aboutIntro}</p>}
+      {settings.mission && (
+        <p class="mt-4 max-w-3xl text-lg text-accent-soft">{settings.mission}</p>
+      )}
+      {stats.length > 0 && (
+        <dl class="mt-12 grid gap-6 border-t border-paper/15 pt-8 sm:grid-cols-2 lg:w-2/3">
+          {stats.map((s) => (
+            <div>
+              <dt class="sr-only">{s.label}</dt>
+              <dd>
+                <span class="block font-display text-4xl font-bold text-paper">{s.n}</span>
+                <span class="text-sm text-accent-soft">{s.label}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  </section>
 
   {settings.joinPaths.length > 0 && (
     <Section id="join" tone="surface" title="You can join us">
       <div class="grid gap-6 md:grid-cols-3">
-        {settings.joinPaths.map((j) => (
+        {settings.joinPaths.map((j, i) => (
           <div class="rounded-card bg-paper p-6 shadow-card">
+            <span class="mb-4 flex size-12 items-center justify-center rounded-xl bg-brand/10 text-brand">
+              <Icon name={joinIcons[i % joinIcons.length]!} class="size-6" />
+            </span>
             <h3 class="text-lg">{j.title}</h3>
             <p class="mt-2 text-muted">{j.text}</p>
           </div>

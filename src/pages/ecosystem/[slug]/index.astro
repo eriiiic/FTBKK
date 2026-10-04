@@ -4,6 +4,7 @@ import Section from '../../../components/Section.astro';
 import OrgCard from '../../../components/OrgCard.astro';
 import Badge from '../../../components/Badge.astro';
 import Icon from '../../../components/Icon.astro';
+import Button from '../../../components/Button.astro';
 import { orgBySlug } from '../../../lib/orgs';
 import { publishedOrganisations } from '../../../lib/queries';
 import { BADGES, CATEGORIES, type BadgeKey, type Category } from '../../../lib/directory';
@@ -22,6 +23,10 @@ const related = (await publishedOrganisations())
   )
   .slice(0, 3);
 const logo = mediaUrl(org.logoKey);
+// Most imported listings have a description that only repeats the pitch: show it once.
+const sameText = (a: string, b: string) =>
+  a.replace(/\W+/g, ' ').trim().toLowerCase() === b.replace(/\W+/g, ' ').trim().toLowerCase();
+const showPitch = !!org.pitch && !(org.descriptionMd && sameText(org.pitch, org.descriptionMd));
 const badges = [...(org.memberStatus === 'member' ? ['member'] : []), ...org.badges];
 const claimed = org.ownerEmails.length > 0;
 const confirmed = org.confirmedAt
@@ -71,7 +76,7 @@ const facts: [string, string][] = [
       </div>
       <div>
         <h1 class="text-3xl md:text-4xl">{org.name}</h1>
-        {org.pitch && <p class="mt-2 text-lg text-muted">{org.pitch}</p>}
+        {showPitch && <p class="mt-2 text-lg text-muted">{org.pitch}</p>}
         <div class="mt-3 flex flex-wrap gap-2">
           {badges.map((b) => (
             <Badge tone={b === 'member' ? 'brand' : 'neutral'}>{BADGES[b as BadgeKey] ?? b}</Badge>
@@ -80,6 +85,20 @@ const facts: [string, string][] = [
           {org.raising && <Badge tone="accent">Raising</Badge>}
         </div>
       </div>
+      {(org.website || org.linkedin) && (
+        <div class="flex flex-wrap gap-3 sm:ml-auto">
+          {org.website && (
+            <Button href={org.website} rel="noopener">
+              Visit website <Icon name="external" class="size-4" />
+            </Button>
+          )}
+          {org.linkedin && (
+            <Button href={org.linkedin} rel="noopener" variant="secondary">
+              <Icon name="linkedin" class="size-4" /> LinkedIn
+            </Button>
+          )}
+        </div>
+      )}
     </header>
 
     <div class="mt-10 grid gap-10 md:grid-cols-3">

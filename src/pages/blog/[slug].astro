@@ -4,15 +4,22 @@ import Section from '../../components/Section.astro';
 import PostCard from '../../components/PostCard.astro';
 import Badge from '../../components/Badge.astro';
 import Icon from '../../components/Icon.astro';
-import { categoriesForPost, peopleNamed, postBySlug, relatedPosts } from '../../lib/queries';
+import {
+  categoriesForPost,
+  peopleNamed,
+  postBySlug,
+  postCategoryNames,
+  relatedPosts,
+} from '../../lib/queries';
 import { formatDate, initials, mediaUrl, readingMinutes } from '../../lib/format';
 import { plainText, renderMarkdown } from '../../lib/markdown';
 
 const post = await postBySlug(Astro.params.slug!);
 if (!post) return Astro.rewrite('/404');
-const [cats, authors] = await Promise.all([
+const [cats, authors, postCats] = await Promise.all([
   categoriesForPost(post.id),
   peopleNamed(post.authorName),
+  postCategoryNames(),
 ]);
 const related = await relatedPosts(
   post.id,
@@ -191,7 +198,7 @@ const jsonLd = {
     <Section tone="surface" title="Read next">
       <div class="grid gap-6 md:grid-cols-3">
         {related.map((p) => (
-          <PostCard post={p} />
+          <PostCard post={p} categories={postCats.get(p.id)} />
         ))}
       </div>
     </Section>
