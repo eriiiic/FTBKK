@@ -26,6 +26,8 @@ export function cleanWixMarkdown(md: string): string {
     const pathname = (p ?? '/').split(/[?#]/)[0] || '/';
     return redirectFor(pathname) ?? pathname;
   });
+  // Wix authors style intro paragraphs as h4-h6: long "headings" are paragraphs.
+  s = s.replace(/^#{4,6}\s+(.{120,})$/gm, '$1');
   // Wix exports every list as a loose list (blank line between items): make them tight.
   s = s.replace(/^(\s*(?:[-*]|\d+\.)\s+.+)\n\n+(?=\s*(?:[-*]|\d+\.)\s+)/gm, '$1\n');
   s = s.replace(/\n{3,}/g, '\n\n');
@@ -102,4 +104,51 @@ export function dropLeadingCoverImage(md: string, coverKey: string | null) {
   const m = md.match(/^\s*!\[[^\]]*\]\(([^)]+)\)\s*(?:\n|$)/);
   if (m && m[1].endsWith(coverKey)) return md.slice(m[0].length).trim();
   return md;
+}
+
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+/** Decodes the HTML entities Wix leaves in plain-text fields ("Speaker &amp; topic"). */
+export function decodeEntities(s: string) {
+  return s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (all, code: string) => {
+    if (code[0] === '#') {
+      const n =
+        code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(n) ? String.fromCodePoint(n) : all;
+    }
+    return ENTITIES[code.toLowerCase()] ?? all;
+  });
+}
+
+const BLOG_MENU = [
+  'Ecosystem News',
+  'Founder Guides',
+  'Tech Insights',
+  'Events & Community',
+  'Studies & ressources',
+];
+
+/**
+ * The capture read the blog's category menu instead of each post's own categories, so every
+ * post came back with all five. Until a fresh capture reads them, sort posts by their title.
+ */
+export function postCategories(title: string, captured: string[]): string[] {
+  if (!BLOG_MENU.every((c) => captured.includes(c))) return captured;
+  const t = title.toLowerCase();
+  const out = new Set<string>();
+  if (/tech pulse|panorama|ecosystem ready|report|study/.test(t)) {
+    out.add('Studies & ressources').add('Ecosystem News');
+  }
+  if (/guide|start a business|founder/.test(t)) out.add('Founder Guides');
+  if (/\bai\b|cyber|offline|llm|tech insight/.test(t)) out.add('Tech Insights');
+  if (/talk|connect|event|common ground|board/.test(t)) out.add('Events & Community');
+  if (/relabel|why bangkok|board|common ground/.test(t)) out.add('Ecosystem News');
+  return out.size ? [...out] : ['Ecosystem News'];
 }

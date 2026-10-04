@@ -171,3 +171,17 @@ export async function peopleByGroup(group: 'board' | 'institutional') {
     .where(eq(people.group, group))
     .orderBy(asc(people.sortOrder), asc(people.name));
 }
+
+/** Board or institutional people named in a post byline ("A and B"), in byline order. */
+export async function peopleNamed(byline: string | null) {
+  const names = (byline ?? '')
+    .split(/\s+(?:and|&|et)\s+|,\s*/i)
+    .map((n) => n.trim())
+    .filter(Boolean);
+  if (!names.length) return [];
+  const all = await getDb().select().from(people);
+  return names.map((n) => ({
+    name: n,
+    person: all.find((p) => p.name.toLowerCase() === n.toLowerCase()) ?? null,
+  }));
+}

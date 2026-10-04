@@ -19,9 +19,11 @@ import { plainText } from '../src/lib/markdown';
 import { mapWixCategory, sectorsFor } from './lib/wix-categories';
 import {
   cleanWixMarkdown,
+  decodeEntities,
   dropLeadingCoverImage,
   extractByline,
   inlineAttachments,
+  postCategories,
 } from './lib/clean-wix';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -133,9 +135,9 @@ if (ev) {
     sql.push(
       upsert('events', {
         slug: e.slug,
-        title: e.title,
+        title: decodeEntities(e.title),
         series: e.series ?? 'Other',
-        summary: e.summary || null,
+        summary: e.summary ? decodeEntities(e.summary) : null,
         body_md: rewriteImages(cleanWixMarkdown(e.bodyMd ?? '')),
         starts_at: startsAt,
         ends_at: toTs(e.endsAt),
@@ -175,11 +177,13 @@ if (po) {
     sql.push(
       upsert('posts', {
         slug: p.slug,
-        title: p.title,
+        title: decodeEntities(p.title),
         // Some Wix excerpts start with the flattened byline ("Bangkok, ThailandBy …"): rebuild those.
         excerpt: /^Bangkok,\s*Thailand/i.test(p.excerpt ?? '')
           ? plainText(byline.body, 200)
-          : p.excerpt || null,
+          : p.excerpt
+            ? decodeEntities(p.excerpt)
+            : null,
         body_md: body,
         cover_key: coverKey,
         // The byline typed in the post is right where Wix's author field is not (e.g. "master6942").
@@ -191,7 +195,11 @@ if (po) {
         updated_at: now,
       }),
     );
-    for (const c of p.categories ?? []) {
+    // Replace the post's categories (an earlier import put every post in every category).
+    sql.push(
+      `DELETE FROM post_categories WHERE post_id = (SELECT id FROM posts WHERE slug = ${q(p.slug)});`,
+    );
+    for (const c of postCategories(p.title, p.categories ?? [])) {
       const slug = slugify(c);
       sql.push(
         upsert('categories', { slug, name: c, sort_order: 99 }).replace(
@@ -225,13 +233,20 @@ const orgs = new Map<string, OrgIn & { badges: string[] }>();
 const sponsors = existsSync(path.join(DATA, 'organisations.json'))
   ? (JSON.parse(readFileSync(path.join(DATA, 'organisations.json'), 'utf8')) as OrgIn[])
   : [];
+// "AlphOmega8 Co. Ltd." (sponsor page) and "AlphOmega8" (board company) are one organisation.
+const LEGAL_SUFFIX =
+  /[\s,]+(?:co\.?,?\s*ltd\.?|company limited|ltd\.?|limited|inc\.?|pte\.?\s*ltd\.?)\s*$/i;
+const orgSlug = (name: string) => slugify(name.replace(LEGAL_SUFFIX, ''));
 for (const s of sponsors) {
-  const slug = slugify(s.name || s.slug || '');
+  const slug = orgSlug(s.name || s.slug || '');
+  // Rows imported earlier under the suffixed slug are replaced by this one.
+  const old = slugify(s.name || '');
+  if (old && old !== slug) sql.push(`DELETE FROM organisations WHERE slug = ${q(old)};`);
   orgs.set(slug, { ...s, slug, badges: ['sponsor'] });
 }
 const seedOrgs = load<OrgIn[]>('seed/organisations.json')?.data ?? [];
 for (const s of seedOrgs) {
-  const slug = slugify(s.name);
+  const slug = orgSlug(s.name);
   const existing = orgs.get(slug);
   orgs.set(
     slug,
@@ -281,7 +296,7 @@ if (ppl) {
       .map((l: string) => l.trim())
       .find((l: string) => l && l !== p.name && l !== p.organisation);
     sql.push(
-      `INSERT INTO people (name, title, organisation_id, organisation_name, "group", linkedin, photo_key, sort_order) VALUES (${q(p.name)}, ${q(p.title || titleLine || null)}, (SELECT id FROM organisations WHERE slug = ${q(slugify(p.organisation))}), ${q(p.organisation)}, ${q(p.group)}, ${q(hit?.linkedin ?? null)}, ${q(imageKey(photoRel))}, ${i});`,
+      `INSERT INTO people (name, title, organisation_id, organisation_name, "group", linkedin, photo_key, sort_order) VALUES (${q(p.name)}, ${q(p.title || titleLine || null)}, (SELECT id FROM organisations WHERE slug = ${q(orgSlug(p.organisation))}), ${q(p.organisation)}, ${q(p.group)}, ${q(hit?.linkedin ?? null)}, ${q(imageKey(photoRel))}, ${i});`,
     );
   });
   counts.people = `${ppl.data.length} from ${ppl.source}${captured.length ? ' (enriched from capture)' : ''}`;
