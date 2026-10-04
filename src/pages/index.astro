@@ -36,8 +36,18 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
 
 <BaseLayout>
   <section class="relative overflow-hidden bg-navy text-paper">
+    <img
+      src="/brand/hero-bangkok.jpg"
+      srcset="/brand/hero-bangkok-960.jpg 960w, /brand/hero-bangkok.jpg 1920w"
+      sizes="100vw"
+      alt=""
+      width="1920"
+      height="1080"
+      fetchpriority="high"
+      class="absolute inset-0 size-full object-cover"
+    />
     <div
-      class="absolute -top-24 -right-24 size-96 rounded-full bg-brand/30 blur-3xl"
+      class="absolute inset-0 bg-gradient-to-r from-navy via-navy/85 to-navy/55"
       aria-hidden="true"
     ></div>
     <div class="container-page relative py-20 md:py-28">
