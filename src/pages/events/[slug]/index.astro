@@ -25,9 +25,11 @@ const event = await eventBySlug(Astro.params.slug!);
 if (!event) return Astro.rewrite('/404');
 
 const upcoming = isUpcoming(event);
+// Imported Wix descriptions can end with the label of Wix's collapse button.
+const bodyMd = event.bodyMd.replace(/\s*\**\s*Show (?:More|Less)\s*\**\s*$/i, '');
 const description =
   event.summary ||
-  plainText(event.bodyMd) ||
+  plainText(bodyMd) ||
   `${event.title}, ${formatEventDate(event.startsAt, event.endsAt)}${event.venue ? ` at ${event.venue}` : ''}. A La French Tech Bangkok event.`;
 const settings = await getSettings();
 const now = new Date();
@@ -171,7 +173,7 @@ const jsonLd = {
       </div>
     </header>
     <div class="container-page grid gap-10 py-12 md:grid-cols-5">
-      <div class="prose max-w-none md:col-span-3" set:html={renderMarkdown(event.bodyMd)} />
+      <div class="prose max-w-none md:col-span-3" set:html={renderMarkdown(bodyMd)} />
       <aside class="self-start md:sticky md:top-24 md:col-span-2">
         {event.status === 'cancelled' ? (
           <Alert tone="danger">This event has been cancelled.</Alert>

@@ -135,11 +135,50 @@ const BLOG_MENU = [
   'Studies & ressources',
 ];
 
+/** Each post's categories as set in the Wix dashboard (read from screenshots on 2026-10-04). */
+const WIX_POST_CATEGORIES: Record<string, string[]> = {
+  'french-tech-2026-an-ecosystem-ready-to-compete-on-the-global-stage': [
+    'Ecosystem News',
+    'Tech Insights',
+    'Studies & ressources',
+  ],
+  'thailand-tech-pulse-q3-2026-thailand-s-tech-economy-enters-a-new-phase': [
+    'Ecosystem News',
+    'Tech Insights',
+    'Studies & ressources',
+  ],
+  'la-french-tech-bangkok-releases-thailand-tech-pulse-q2-2026-edition': [
+    'Ecosystem News',
+    'Tech Insights',
+    'Studies & ressources',
+  ],
+  'la-french-tech-bangkok-launches-its-first-thailand-tech-pulse-for-q1-2026': [
+    'Ecosystem News',
+    'Tech Insights',
+    'Studies & ressources',
+  ],
+  'how-to-start-a-business-in-thailand-a-practical-guide-for-foreign-founders-part-1-4': [
+    'Founder Guides',
+  ],
+  'how-to-start-a-business-in-thailand-a-practical-guide-for-foreign-founders-part-2-4': [
+    'Founder Guides',
+  ],
+  'we-ran-ai-100-offline-on-our-laptops-learnings': ['Tech Insights'],
+  'ai-is-changing-cybersecurity-faster-than-most-companies-realize': ['Tech Insights'],
+  'why-bangkok-is-attracting-more-and-more-french-startups': ['Ecosystem News'],
+  'la-french-tech-bangkok-officially-relabelled-for-2026-2028': ['Ecosystem News'],
+  'la-french-tech-bangkok-is-looking-for-its-next-board-members': ['Events & Community'],
+  'la-french-tech-bangkok-x-common-ground-thailand-a-new-home-for-french-tech-talks-2026': [
+    'Events & Community',
+  ],
+};
+
 /**
  * The capture read the blog's category menu instead of each post's own categories, so every
- * post came back with all five. Until a fresh capture reads them, sort posts by their title.
+ * post came back with all five. Use the categories set in Wix, else guess from the title.
  */
-export function postCategories(title: string, captured: string[]): string[] {
+export function postCategories(title: string, captured: string[], slug?: string): string[] {
+  if (slug && WIX_POST_CATEGORIES[slug]) return WIX_POST_CATEGORIES[slug];
   if (!BLOG_MENU.every((c) => captured.includes(c))) return captured;
   const t = title.toLowerCase();
   const out = new Set<string>();
