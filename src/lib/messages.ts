@@ -1,8 +1,8 @@
 // Contact-form messages: folders (status), actions from the admin, and blocked senders.
 import { z } from 'zod';
-import { eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db';
-import { blockedSenders, submissions, type Submission } from '../db/schema';
+import { blockedSenders, messageNotes, submissions, type Submission } from '../db/schema';
 
 export type MessageStatus = Submission['status'];
 
@@ -79,6 +79,13 @@ export const MessageAction = z.discriminatedUnion('action', [
     /** Also block the sender: 'address', 'domain' or nothing. */
     block: z.enum(['none', 'address', 'domain']).default('address'),
   }),
+  z.object({
+    action: z.literal('note'),
+    ids: z.array(z.coerce.number().int().positive()).length(1),
+    body: z.string().trim().min(1, 'Write a note first.').max(4000),
+    /** Optionally file the message at the same time. */
+    move: z.enum(['answered', 'handled']).optional(),
+  }),
   z.object({ action: z.literal('block'), pattern: Pattern }),
   z.object({ action: z.literal('unblock'), pattern: z.string().trim().toLowerCase().max(254) }),
 ]);
@@ -102,16 +109,20 @@ export async function applyMessageAction(input: MessageAction, actor: string) {
     await db.delete(blockedSenders).where(eq(blockedSenders.pattern, input.pattern));
     return `Unblocked ${input.pattern}. Messages already in Spam stay there.`;
   }
+  if (input.action === 'note') {
+    await db
+      .insert(messageNotes)
+      .values({ submissionId: input.ids[0]!, body: input.body, author: actor });
+    if (!input.move) return 'Note added.';
+    await setStatus(input.ids, input.move, actor);
+    return `Note added; message moved to ${folderLabel(input.move)}.`;
+  }
   const status = input.action;
-  await db
-    .update(submissions)
-    .set({ status, handled: status !== 'new', statusAt: new Date(), statusBy: actor })
-    .where(inArray(submissions.id, input.ids));
   const n = input.ids.length;
   const what = `${n} message${n === 1 ? '' : 's'}`;
   if (input.action !== 'spam' || input.block === 'none') {
-    const label = FOLDERS.find((f) => f.status === status)!.label;
-    return `${what} moved to ${label}.`;
+    await setStatus(input.ids, status, actor);
+    return `${what} moved to ${folderLabel(status)}.`;
   }
   const rows = await db
     .select({ payload: submissions.payload })
@@ -123,6 +134,12 @@ export async function applyMessageAction(input: MessageAction, actor: string) {
     if (!e.includes('@')) continue;
     patterns.add(input.block === 'domain' && canBlockDomain(e) ? `@${domainOf(e)}` : e);
   }
+  await setStatus(
+    input.ids,
+    'spam',
+    actor,
+    patterns.size ? `blocked ${[...patterns].join(', ')}` : undefined,
+  );
   for (const pattern of patterns) {
     await db.insert(blockedSenders).values({ pattern, createdBy: actor }).onConflictDoNothing();
     await moveBlockedToSpam(pattern, actor);
@@ -143,12 +160,38 @@ async function moveBlockedToSpam(pattern: string, actor: string) {
       return pattern.startsWith('@') ? e.endsWith(pattern) : e === pattern;
     })
     .map((s) => s.id);
-  if (ids.length)
-    await db
-      .update(submissions)
-      .set({ status: 'spam', handled: true, statusAt: new Date(), statusBy: actor })
-      .where(inArray(submissions.id, ids));
+  if (ids.length) await setStatus(ids, 'spam', actor, `sender ${pattern} blocked`);
   return ids.length;
+}
+
+export const folderLabel = (s: MessageStatus) => FOLDERS.find((f) => f.status === s)!.label;
+
+/** Files messages in a folder and logs the move in each message's history. */
+async function setStatus(ids: number[], status: MessageStatus, actor: string, why?: string) {
+  const db = getDb();
+  await db
+    .update(submissions)
+    .set({ status, handled: status !== 'new', statusAt: new Date(), statusBy: actor })
+    .where(inArray(submissions.id, ids));
+  const body = `Moved to ${folderLabel(status)}${why ? ` (${why})` : ''}`;
+  await db
+    .insert(messageNotes)
+    .values(
+      ids.map((submissionId) => ({ submissionId, kind: 'status' as const, body, author: actor })),
+    );
+}
+
+/** Notes and moves for these messages, oldest first, grouped by message. */
+export async function notesFor(ids: number[]) {
+  const out = new Map<number, (typeof messageNotes.$inferSelect)[]>();
+  if (!ids.length) return out;
+  const rows = await getDb()
+    .select()
+    .from(messageNotes)
+    .where(inArray(messageNotes.submissionId, ids))
+    .orderBy(asc(messageNotes.createdAt), asc(messageNotes.id));
+  for (const r of rows) out.set(r.submissionId, [...(out.get(r.submissionId) ?? []), r]);
+  return out;
 }
 
 /** A mailto: link that opens a reply with the original message quoted. */

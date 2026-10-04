@@ -28,6 +28,19 @@ describe('messages', () => {
     });
   });
 
+  it('accepts a note on one message, optionally filing it', () => {
+    expect(
+      MessageAction.safeParse({
+        action: 'note',
+        ids: ['4'],
+        body: ' Sent the deck ',
+        move: 'answered',
+      }).data,
+    ).toEqual({ action: 'note', ids: [4], body: 'Sent the deck', move: 'answered' });
+    expect(MessageAction.safeParse({ action: 'note', ids: [4], body: '  ' }).success).toBe(false);
+    expect(MessageAction.safeParse({ action: 'note', ids: [4, 5], body: 'x' }).success).toBe(false);
+  });
+
   it('builds a reply link with the message quoted', () => {
     const link = replyLink({
       payload: { name: 'Marie Curie', email: 'marie@ex.fr', topic: 'press', message: 'Hi\nthere' },

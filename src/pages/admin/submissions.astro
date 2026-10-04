@@ -5,7 +5,7 @@ import Alert from '../../components/Alert.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
 import { getDb } from '../../db';
-import { blockedSenders, submissions } from '../../db/schema';
+import { blockedSenders, messageNotes, submissions } from '../../db/schema';
 import { formatDate } from '../../lib/format';
 import {
   FOLDERS,
@@ -13,6 +13,8 @@ import {
   applyMessageAction,
   canBlockDomain,
   domainOf,
+  folderLabel,
+  notesFor,
   replyLink,
   type MessageStatus,
 } from '../../lib/messages';
@@ -31,9 +33,11 @@ const here = (extra: Record<string, string> = {}) => {
 };
 
 let error = '';
+let failedNote: { id: number; body: string } | null = null;
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   // "spam" blocks the address; "spam-domain" the whole domain; "spam-only" blocks nobody.
+  // "note-answered" / "note-handled" save a note and file the message.
   const [action, block] = String(form.get('action') ?? '').split('-');
   const parsed = MessageAction.safeParse({
     action,
@@ -43,11 +47,15 @@ if (Astro.request.method === 'POST') {
         ? ({ domain: 'domain', only: 'none' }[block ?? ''] ?? 'address')
         : undefined,
     pattern: form.get('pattern') ?? undefined,
+    body: form.get('body') ?? undefined,
+    move: action === 'note' ? block : undefined,
   });
   if (parsed.success) {
     const done = await applyMessageAction(parsed.data, actor);
     return Astro.redirect(here({ done }));
   }
+  if (action === 'note')
+    failedNote = { id: Number(form.get('ids')), body: String(form.get('body') ?? '') };
   const issue = parsed.error.issues[0];
   error =
     issue?.path[0] === 'ids'
@@ -56,8 +64,10 @@ if (Astro.request.method === 'POST') {
 }
 const done = params.get('done');
 
+// Search covers the message and the team's notes on it.
+const like = `%${q.toLowerCase().replace(/[%_]/g, '')}%`;
 const search = q
-  ? sql`lower(${submissions.payload}) like ${`%${q.toLowerCase().replace(/[%_]/g, '')}%`}`
+  ? sql`(lower(${submissions.payload}) like ${like} or exists (select 1 from ${messageNotes} n where n.submission_id = "submissions"."id" and n.kind = 'note' and lower(n.body) like ${like}))`
   : undefined;
 const [rows, counts, blocked] = await Promise.all([
   db
@@ -74,10 +84,11 @@ const [rows, counts, blocked] = await Promise.all([
     ? db.select().from(blockedSenders).orderBy(desc(blockedSenders.createdAt))
     : Promise.resolve([]),
 ]);
+const notes = await notesFor(rows.map((r) => r.id));
 const countOf = (s: MessageStatus) => counts.find((c) => c.status === s)?.n ?? 0;
 const str = (v: unknown) => (v === null || v === undefined ? '' : String(v));
 const stamp = (d: Date) => formatDate(d, { hour: '2-digit', minute: '2-digit' });
-const label = (s: MessageStatus) => FOLDERS.find((f) => f.status === s)!.label;
+const label = folderLabel;
 // The moves offered from each folder (the current one is left out).
 const moves = (
   [
@@ -204,12 +215,83 @@ const moves = (
             </div>
           </div>
           <p class="mt-3 text-sm whitespace-pre-line">{str(p.message)}</p>
-          {s.status !== 'new' && s.statusAt && (
-            <p class="mt-3 text-xs text-muted">
-              {label(s.status)} on {stamp(s.statusAt)}
-              {s.statusBy ? ` by ${s.statusBy}` : ''}
-            </p>
-          )}
+          {(() => {
+            const log = notes.get(s.id) ?? [];
+            if (!log.length)
+              return s.status !== 'new' && s.statusAt ? (
+                <p class="mt-3 text-xs text-muted">
+                  {label(s.status)} on {stamp(s.statusAt)}
+                  {s.statusBy ? ` by ${s.statusBy}` : ''}
+                </p>
+              ) : null;
+            return (
+              <section class="mt-4 border-t border-line pt-3" aria-label="Team notes and history">
+                <h3 class="text-xs font-semibold tracking-wider text-muted uppercase">
+                  Notes and history
+                </h3>
+                <ol class="mt-2 grid gap-2">
+                  {log.map((n) =>
+                    n.kind === 'note' ? (
+                      <li class="rounded-xl bg-surface p-3 text-sm">
+                        <p class="whitespace-pre-line">{n.body}</p>
+                        <p class="mt-1 text-xs text-muted">
+                          {n.author} · {stamp(n.createdAt)}
+                        </p>
+                      </li>
+                    ) : (
+                      <li class="px-3 text-xs text-muted">
+                        {n.body} · {n.author} · {stamp(n.createdAt)}
+                      </li>
+                    ),
+                  )}
+                </ol>
+              </section>
+            );
+          })()}
+          <details class="group mt-4" open={failedNote?.id === s.id ? true : undefined}>
+            <summary class="cursor-pointer text-sm font-semibold text-accent">Add a note</summary>
+            <form method="post" class="mt-2 grid gap-2">
+              <input type="hidden" name="ids" value={s.id} />
+              <label for={`note${s.id}`} class="sr-only">
+                Note for the team about this message
+              </label>
+              <textarea
+                id={`note${s.id}`}
+                name="body"
+                rows="3"
+                maxlength="4000"
+                placeholder="What was done: who answered, what was said, why it is spam…"
+                class="admin-input"
+              >{failedNote?.id === s.id ? failedNote.body : ''}</textarea>
+              <div class="flex flex-wrap gap-2">
+                <Button type="submit" name="action" value="note" size="sm" variant="secondary">
+                  Save note
+                </Button>
+                {s.status !== 'answered' && (
+                  <Button
+                    type="submit"
+                    name="action"
+                    value="note-answered"
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Save and mark answered
+                  </Button>
+                )}
+                {s.status !== 'handled' && (
+                  <Button
+                    type="submit"
+                    name="action"
+                    value="note-handled"
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Save and mark handled
+                  </Button>
+                )}
+              </div>
+            </form>
+          </details>
           <form method="post" class="mt-4 flex flex-wrap items-center gap-2">
             <input type="hidden" name="ids" value={s.id} />
             {email && s.status !== 'spam' && (

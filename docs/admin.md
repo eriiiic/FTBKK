@@ -70,7 +70,10 @@ them in Settings > Directory moderators.
   **Spam…** blocks the sender's address (or their whole company domain; webmail domains like
   gmail.com can only be blocked address by address). Later messages from a blocked sender land
   in Spam silently, with no email to the team. Manage the list under Spam > Blocked senders.
-  Tick several messages to move them at once; search covers every field.
+  Tick several messages to move them at once; search covers every field and the team notes.
+  **Add a note** records what was done (who answered, what was said, why it is spam) with your
+  name and the time; "Save and mark answered" files the message in the same click. Every move
+  between folders is logged under the message too.
 - **Settings**: home and about texts, social links, contact email, moderators, membership switches
   and the analytics token.
 

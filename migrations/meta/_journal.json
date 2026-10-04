@@ -36,6 +36,13 @@
       "when": 1791102559181,
       "tag": "0005_messages_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791102991563,
+      "tag": "0006_message_notes",
+      "breakpoints": true
     }
   ]
 }
