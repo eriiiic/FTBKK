@@ -56,6 +56,7 @@ const BACKUP_TABLES = [
   'settings',
   'submissions',
   'blocked_senders',
+  'message_notes',
 ];
 const KEEP_BACKUPS = 12;
 

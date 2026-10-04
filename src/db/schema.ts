@@ -340,6 +340,24 @@ export const submissions = sqliteTable('submissions', {
   statusBy: text('status_by'),
 });
 
+/** The team's notes on a message, and a log of its moves between folders. */
+export const messageNotes = sqliteTable(
+  'message_notes',
+  {
+    id: id(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => submissions.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['note', 'status'] })
+      .notNull()
+      .default('note'),
+    body: text('body').notNull(),
+    author: text('author').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('message_notes_submission').on(t.submissionId)],
+);
+
 /** Senders whose messages go straight to Spam: a full address, or "@domain.com" for a domain. */
 export const blockedSenders = sqliteTable('blocked_senders', {
   pattern: text('pattern').primaryKey(),
@@ -354,3 +372,4 @@ export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
 export type Person = typeof people.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
+export type MessageNote = typeof messageNotes.$inferSelect;
