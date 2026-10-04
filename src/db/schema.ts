@@ -330,7 +330,21 @@ export const submissions = sqliteTable('submissions', {
   type: text('type').notNull(),
   payload: json<Record<string, unknown>>('payload').notNull(),
   createdAt: createdAt(),
+  /** Kept in sync with status (true unless status is 'new') for older code and backups. */
   handled: integer('handled', { mode: 'boolean' }).notNull().default(false),
+  /** Messages are never removed: deleting, flagging as spam etc. only moves them to that folder. */
+  status: text('status', { enum: ['new', 'answered', 'handled', 'spam', 'deleted'] })
+    .notNull()
+    .default('new'),
+  statusAt: ts('status_at'),
+  statusBy: text('status_by'),
+});
+
+/** Senders whose messages go straight to Spam: a full address, or "@domain.com" for a domain. */
+export const blockedSenders = sqliteTable('blocked_senders', {
+  pattern: text('pattern').primaryKey(),
+  createdAt: createdAt(),
+  createdBy: text('created_by'),
 });
 
 export type Event = typeof events.$inferSelect;
@@ -339,3 +353,4 @@ export type Post = typeof posts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
 export type Person = typeof people.$inferSelect;
+export type Submission = typeof submissions.$inferSelect;
