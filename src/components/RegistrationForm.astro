@@ -69,6 +69,15 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         error={errors.email}
       />
       <FormField
+        name="phone"
+        label="Phone"
+        type="tel"
+        autocomplete="tel"
+        value={str('phone')}
+        error={errors.phone}
+        hint="Optional. Helps us find you quickly at the entrance."
+      />
+      <FormField
         name="company"
         label="Company"
         autocomplete="organization"

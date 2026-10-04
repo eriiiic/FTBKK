@@ -3,30 +3,43 @@ import { asc, eq, inArray, and } from 'drizzle-orm';
 import '../../../../styles/global.css';
 import { getDb } from '../../../../db';
 import { events, registrations } from '../../../../db/schema';
+import { normalizeCode, ticketCode } from '../../../../lib/ticket';
 
-// Full-screen, phone-first check-in for the door. Admin only (guarded in middleware).
+// Full-screen, phone-first check-in for the door: search by name, email, phone or ticket code, or
+// scan the QR code from the confirmation email. Admin only (guarded in middleware).
 const db = getDb();
 const [event] = await db
   .select()
   .from(events)
   .where(eq(events.id, Number(Astro.params.id)));
 if (!event) return Astro.redirect('/admin/events');
-const rows = await db
-  .select({
-    id: registrations.id,
-    name: registrations.name,
-    email: registrations.email,
-    company: registrations.company,
-    status: registrations.status,
-  })
-  .from(registrations)
-  .where(
-    and(
-      eq(registrations.eventId, event.id),
-      inArray(registrations.status, ['registered', 'attended', 'waitlist']),
-    ),
-  )
-  .orderBy(asc(registrations.name));
+const rows = await Promise.all(
+  (
+    await db
+      .select({
+        id: registrations.id,
+        name: registrations.name,
+        email: registrations.email,
+        phone: registrations.phone,
+        company: registrations.company,
+        status: registrations.status,
+        token: registrations.token,
+      })
+      .from(registrations)
+      .where(
+        and(
+          eq(registrations.eventId, event.id),
+          inArray(registrations.status, ['registered', 'attended', 'waitlist']),
+        ),
+      )
+      .orderBy(asc(registrations.name))
+  ).map(async ({ token, ...r }) => ({ ...r, code: normalizeCode(await ticketCode(token)) })),
+);
+const search = (r: (typeof rows)[number]) =>
+  [r.name, r.email, r.company, r.phone, r.phone?.replace(/\D/g, ''), r.code]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 ---
 
@@ -50,31 +63,73 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         </p>
       </div>
       <h1 class="mt-1 truncate text-lg text-paper">{event.title}</h1>
-      <label for="search" class="sr-only">
-        Search by name, email or company
-      </label>
-      <input
-        id="search"
-        type="search"
-        autocomplete="off"
-        placeholder="Type a name…"
-        class="mt-3 w-full rounded-xl border-0 bg-paper px-4 py-3 text-lg text-ink"
-        autofocus
-      />
+      <div class="mt-3 flex gap-2">
+        <label for="search" class="sr-only">
+          Search by name, email, phone or ticket code
+        </label>
+        <input
+          id="search"
+          type="search"
+          autocomplete="off"
+          enterkeyhint="go"
+          placeholder="Name, email, phone or code…"
+          class="min-w-0 flex-1 rounded-xl border-0 bg-paper px-4 py-3 text-lg text-ink"
+          autofocus
+        />
+        <button
+          type="button"
+          data-scan
+          class="shrink-0 rounded-xl bg-brand px-4 py-3 font-semibold text-paper"
+        >
+          Scan QR
+        </button>
+      </div>
+      <p class="mt-2 text-xs text-accent-soft">
+        Press Enter to check in when only one person matches. A handheld scanner works too.
+      </p>
     </header>
+
+    <div
+      data-toast
+      hidden
+      role="status"
+      aria-live="assertive"
+      class="fixed inset-x-3 top-3 z-30 rounded-xl p-4 text-center text-lg font-semibold text-paper shadow-card data-[tone=bad]:bg-danger data-[tone=good]:bg-success data-[tone=warn]:bg-navy"
+    ></div>
+
+    <div data-scanner hidden class="fixed inset-0 z-20 flex flex-col bg-ink">
+      <video data-video playsinline muted class="min-h-0 flex-1 object-cover"></video>
+      <div class="flex items-center justify-between gap-3 bg-navy p-4 text-paper">
+        <p data-scan-status class="text-sm">
+          Point the camera at the ticket's QR code.
+        </p>
+        <button
+          type="button"
+          data-scan-close
+          class="rounded-xl bg-paper px-4 py-2 font-semibold text-ink"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+
     <ul class="grid gap-2 p-3" data-list data-event={event.id}>
       {rows.map((r) => (
         <li>
           <button
             type="button"
             data-id={r.id}
+            data-name={r.name}
+            data-code={r.code}
             data-status={r.status}
-            data-search={`${r.name} ${r.email} ${r.company ?? ''}`.toLowerCase()}
+            data-search={search(r)}
             class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4 text-left data-[status=attended]:border-success data-[status=attended]:bg-success/5"
           >
-            <span>
+            <span class="min-w-0">
               <span class="block text-lg font-semibold">{r.name}</span>
-              <span class="block text-sm text-muted">{r.company ?? r.email}</span>
+              <span class="block truncate text-sm text-muted">
+                {[r.company, r.email, r.phone].filter(Boolean).join(' · ')}
+              </span>
             </span>
             <span data-label class="shrink-0 text-sm font-semibold">
               {r.status === 'attended'
@@ -88,45 +143,180 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       ))}
     </ul>
     {rows.length === 0 && <p class="p-6 text-center text-muted">Nobody registered yet.</p>}
+    <p data-none hidden class="p-6 text-center text-muted">
+      No match.
+    </p>
+
     <script>
       const list = document.querySelector('[data-list]') as unknown as HTMLElement;
       const eventId = Number(list.dataset.event);
       const count = document.querySelector('[data-count]') as unknown as HTMLElement;
       const search = document.getElementById('search') as unknown as HTMLInputElement;
+      const none = document.querySelector('[data-none]') as unknown as HTMLElement;
+      const toast = document.querySelector('[data-toast]') as unknown as HTMLElement;
       const buttons = [...list.querySelectorAll<HTMLButtonElement>('button[data-id]')];
+      const code = (s: string) =>
+        s
+          .toUpperCase()
+          .replace(/[^0-9A-Z]/g, '')
+          .replace(/O/g, '0')
+          .replace(/[IL]/g, '1');
 
-      search.addEventListener('input', () => {
+      let toastTimer: ReturnType<typeof setTimeout> | undefined;
+      const say = (text: string, tone: 'good' | 'bad' | 'warn') => {
+        toast.textContent = text;
+        toast.dataset.tone = tone;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (toast.hidden = true), 2500);
+        if (tone !== 'good') navigator.vibrate?.(200);
+      };
+
+      const visible = () =>
+        buttons.filter((b) => !(b.parentElement as unknown as HTMLElement).hidden);
+
+      const filter = () => {
         const q = search.value.trim().toLowerCase();
+        const digits = q.replace(/\D/g, '');
+        const c = code(q).toLowerCase();
         for (const b of buttons) {
-          (b.parentElement as unknown as HTMLElement).hidden =
-            !!q && !b.dataset.search!.includes(q);
+          const s = b.dataset.search!;
+          const hit =
+            !q ||
+            s.includes(q) ||
+            (digits.length >= 4 && s.includes(digits)) ||
+            (c.length >= 4 && s.includes(c));
+          (b.parentElement as unknown as HTMLElement).hidden = !hit;
         }
-      });
+        none.hidden = !q || visible().length > 0;
+      };
+      search.addEventListener('input', filter);
+
+      /** Checks one person in (or undoes it). Returns false when the request failed. */
+      const toggle = async (b: HTMLButtonElement, undo: boolean) => {
+        const label = b.querySelector('[data-label]') as unknown as HTMLElement;
+        label.textContent = '…';
+        const res = await fetch('/api/admin/checkin', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: Number(b.dataset.id), eventId, undo }),
+        });
+        if (res.ok) {
+          b.dataset.status = undo ? 'registered' : 'attended';
+          count.textContent = String(Number(count.textContent) + (undo ? -1 : 1));
+        }
+        label.textContent =
+          b.dataset.status === 'attended' ? '✓ In' : res.ok ? 'Tap to check in' : 'Try again';
+        return res.ok;
+      };
+
+      const checkIn = async (b: HTMLButtonElement) => {
+        const name = b.dataset.name ?? '';
+        if (b.dataset.status === 'attended') return say(`${name} is already checked in`, 'warn');
+        if (await toggle(b, false)) {
+          say(
+            `✓ ${name}${b.dataset.status === 'waitlist' ? ' (was on the waitlist)' : ''}`,
+            'good',
+          );
+          search.value = '';
+          filter();
+        } else say('Check-in failed. Try again.', 'bad');
+      };
 
       for (const b of buttons) {
         b.addEventListener('click', async () => {
-          const undo = b.dataset.status === 'attended';
-          if (undo && !confirm('Undo this check-in?')) return;
-          const label = b.querySelector('[data-label]') as unknown as HTMLElement;
-          label.textContent = '…';
-          const res = await fetch('/api/admin/checkin', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ id: Number(b.dataset.id), eventId, undo }),
-          });
-          if (res.ok) {
-            b.dataset.status = undo ? 'registered' : 'attended';
-            count.textContent = String(Number(count.textContent) + (undo ? -1 : 1));
-            if (!undo) {
-              search.value = '';
-              search.dispatchEvent(new Event('input'));
-              search.focus();
-            }
+          if (b.dataset.status === 'attended') {
+            if (confirm(`Undo the check-in of ${b.dataset.name}?`)) await toggle(b, true);
+            return;
           }
-          label.textContent =
-            b.dataset.status === 'attended' ? '✓ In' : res.ok ? 'Tap to check in' : 'Try again';
+          await checkIn(b);
+          search.focus();
         });
       }
+
+      // Enter (or a handheld scanner, which types the code then Enter) checks in a single match.
+      search.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const exact = buttons.find((b) => b.dataset.code === code(search.value));
+        const matches = exact ? [exact] : visible();
+        if (matches.length === 1) void checkIn(matches[0]!);
+        else if (matches.length === 0) say('No match', 'bad');
+        else say(`${matches.length} people match: tap the right one`, 'warn');
+      });
+
+      // ---------- camera scan ----------
+      const scanner = document.querySelector('[data-scanner]') as unknown as HTMLElement;
+      const video = document.querySelector('[data-video]') as unknown as HTMLVideoElement;
+      const scanStatus = document.querySelector('[data-scan-status]') as unknown as HTMLElement;
+      let stream: MediaStream | null = null;
+      let running = false;
+      let last = { text: '', at: 0 };
+
+      const onCode = async (text: string) => {
+        const now = Date.now();
+        if (text === last.text && now - last.at < 3000) return;
+        last = { text, at: now };
+        const b = buttons.find((x) => x.dataset.code === code(text));
+        if (!b) return say('Unknown ticket for this event', 'bad');
+        await checkIn(b);
+      };
+
+      const stop = () => {
+        running = false;
+        stream?.getTracks().forEach((t) => t.stop());
+        stream = null;
+        scanner.hidden = true;
+        search.focus();
+      };
+
+      document.querySelector('[data-scan-close]')?.addEventListener('click', stop);
+      document.querySelector('[data-scan]')?.addEventListener('click', async () => {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false,
+          });
+        } catch {
+          return say('Camera not available. Allow camera access, or type the code.', 'bad');
+        }
+        scanner.hidden = false;
+        video.srcObject = stream;
+        await video.play();
+        running = true;
+        type Detector = { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
+        const Native = (
+          window as unknown as {
+            BarcodeDetector?: new (o: { formats: string[] }) => Detector;
+          }
+        ).BarcodeDetector;
+        const native = Native ? new Native({ formats: ['qr_code'] }) : null;
+        const jsQR = native ? null : (await import('jsqr')).default;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        scanStatus.textContent = "Point the camera at the ticket's QR code.";
+        const tick = async () => {
+          if (!running) return;
+          try {
+            if (native) {
+              const [hit] = await native.detect(video);
+              if (hit) await onCode(hit.rawValue);
+            } else if (jsQR && ctx && video.videoWidth) {
+              const w = 480;
+              const h = Math.round((video.videoHeight / video.videoWidth) * w);
+              canvas.width = w;
+              canvas.height = h;
+              ctx.drawImage(video, 0, 0, w, h);
+              const hit = jsQR(ctx.getImageData(0, 0, w, h).data, w, h);
+              if (hit) await onCode(hit.data);
+            }
+          } catch {
+            /* a frame that fails to decode: try the next one */
+          }
+          setTimeout(tick, 150);
+        };
+        void tick();
+      });
     </script>
   </body>
 </html>

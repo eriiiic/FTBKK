@@ -11,6 +11,7 @@ const flash = Astro.url.searchParams.get('saved');
 const nav = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/events', label: 'Events' },
+  { href: '/admin/events/stats', label: 'Event stats' },
   { href: '/admin/registrations', label: 'Registrations' },
   { href: '/admin/posts', label: 'Posts' },
   { href: '/admin/files', label: 'Files' },
@@ -20,7 +21,12 @@ const nav = [
   { href: '/admin/settings', label: 'Settings' },
 ];
 const path = Astro.url.pathname;
-const active = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
+// The longest matching link wins, so /admin/events/stats doesn't also light up Events.
+const current = nav
+  .map((n) => n.href)
+  .filter((h) => (h === '/admin' ? path === '/admin' : path === h || path.startsWith(`${h}/`)))
+  .sort((a, b) => b.length - a.length)[0];
+const active = (href: string) => href === current;
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 ---
 
