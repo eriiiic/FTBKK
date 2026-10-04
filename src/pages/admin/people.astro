@@ -17,7 +17,7 @@ const PersonSchema = z.object({
   name: z.string().min(2, 'Enter a name.').max(120),
   title: optionalText(120),
   organisationName: optionalText(120),
-  linkedin: optionalUrl,
+  linkedin: optionalUrl(),
   group: z.enum(['board', 'institutional']),
 });
 const GROUPS = [

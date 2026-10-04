@@ -13,6 +13,7 @@ const nav = [
   { href: '/admin/events', label: 'Events' },
   { href: '/admin/registrations', label: 'Registrations' },
   { href: '/admin/posts', label: 'Posts' },
+  { href: '/admin/files', label: 'Files' },
   { href: '/admin/ecosystem', label: 'Ecosystem' },
   { href: '/admin/people', label: 'People' },
   { href: '/admin/submissions', label: 'Messages' },
@@ -84,14 +85,14 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           if (!confirm(f.dataset.confirm)) e.preventDefault();
         });
       });
-      // Copy buttons: <button data-copy="text">.
-      document.querySelectorAll<HTMLButtonElement>('button[data-copy]').forEach((b) => {
-        b.addEventListener('click', async () => {
-          await navigator.clipboard.writeText(b.dataset.copy ?? '');
-          const label = b.textContent;
-          b.textContent = 'Copied';
-          setTimeout(() => (b.textContent = label), 1500);
-        });
+      // Copy buttons: <button data-copy="text">, including ones added to the page later.
+      document.addEventListener('click', async (e) => {
+        const b = (e.target as Element | null)?.closest<HTMLButtonElement>('button[data-copy]');
+        if (!b) return;
+        await navigator.clipboard.writeText(b.dataset.copy ?? '');
+        const label = b.textContent;
+        b.textContent = 'Copied';
+        setTimeout(() => (b.textContent = label), 1500);
       });
       // Sortable tables: <table data-sortable>. Click a header to sort by that column, click again
       // to reverse. A cell's data-sort value (a timestamp, a number) wins over its text.

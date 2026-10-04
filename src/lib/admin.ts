@@ -8,7 +8,9 @@ import {
   orgChanges,
   organisations,
   posts,
+  type Attachment,
   type Organisation,
+  type PostAuthor,
 } from '../db/schema';
 import { optionalText, optionalUrl } from './forms';
 import { slugify } from './format';
@@ -56,14 +58,56 @@ const slugField = z
 export const PostSchema = z.object({
   title: z.string().min(2, 'Enter a title.').max(200),
   slug: slugField,
-  excerpt: optionalText(300),
+  excerpt: optionalText(5000),
   bodyMd: z.string().max(100_000).default(''),
-  authorName: optionalText(120),
-  authorRole: optionalText(120),
+  authorNames: z.array(z.string().max(120)).default([]),
+  authorRoles: z.array(z.string().max(120)).default([]),
+  authorUrls: z.array(z.string().max(500)).default([]),
+  attachmentsJson: z.string().max(100_000).optional(),
   publishedAt: optionalLocalDate,
   status: z.enum(['draft', 'published']),
   categoryIds: z.array(z.coerce.number().int()).default([]),
 });
+
+/** Author rows from the post form (parallel name / role / link fields); empty rows are dropped. */
+export function formAuthors(names: string[], roles: string[], urls: string[]) {
+  const authors: PostAuthor[] = [];
+  let error: string | undefined;
+  names.forEach((raw, i) => {
+    const name = raw.trim();
+    if (!name) return;
+    const role = roles[i]?.trim();
+    const url = optionalUrl(500).safeParse(urls[i]?.trim() ?? '');
+    if (!url.success) error = `Enter a valid link for ${name}.`;
+    authors.push({
+      name,
+      ...(role ? { role } : {}),
+      ...(url.success && url.data ? { url: url.data } : {}),
+    });
+  });
+  return { authors, error };
+}
+
+const AttachmentList = z
+  .array(
+    z.object({
+      name: z.string().min(1).max(200),
+      key: z.string().regex(/^(posts\/)?files\/[^/]+$/),
+      size: z.number().int().nonnegative().optional(),
+    }),
+  )
+  .max(200);
+
+/** The attachment list the post editor keeps in a hidden field; null when missing or invalid. */
+export function parseAttachments(json: string | undefined): Attachment[] | null {
+  if (!json) return null;
+  try {
+    const parsed = AttachmentList.safeParse(JSON.parse(json));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 // ---------- events ----------
 
@@ -77,13 +121,13 @@ export const EventSchema = z
     title: z.string().min(2, 'Enter a title.').max(200),
     slug: slugField,
     series: z.string().min(1).max(60).default('Other'),
-    summary: optionalText(300),
+    summary: optionalText(5000),
     bodyMd: z.string().max(50_000).default(''),
     startsAt: localDate,
     endsAt: optionalLocalDate,
     venue: optionalText(200),
-    address: optionalText(300),
-    mapUrl: optionalUrl,
+    address: optionalText(1000),
+    mapUrl: optionalUrl(4000),
     capacity: optionalInt,
     registrationOpen: z.boolean().optional().default(false),
     registrationOpensAt: optionalLocalDate,

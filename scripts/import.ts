@@ -189,6 +189,7 @@ if (po) {
         // The byline typed in the post is right where Wix's author field is not (e.g. "master6942").
         author_name: byline.authorName ?? p.author ?? null,
         author_role: byline.authorRole,
+        authors: byline.authors,
         published_at: toTs(p.publishedAt) ?? now,
         status: 'published',
         attachments,

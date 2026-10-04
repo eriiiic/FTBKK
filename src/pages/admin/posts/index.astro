@@ -1,15 +1,43 @@
 ---
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
 import { getDb } from '../../../db';
 import { posts } from '../../../db/schema';
+import Alert from '../../../components/Alert.astro';
 import { formatDate } from '../../../lib/format';
+import { moveByline } from '../../../lib/byline';
+import { audit } from '../../../lib/orgs';
+
+const db = getDb();
+// Posts whose author is still typed at the top of the text (imported from Wix, never re-saved).
+const withByline = async () =>
+  (await db.select({ id: posts.id, bodyMd: posts.bodyMd, authors: posts.authors }).from(posts))
+    .filter((p) => !p.authors.length)
+    .flatMap((p) => {
+      const moved = moveByline(p);
+      return moved ? [{ id: p.id, ...moved }] : [];
+    });
+let movedCount: number | null = null;
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (form.get('action') === 'move-bylines') {
+    const pending = await withByline();
+    for (const { id, ...set } of pending) {
+      await db.update(posts).set(set).where(eq(posts.id, id));
+    }
+    await audit(Astro.locals.adminEmail ?? 'admin', 'move-bylines', 'post', null, null, {
+      ids: pending.map((p) => p.id),
+    });
+    movedCount = pending.length;
+  }
+}
+const bylineCount = (await withByline()).length;
 
 const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
 const rows = (
-  await getDb()
+  await db
     .select({
       id: posts.id,
       slug: posts.slug,
@@ -25,6 +53,21 @@ const now = new Date();
 ---
 
 <AdminLayout title="Posts">
+  {movedCount !== null && (
+    <Alert tone="success" class="mb-4">
+      {`Moved the typed author of ${movedCount} ${movedCount === 1 ? 'post' : 'posts'} into the Authors list.`}
+    </Alert>
+  )}
+  {bylineCount > 0 && (
+    <form method="post" class="admin-panel mb-4 flex flex-wrap items-center justify-between gap-3">
+      <p class="text-sm">
+        {`${bylineCount} ${bylineCount === 1 ? 'post still has its author' : 'posts still have their author'} typed at the top of the text (By … / role / La French Tech Bangkok).`}
+      </p>
+      <Button type="submit" name="action" value="move-bylines" size="sm" variant="secondary">
+        Move them to the Authors list
+      </Button>
+    </form>
+  )}
   <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <form method="get" role="search" class="flex gap-2">
       <label for="q" class="sr-only">

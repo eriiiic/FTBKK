@@ -1,5 +1,21 @@
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
+import { redirectFor } from './redirects';
+
+const OLD_SITE = /^https?:\/\/(?:www\.)?french-tech-bangkok\.com(?=\/|$|[?#])/i;
+
+/**
+ * Links to the old Wix site (in imported posts) become relative links to the new pages:
+ * /post/x -> /blog/x, /contact-8 -> /about#contact, and so on. Other links are left alone.
+ */
+export function localLink(href: string) {
+  if (!OLD_SITE.test(href) && !/^\/(?!\/)/.test(href)) return href;
+  const url = new URL(href.replace(OLD_SITE, ''), 'https://x.invalid');
+  const path = url.pathname.replace(/\/+$/, '') || '/';
+  const to = redirectFor(path);
+  if (to) return to.includes('#') ? to : `${to}${url.hash}`;
+  return `${path}${url.search}${url.hash}`;
+}
 
 /** Render admin- or owner-written Markdown to safe HTML. */
 export function renderMarkdown(md: string): string {
@@ -15,10 +31,16 @@ export function renderMarkdown(md: string): string {
     allowedSchemes: ['http', 'https', 'mailto', 'tel'],
     transformTags: {
       img: (tagName, attribs) => ({ tagName, attribs: { ...attribs, loading: 'lazy' } }),
-      a: (tagName, attribs) => ({
-        tagName,
-        attribs: /^https?:/.test(attribs.href ?? '') ? { ...attribs, rel: 'noopener' } : attribs,
-      }),
+      a: (tagName, attribs) => {
+        if (!attribs.href) return { tagName, attribs };
+        const href = localLink(attribs.href);
+        return {
+          tagName,
+          attribs: /^https?:/.test(href)
+            ? { ...attribs, href, rel: 'noopener' }
+            : { ...attribs, href },
+        };
+      },
     },
   });
 }

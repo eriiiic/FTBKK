@@ -6,13 +6,26 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import MarkdownEditor from '../../../components/admin/MarkdownEditor.astro';
 import { getDb } from '../../../db';
-import { categories, postCategories, posts, type Attachment, type Post } from '../../../db/schema';
-import { PostSchema, toLocalInput, uniqueContentSlug } from '../../../lib/admin';
+import {
+  categories,
+  postCategories,
+  posts,
+  type Attachment,
+  type Post,
+  type PostAuthor,
+} from '../../../db/schema';
+import {
+  formAuthors,
+  parseAttachments,
+  PostSchema,
+  toLocalInput,
+  uniqueContentSlug,
+} from '../../../lib/admin';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
-import { extractByline } from '../../../lib/byline';
+import { authorColumns, moveByline, resolveAuthors } from '../../../lib/byline';
 
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -37,6 +50,11 @@ let errors: Record<string, string> = {};
 let values: Record<string, unknown> = post
   ? { ...post, publishedAt: toLocalInput(post.publishedAt) }
   : { status: 'draft' };
+// A byline still typed at the top of the text opens as author rows, and leaves the text.
+const moved = post && !post.authors.length ? moveByline(post) : null;
+if (moved) values.bodyMd = moved.bodyMd;
+let authorRows: PostAuthor[] = post ? (moved?.authors ?? resolveAuthors(post).authors) : [];
+let attachmentList: Attachment[] = post?.attachments ?? [];
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -45,10 +63,29 @@ if (Astro.request.method === 'POST') {
     await audit(actor, 'delete', 'post', post.id, { title: post.title, slug: post.slug }, null);
     return Astro.redirect('/admin/posts?saved=1');
   }
-  values = formToObject(form, ['categoryIds', 'removeAttachment']);
+  values = formToObject(form, [
+    'categoryIds',
+    'removeAttachment',
+    'authorNames',
+    'authorRoles',
+    'authorUrls',
+  ]);
   selected = (values.categoryIds as string[]).map(Number);
   const parsed = PostSchema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
+  const fromForm = formAuthors(
+    values.authorNames as string[],
+    values.authorRoles as string[],
+    values.authorUrls as string[],
+  );
+  authorRows = fromForm.authors;
+  if (fromForm.error) errors.authors = fromForm.error;
+  const remove = new Set(values.removeAttachment as string[]);
+  attachmentList = (
+    parseAttachments(values.attachmentsJson as string | undefined) ??
+    post?.attachments ??
+    []
+  ).filter((a) => !remove.has(a.key));
   const cover = await storeUpload(form.get('cover'), {
     prefix: 'posts',
     maxBytes: 5 * 1024 * 1024,
@@ -66,29 +103,28 @@ if (Astro.request.method === 'POST') {
     else if (up.key && file instanceof File)
       added.push({ name: file.name, key: up.key, size: file.size });
   }
+  attachmentList = [...attachmentList, ...added];
 
   if (parsed.success && !Object.keys(errors).length) {
     const d = parsed.data;
-    // A typed Wix byline at the top of the text moves to the author fields (the page header).
-    const byline = extractByline(d.bodyMd);
-    if (byline.authorName) {
-      d.bodyMd = byline.body;
-      d.authorName = d.authorName || byline.authorName;
-      d.authorRole = d.authorRole || byline.authorRole;
+    // A byline typed at the top of the text moves to the author list (the page header).
+    const byline = moveByline(d);
+    if (byline) {
+      d.bodyMd = byline.bodyMd;
+      if (!authorRows.length) authorRows = byline.authors;
     }
     const slug = await uniqueContentSlug(posts, d.slug || slugify(d.title), post?.id);
-    const remove = new Set(values.removeAttachment as string[]);
     const row = {
       title: d.title,
       slug,
       excerpt: d.excerpt,
       bodyMd: d.bodyMd,
-      authorName: d.authorName,
-      authorRole: d.authorRole,
+      authors: authorRows,
+      ...authorColumns(authorRows),
       status: d.status,
       publishedAt: d.publishedAt ?? (d.status === 'published' ? new Date() : null),
       coverKey: values.removeCover ? null : (cover.key ?? post?.coverKey ?? null),
-      attachments: [...(post?.attachments ?? []).filter((a) => !remove.has(a.key)), ...added],
+      attachments: attachmentList,
       updatedAt: new Date(),
     };
     const newCat = String(form.get('newCategory') ?? '').trim();
@@ -154,7 +190,6 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         rows={2}
         value={str('excerpt')}
         error={errors.excerpt}
-        maxlength={300}
         hint="Shown on cards and in search results. Leave empty to use the start of the text."
       />
       <MarkdownEditor name="bodyMd" label="Text" value={str('bodyMd')} error={errors.bodyMd} />
@@ -190,6 +225,68 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         </div>
       </div>
 
+      <div class="admin-panel grid gap-3" data-attachments>
+        <input
+          type="hidden"
+          name="attachmentsJson"
+          value={JSON.stringify(attachmentList)}
+          data-attachments-json
+        />
+        <div>
+          <label for="f-attachments" class="block text-sm font-semibold">
+            PDF attachments
+          </label>
+          <span class="block text-xs text-muted">
+            Pick one or several PDFs (20 MB max each). They upload right away.
+          </span>
+          <input
+            id="f-attachments"
+            name="attachments"
+            type="file"
+            accept="application/pdf"
+            multiple
+            class="mt-1 block w-full text-sm"
+            data-attachments-upload
+          />
+          <p class="mt-1 text-sm text-muted" aria-live="polite" data-attachments-status></p>
+          {errors.attachments && <p class="mt-1 text-sm text-danger">{errors.attachments}</p>}
+        </div>
+        <p class="text-xs text-muted">
+          Click <strong>Insert</strong> to place a download button where the cursor is in the text.
+          To change the button's words, edit the tag after a |, for example{' '}
+          <code>{'{{download: report.pdf | Download the full report}}'}</code>.
+        </p>
+        <ul class="grid gap-2" data-attachments-list>
+          {attachmentList.map((a) => (
+            <li class="grid gap-2 rounded-lg border border-line p-3 text-sm" data-key={a.key}>
+              <a href={mediaUrl(a.key)} target="_blank" class="font-semibold break-all" data-name>
+                {a.name}
+              </a>
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <button type="button" class="font-semibold text-accent" data-insert={a.name}>
+                  Insert
+                </button>
+                <button
+                  type="button"
+                  class="font-semibold text-accent"
+                  data-copy={`{{download: ${a.name}}}`}
+                >
+                  Copy tag
+                </button>
+                <label class="flex items-center gap-1 text-muted">
+                  <input
+                    type="checkbox"
+                    name="removeAttachment"
+                    value={a.key}
+                    class="accent-brand"
+                  />
+                  Remove on save
+                </label>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
       <div class="admin-panel grid gap-4">
         <FormField
           name="slug"
@@ -198,9 +295,56 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
           error={errors.slug}
           hint="/blog/… Leave empty to build it from the title."
         />
-        <FormField name="authorName" label="Author" value={str('authorName')} />
-        <FormField name="authorRole" label="Author role" value={str('authorRole')} />
       </div>
+
+      <fieldset class="admin-panel" data-authors>
+        <legend class="text-sm font-semibold">Authors</legend>
+        {moved && (
+          <p class="mt-1 text-xs text-accent">
+            Taken from the byline typed at the top of the text, which is now removed. Save to keep
+            it.
+          </p>
+        )}
+        <div class="mt-2 grid gap-3" data-author-list>
+          {(authorRows.length ? authorRows : [{ name: '' } as PostAuthor]).map((a) => (
+            <div class="author-row grid gap-2 rounded-lg border border-line p-3">
+              <label class="grid gap-1 text-xs font-semibold">
+                Name
+                <input name="authorNames" value={a.name} class="admin-input" />
+              </label>
+              <label class="grid gap-1 text-xs font-semibold">
+                Role
+                <input
+                  name="authorRoles"
+                  value={a.role ?? ''}
+                  placeholder="e.g. Co-president"
+                  class="admin-input"
+                />
+              </label>
+              <label class="grid gap-1 text-xs font-semibold">
+                Link (LinkedIn)
+                <input
+                  name="authorUrls"
+                  value={a.url ?? ''}
+                  placeholder="https://linkedin.com/in/…"
+                  class="admin-input"
+                />
+              </label>
+              <button
+                type="button"
+                class="justify-self-start text-xs font-semibold text-danger"
+                data-remove-author
+              >
+                Remove this author
+              </button>
+            </div>
+          ))}
+        </div>
+        {errors.authors && <p class="mt-2 text-sm text-danger">{errors.authors}</p>}
+        <button type="button" class="mt-3 text-sm font-semibold text-accent" data-add-author>
+          + Add an author
+        </button>
+      </fieldset>
 
       <fieldset class="admin-panel">
         <legend class="text-sm font-semibold">Categories</legend>
@@ -239,52 +383,6 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
           </>
         )}
       </div>
-
-      <div class="admin-panel grid gap-3">
-        <div>
-          <label for="f-attachments" class="block text-sm font-semibold">
-            PDF attachments
-          </label>
-          <span class="block text-xs text-muted">You can pick several files at once.</span>
-          <input
-            id="f-attachments"
-            name="attachments"
-            type="file"
-            accept="application/pdf"
-            multiple
-            class="mt-1 block w-full text-sm"
-          />
-          {errors.attachments && <p class="mt-1 text-sm text-danger">{errors.attachments}</p>}
-        </div>
-        <p class="text-xs text-muted">
-          Files are not listed on the post by themselves. To show a download button, paste its tag
-          where you want it in the text, optionally with a friendly name after a |, for example{' '}
-          <code>{'{{download: report.pdf | Download the full report}}'}</code>.
-        </p>
-        {post?.attachments.map((a) => (
-          <div class="grid gap-1 rounded-lg border border-line p-3 text-sm">
-            <a href={mediaUrl(a.key)} class="font-semibold">
-              {a.name}
-            </a>
-            <div class="flex items-center gap-2">
-              <code class="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1 text-xs">
-                {`{{download: ${a.name}}}`}
-              </code>
-              <button
-                type="button"
-                class="text-xs font-semibold text-accent"
-                data-copy={`{{download: ${a.name}}}`}
-              >
-                Copy tag
-              </button>
-            </div>
-            <label class="flex items-center gap-2 text-xs text-muted">
-              <input type="checkbox" name="removeAttachment" value={a.key} class="accent-brand" />
-              Remove this file
-            </label>
-          </div>
-        ))}
-      </div>
     </div>
   </form>
 
@@ -296,3 +394,117 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     </form>
   )}
 </AdminLayout>
+
+<script>
+  import { attachmentTag, mediaPath, type ListedFile } from '../../../lib/attachments-client';
+
+  // ---------- authors: add and remove rows ----------
+  const authorList = document.querySelector<HTMLElement>('[data-author-list]');
+  document.querySelector('[data-add-author]')?.addEventListener('click', () => {
+    const first = authorList?.querySelector<HTMLElement>('.author-row');
+    if (!authorList || !first) return;
+    const row = first.cloneNode(true) as HTMLElement;
+    row.querySelectorAll('input').forEach((i) => (i.value = ''));
+    authorList.appendChild(row);
+    row.querySelector('input')?.focus();
+  });
+  authorList?.addEventListener('click', (e) => {
+    const button = (e.target as Element).closest('[data-remove-author]');
+    const row = button?.closest<HTMLElement>('.author-row');
+    if (!row) return;
+    if (authorList.querySelectorAll('.author-row').length > 1) row.remove();
+    else row.querySelectorAll('input').forEach((i) => (i.value = ''));
+  });
+
+  // ---------- attachments: upload now, insert a download tag in the text ----------
+  const panel = document.querySelector<HTMLElement>('[data-attachments]');
+  if (panel) {
+    const json = panel.querySelector('[data-attachments-json]') as unknown as HTMLInputElement;
+    const list = panel.querySelector('[data-attachments-list]') as unknown as HTMLElement;
+    const upload = panel.querySelector('[data-attachments-upload]') as unknown as HTMLInputElement;
+    const status = panel.querySelector('[data-attachments-status]') as unknown as HTMLElement;
+    const editor = document.querySelector<HTMLElement>('[data-md-editor]');
+    const files = JSON.parse(json.value || '[]') as ListedFile[];
+
+    const insert = (text: string) =>
+      editor?.dispatchEvent(new CustomEvent('md-insert', { detail: text }));
+
+    const button = (label: string, cls: string) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = cls;
+      b.textContent = label;
+      return b;
+    };
+
+    const add = (file: ListedFile) => {
+      // Tags find a file by name, so two files never share one.
+      const taken = new Set(files.map((f) => f.name.toLowerCase()));
+      const [, base, ext] = file.name.match(/^(.*?)(\.[^.]*)?$/) ?? [];
+      let name = file.name;
+      for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} (${n})${ext ?? ''}`;
+      const item = { ...file, name };
+      files.push(item);
+      json.value = JSON.stringify(files);
+
+      const li = document.createElement('li');
+      li.className = 'grid gap-2 rounded-lg border border-line p-3 text-sm';
+      li.dataset.key = item.key;
+      const link = document.createElement('a');
+      link.href = mediaPath(item.key);
+      link.target = '_blank';
+      link.className = 'font-semibold break-all';
+      link.textContent = name;
+      const actions = document.createElement('div');
+      actions.className = 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs';
+      const ins = button('Insert', 'font-semibold text-accent');
+      ins.dataset.insert = name;
+      const copy = button('Copy tag', 'font-semibold text-accent');
+      copy.dataset.copy = attachmentTag(name);
+      const remove = document.createElement('label');
+      remove.className = 'flex items-center gap-1 text-muted';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.name = 'removeAttachment';
+      box.value = item.key;
+      box.className = 'accent-brand';
+      remove.appendChild(box);
+      remove.appendChild(document.createTextNode(' Remove on save'));
+      for (const el of [ins, copy, remove]) actions.appendChild(el);
+      li.appendChild(link);
+      li.appendChild(actions);
+      list.appendChild(li);
+      return item;
+    };
+
+    list.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest<HTMLButtonElement>('button[data-insert]');
+      if (b) insert(attachmentTag(b.dataset.insert ?? ''));
+    });
+
+    // The editor's "Attach PDF" button hands its upload here and inserts the returned tag.
+    panel.addEventListener('attachment-added', (e) => {
+      const detail = (e as CustomEvent<{ file: ListedFile; name?: string }>).detail;
+      detail.name = add(detail.file).name;
+    });
+
+    upload.addEventListener('change', async () => {
+      const picked = [...(upload.files ?? [])];
+      upload.value = '';
+      for (const [i, file] of picked.entries()) {
+        status.textContent = `Uploading ${file.name} (${i + 1} of ${picked.length})…`;
+        const body = new FormData();
+        body.append('file', file);
+        body.append('kind', 'pdf');
+        const res = await fetch('/api/admin/upload', { method: 'POST', body });
+        const data = (await res.json()) as { key?: string; error?: string };
+        if (!data.key) {
+          status.textContent = `${file.name}: ${data.error ?? 'upload failed.'}`;
+          return;
+        }
+        add({ name: file.name, key: data.key, size: file.size });
+      }
+      status.textContent = `Uploaded. Click Insert to place a file in the text, then Save.`;
+    });
+  }
+</script>

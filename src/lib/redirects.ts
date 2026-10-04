@@ -8,7 +8,8 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^\/(sponsors|services-9|team|members|members-area)(\/.*)?$/, () => '/ecosystem'],
   [/^\/profile\/.*$/, () => '/ecosystem'],
   [/^\/fund\/?$/, () => '/about'],
-  [/^\/(contact|contact-us)\/?$/, () => '/about#contact'],
+  [/^\/(contact|contact-us|contact-\d+)\/?$/, () => '/about#contact'],
+  [/^\/blog\/hashtags\/.*$/, () => '/blog'],
 ];
 
 export function redirectFor(pathname: string): string | null {

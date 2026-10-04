@@ -34,12 +34,13 @@ export const optionalText = (max = 200) =>
     .max(max)
     .optional()
     .transform((s) => (s ? s : null));
-export const optionalUrl = z
-  .string()
-  .max(300)
-  .optional()
-  .transform((s) => (s ? (/^https?:\/\//.test(s) ? s : `https://${s}`) : null))
-  .pipe(z.url('Enter a valid URL.').nullable());
+export const optionalUrl = (max = 300) =>
+  z
+    .string()
+    .max(max)
+    .optional()
+    .transform((s) => (s ? (/^https?:\/\//.test(s) ? s : `https://${s}`) : null))
+    .pipe(z.url('Enter a valid URL.').nullable());
 
 export function clientIp(request: Request) {
   return request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? null;

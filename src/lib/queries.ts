@@ -1,6 +1,14 @@
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db';
-import { categories, events, organisations, people, postCategories, posts } from '../db/schema';
+import {
+  categories,
+  events,
+  organisations,
+  people,
+  postCategories,
+  posts,
+  type PostAuthor,
+} from '../db/schema';
 
 const nowDate = () => new Date();
 
@@ -184,16 +192,17 @@ export async function peopleByGroup(group: 'board' | 'institutional') {
     .orderBy(asc(people.sortOrder), asc(people.name));
 }
 
-/** Board or institutional people named in a post byline ("A and B"), in byline order. */
-export async function peopleNamed(byline: string | null) {
-  const names = (byline ?? '')
-    .split(/\s+(?:and|&|et)\s+|,\s*/i)
-    .map((n) => n.trim())
-    .filter(Boolean);
-  if (!names.length) return [];
+/** Post authors matched with the board or institutional people of the same name (photo, LinkedIn). */
+export async function peopleFor(authors: PostAuthor[]) {
+  if (!authors.length) return [];
   const all = await getDb().select().from(people);
-  return names.map((n) => ({
-    name: n,
-    person: all.find((p) => p.name.toLowerCase() === n.toLowerCase()) ?? null,
-  }));
+  return authors.map((a) => {
+    const person = all.find((p) => p.name.toLowerCase() === a.name.toLowerCase()) ?? null;
+    return {
+      name: a.name,
+      role: a.role ?? null,
+      url: a.url || person?.linkedin || null,
+      photoKey: person?.photoKey ?? null,
+    };
+  });
 }

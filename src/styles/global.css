@@ -58,6 +58,10 @@
   @apply rounded-card border border-line bg-paper p-4 md:p-6;
 }
 
+@utility admin-input {
+  @apply block w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm font-normal text-ink placeholder:text-muted focus:border-accent;
+}
+
 @utility admin-table {
   @apply w-full text-left text-sm;
   & th {

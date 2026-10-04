@@ -1,0 +1,1 @@
+ALTER TABLE `posts` ADD `authors` text DEFAULT '[]' NOT NULL;

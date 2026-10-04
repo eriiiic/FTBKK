@@ -91,15 +91,38 @@ const id = `md-${name}`;
         preview.hidden = !showPreview;
         if (!showPreview) return;
         preview.textContent = 'Loading…';
+        // On the post editor, download tags preview with the post's attachments.
+        const files = document.querySelector<HTMLInputElement>('[data-attachments-json]');
         const res = await fetch('/api/admin/preview', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ md: ta.value }),
+          body: JSON.stringify({
+            md: ta.value,
+            attachments: files ? JSON.parse(files.value || '[]') : undefined,
+          }),
         });
         const data = (await res.json()) as { html?: string };
         preview.innerHTML = data.html ?? '<p>Preview failed.</p>';
       }),
     );
+
+    // Insert text at the cursor (or the end), on its own paragraph.
+    const insert = (snippet: string) => {
+      const at = ta.selectionStart ?? ta.value.length;
+      const before = ta.value.slice(0, at);
+      const after = ta.value.slice(at);
+      const lead = !before || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+      const tail = after.startsWith('\n') ? '' : '\n\n';
+      ta.value = `${before}${lead}${snippet}${tail}${after}`;
+      const caret = before.length + lead.length + snippet.length;
+      ta.focus();
+      ta.setSelectionRange(caret, caret);
+    };
+    root.addEventListener('md-insert', (e) => {
+      insert(String((e as CustomEvent<string>).detail));
+      status.textContent = 'Inserted. Save to publish the change.';
+      setTimeout(() => (status.textContent = hint), 6000);
+    });
 
     root.querySelectorAll<HTMLInputElement>('[data-md-upload]').forEach((input) =>
       input.addEventListener('change', async () => {
@@ -110,19 +133,30 @@ const id = `md-${name}`;
         body.append('file', file);
         body.append('kind', input.dataset.mdUpload ?? 'image');
         const res = await fetch('/api/admin/upload', { method: 'POST', body });
-        const data = (await res.json()) as { url?: string; error?: string };
+        const data = (await res.json()) as { key?: string; url?: string; error?: string };
         input.value = '';
-        if (!data.url) {
+        if (!data.url || !data.key) {
           status.textContent = data.error ?? 'Upload failed.';
           return;
         }
         const label = file.name.replace(/\.[^.]+$/, '');
-        const snippet =
+        // On the post editor a PDF joins the attachments list and goes in as a download tag.
+        const panel = document.querySelector('[data-attachments]');
+        if (input.dataset.mdUpload === 'file' && panel) {
+          const detail: { file: { name: string; key: string; size: number }; name?: string } = {
+            file: { name: file.name, key: data.key, size: file.size },
+          };
+          panel.dispatchEvent(new CustomEvent('attachment-added', { detail }));
+          insert(`{{download: ${detail.name ?? file.name}}}`);
+          status.textContent = `Attached ${file.name}. Add "| your words" inside the tag to rename the button.`;
+          setTimeout(() => (status.textContent = hint), 8000);
+          return;
+        }
+        insert(
           input.dataset.mdUpload === 'file'
             ? `[${label}](${data.url})`
-            : `![${label}](${data.url})`;
-        const at = ta.selectionStart ?? ta.value.length;
-        ta.value = `${ta.value.slice(0, at)}\n${snippet}\n${ta.value.slice(at)}`;
+            : `![${label}](${data.url})`,
+        );
         status.textContent = `Inserted ${file.name}. Edit the text in [brackets] to describe it.`;
         setTimeout(() => (status.textContent = hint), 6000);
       }),

@@ -6,28 +6,28 @@ import Badge from '../../components/Badge.astro';
 import Icon from '../../components/Icon.astro';
 import {
   categoriesForPost,
-  peopleNamed,
+  peopleFor,
   postBySlug,
   postCategoryNames,
   relatedPosts,
 } from '../../lib/queries';
 import { formatDate, initials, mediaUrl, readingMinutes } from '../../lib/format';
 import { expandDownloads, plainText, renderMarkdown } from '../../lib/markdown';
-import { extractByline } from '../../lib/byline';
+import { resolveAuthors } from '../../lib/byline';
 
 const post = await postBySlug(Astro.params.slug!);
 if (!post) return Astro.rewrite('/404');
-// The header shows the author: drop the typed byline Wix posts open with.
-const byline = extractByline(post.bodyMd);
-// The byline names every co-author, where the Wix author field holds one account name.
-const authorName = byline.authorName ?? post.authorName;
-const authorRole = byline.authorRole ?? post.authorRole;
-const body = expandDownloads(byline.body, post.attachments, mediaUrl);
+// The header shows the authors; a byline still typed at the top of the text is not repeated.
+const resolved = resolveAuthors(post);
+const body = expandDownloads(resolved.body, post.attachments, mediaUrl);
 const [cats, authors, postCats] = await Promise.all([
   categoriesForPost(post.id),
-  peopleNamed(authorName),
+  peopleFor(resolved.authors),
   postCategoryNames(),
 ]);
+// One role line when every author shares it, else each name carries its own role.
+const roles = [...new Set(authors.map((a) => a.role ?? ''))];
+const sharedRole = roles.length === 1 ? roles[0] : null;
 const related = await relatedPosts(
   post.id,
   cats.map((c) => c.id),
@@ -63,8 +63,8 @@ const jsonLd = {
   author: authors.length
     ? authors.map((a) => ({
         '@type': 'Person',
-        name: a.person?.name ?? a.name,
-        url: a.person?.linkedin ?? undefined,
+        name: a.name,
+        url: a.url ?? undefined,
       }))
     : undefined,
   publisher: { '@type': 'Organization', name: 'La French Tech Bangkok' },
@@ -101,9 +101,9 @@ const jsonLd = {
         {authors.length > 0 && (
           <div class="flex shrink-0 -space-x-3">
             {authors.map((a) =>
-              a.person?.photoKey ? (
+              a.photoKey ? (
                 <img
-                  src={mediaUrl(a.person.photoKey)}
+                  src={mediaUrl(a.photoKey)}
                   alt=""
                   width="48"
                   height="48"
@@ -114,31 +114,34 @@ const jsonLd = {
                   class="grid size-12 place-items-center rounded-full bg-navy text-sm font-bold text-paper ring-2 ring-paper"
                   aria-hidden="true"
                 >
-                  {initials(a.person?.name ?? a.name)}
+                  {initials(a.name)}
                 </span>
               ),
             )}
           </div>
         )}
         <div class="min-w-0 text-sm">
-          {authorName && (
+          {authors.length > 0 && (
             <p class="font-semibold text-navy">
               {authors.map((a, i) => (
                 <>
                   {i > 0 && (i === authors.length - 1 ? ' and ' : ', ')}
-                  {a.person?.linkedin ? (
-                    <a href={a.person.linkedin} rel="noopener" class="text-navy hover:text-brand">
-                      {a.person.name}
+                  {a.url ? (
+                    <a href={a.url} rel="noopener" class="text-navy hover:text-brand">
+                      {a.name}
                     </a>
                   ) : (
-                    <span>{a.person?.name ?? a.name}</span>
+                    <span>{a.name}</span>
+                  )}
+                  {sharedRole === null && a.role && (
+                    <span class="font-normal text-muted"> ({a.role})</span>
                   )}
                 </>
               ))}
             </p>
           )}
           <p class="text-muted">
-            {authorRole && <span>{authorRole}, La French Tech Bangkok · </span>}
+            {sharedRole && <span>{sharedRole}, La French Tech Bangkok · </span>}
             {post.publishedAt && (
               <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
             )}
