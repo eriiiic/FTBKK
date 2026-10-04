@@ -15,7 +15,11 @@ interface Props {
     | 'arrow'
     | 'external'
     | 'search'
-    | 'download';
+    | 'download'
+    | 'check'
+    | 'bulb'
+    | 'users'
+    | 'chart';
   class?: string;
   label?: string;
 }
@@ -41,6 +45,11 @@ const paths: Record<Props['name'], string> = {
   external: 'M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zm9 3-4.3-4.3',
   download: 'M12 4v11m0 0-4-4m4 4 4-4M5 20h14',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  bulb: 'M9 18h6m-5 3h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z',
+  users:
+    'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm13 9v-1.5a4 4 0 0 0-3-3.9M15.5 4.1a3.5 3.5 0 0 1 0 6.8',
+  chart: 'M3 20h18M5 16l4.5-4.5 3 3L19 8m-4.5 0H19v4.5',
 };
 const filled = ['instagram', 'whatsapp', 'facebook', 'linkedin', 'youtube'].includes(name);
 ---
