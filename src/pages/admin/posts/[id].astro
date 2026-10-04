@@ -12,6 +12,7 @@ import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
+import { extractByline } from '../../../lib/byline';
 
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -68,6 +69,13 @@ if (Astro.request.method === 'POST') {
 
   if (parsed.success && !Object.keys(errors).length) {
     const d = parsed.data;
+    // A typed Wix byline at the top of the text moves to the author fields (the page header).
+    const byline = extractByline(d.bodyMd);
+    if (byline.authorName) {
+      d.bodyMd = byline.body;
+      d.authorName = d.authorName || byline.authorName;
+      d.authorRole = d.authorRole || byline.authorRole;
+    }
     const slug = await uniqueContentSlug(posts, d.slug || slugify(d.title), post?.id);
     const remove = new Set(values.removeAttachment as string[]);
     const row = {
@@ -237,6 +245,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
           <label for="f-attachments" class="block text-sm font-semibold">
             PDF attachments
           </label>
+          <span class="block text-xs text-muted">You can pick several files at once.</span>
           <input
             id="f-attachments"
             name="attachments"
@@ -247,11 +256,33 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
           />
           {errors.attachments && <p class="mt-1 text-sm text-danger">{errors.attachments}</p>}
         </div>
+        <p class="text-xs text-muted">
+          Files are not listed on the post by themselves. To show a download button, paste its tag
+          where you want it in the text, optionally with a friendly name after a |, for example{' '}
+          <code>{'{{download: report.pdf | Download the full report}}'}</code>.
+        </p>
         {post?.attachments.map((a) => (
-          <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="removeAttachment" value={a.key} class="accent-brand" />
-            Remove <a href={mediaUrl(a.key)}>{a.name}</a>
-          </label>
+          <div class="grid gap-1 rounded-lg border border-line p-3 text-sm">
+            <a href={mediaUrl(a.key)} class="font-semibold">
+              {a.name}
+            </a>
+            <div class="flex items-center gap-2">
+              <code class="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1 text-xs">
+                {`{{download: ${a.name}}}`}
+              </code>
+              <button
+                type="button"
+                class="text-xs font-semibold text-accent"
+                data-copy={`{{download: ${a.name}}}`}
+              >
+                Copy tag
+              </button>
+            </div>
+            <label class="flex items-center gap-2 text-xs text-muted">
+              <input type="checkbox" name="removeAttachment" value={a.key} class="accent-brand" />
+              Remove this file
+            </label>
+          </div>
         ))}
       </div>
     </div>
