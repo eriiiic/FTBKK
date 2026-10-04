@@ -199,7 +199,7 @@ if (po) {
     sql.push(
       `DELETE FROM post_categories WHERE post_id = (SELECT id FROM posts WHERE slug = ${q(p.slug)});`,
     );
-    for (const c of postCategories(p.title, p.categories ?? [])) {
+    for (const c of postCategories(p.title, p.categories ?? [], p.slug)) {
       const slug = slugify(c);
       sql.push(
         upsert('categories', { slug, name: c, sort_order: 99 }).replace(
