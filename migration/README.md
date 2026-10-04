@@ -20,6 +20,19 @@ git add migration/data docs/design-tokens.captured.md && git commit -m "data: ca
 Options: `--only=events|posts|sponsors|pages|team`, `--no-screens`. `CHROMIUM_PATH` points at an
 existing Chromium; `CAPTURE_SITE` overrides the base URL (used for testing against a fixture).
 
+What the capture now gets right (fixed 2026-10-04 after the first run):
+
+- Event descriptions: "Show More" buttons are clicked first, so the full text is captured.
+- Blog categories: read from each category page, not from the post page (which lists the whole
+  menu).
+- Post attachments: Wix file widgets have no link, so each "Download" is clicked and the file is
+  saved to `migration/files/` under the name shown on Wix.
+- Sponsors: every link on the page is kept in `links`, to check by hand when `website` and
+  `linkedin` come back empty.
+
+To refresh only these: `npm run capture -- --only=events --no-screens`, then `--only=posts`, then
+`npm run import -- --remote`.
+
 ## Seed data (until the capture runs)
 
 `migration/data/seed/` holds what could be read from the home page text on 2026-10-03: board

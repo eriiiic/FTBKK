@@ -156,6 +156,112 @@ async function capture(page: Page, type: UrlType, url: string) {
   return slug;
 }
 
+/**
+ * Wix collapses long texts (event descriptions) behind a "Show More" button: click every such
+ * button until none is left, so the extracted text is the full one.
+ */
+async function expandCollapsed(page: Page) {
+  const label = /^\s*(show|read|see|voir|lire)\s+(more|plus|la suite)\s*$/i;
+  for (let round = 0; round < 3; round++) {
+    const buttons = page.locator('button, [role="button"]').filter({ hasText: label });
+    const n = await buttons.count();
+    if (!n) return;
+    for (let i = n - 1; i >= 0; i--) {
+      await buttons
+        .nth(i)
+        .click({ timeout: 3_000 })
+        .catch(() => {});
+    }
+    await page.waitForTimeout(600);
+  }
+}
+
+/**
+ * Wix file widgets in blog posts have no link in the HTML: the file is fetched when "Download" is
+ * clicked. Click each one and record where the file came from (a download, a new tab or a request
+ * to Wix's file storage).
+ */
+async function fileWidgets(page: Page) {
+  const out: { name: string; url: string; file?: string }[] = [];
+  const buttons = page
+    .locator('article, main')
+    .first()
+    .getByText(/^\s*Download\b/i);
+  const n = await buttons.count();
+  for (let i = 0; i < n; i++) {
+    const button = buttons.nth(i);
+    const name = await button
+      .evaluate((el) => {
+        let node: Element | null = el;
+        for (let k = 0; k < 6 && node; k++) {
+          const m = node.textContent?.match(/[\w\-.() ]+\.(pdf|docx?|xlsx?|pptx?|zip)/i);
+          if (m) return m[0].trim();
+          node = node.parentElement;
+        }
+        return null;
+      })
+      .catch(() => null);
+    const isFile = (u: string) =>
+      /usrfiles\.com|\/ugd\/|\.(pdf|docx?|xlsx?|pptx?|zip)(\?|$)/i.test(u);
+    const caught = Promise.race([
+      page.waitForEvent('download', { timeout: 15_000 }).then(async (d) => {
+        const fileName = name || d.suggestedFilename();
+        const rel = `files/${fileName}`;
+        await mkdir(path.join(ROOT, 'files'), { recursive: true });
+        await d.saveAs(path.join(ROOT, rel));
+        return { url: d.url(), file: rel, fileName };
+      }),
+      page
+        .context()
+        .waitForEvent('page', { timeout: 15_000 })
+        .then(async (tab) => {
+          await tab.waitForLoadState('domcontentloaded').catch(() => {});
+          const url = tab.url();
+          await tab.close();
+          return { url };
+        }),
+      page
+        .waitForRequest((r) => isFile(r.url()), { timeout: 15_000 })
+        .then((r) => ({ url: r.url() })),
+    ]).catch(() => null);
+    await button.click({ timeout: 5_000 }).catch(() => {});
+    const hit = await caught;
+    if (hit?.url && isFile(hit.url)) {
+      out.push({
+        name: name || decodeURIComponent(hit.url.split('/').pop()?.split('?')[0] || 'file.pdf'),
+        url: hit.url,
+        ...('file' in hit && hit.file ? { file: hit.file } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Each blog category page lists only its own posts: read them to know every post's real
+ * categories (the post page itself only shows the whole category menu).
+ */
+async function categoryMap(page: Page, categoryUrls: string[]) {
+  const map: Record<string, string[]> = {};
+  for (const url of categoryUrls) {
+    try {
+      await readyPage(page, url);
+      const name = decodeEntities(
+        (await page.$eval('h1', (e) => e.textContent?.trim() || '').catch(() => '')) ||
+          (await page.title()).split('|')[0].trim(),
+      );
+      const slugs = await page.$$eval(
+        '[data-hook="post-list"] a[href*="/post/"], [data-hook*="post-list"] a[href*="/post/"], main a[href*="/post/"]',
+        (els) => [...new Set(els.map((e) => (e as HTMLAnchorElement).pathname.split('/').pop()))],
+      );
+      for (const s of slugs) if (s) (map[s] ??= []).includes(name) || map[s].push(name);
+    } catch {
+      /* a category page that fails leaves those posts with the old fallback */
+    }
+  }
+  return map;
+}
+
 // ---------- extractors ----------
 
 /** Wix's JSON-LD names are HTML-escaped (e.g. &quot;, &amp;). */
@@ -179,6 +285,7 @@ function series(title: string) {
 
 async function extractEvent(page: Page, url: string) {
   const slug = slugOf(url);
+  await expandCollapsed(page);
   const ld = (await jsonLd(page)).find((x) => String(x['@type']).includes('Event')) || {};
   const loc = (ld.location || {}) as Record<string, any>;
   const title = decodeEntities(String(ld.name || (await page.title()).split('|')[0].trim()));
@@ -218,13 +325,15 @@ async function extractPost(page: Page, url: string) {
     'article',
   ]);
   const categories = await page
-    .$$eval('[data-hook="category-label-list"] a, a[href*="/blog/categories/"]', (els) => [
+    .$$eval('[data-hook="category-label-list"] a', (els) => [
       ...new Set(els.map((e) => e.textContent?.trim()).filter(Boolean)),
     ])
     .catch(() => [] as string[]);
-  const attachments = await page.$$eval('a[href$=".pdf"], a[href*="/ugd/"]', (els) =>
+  const linked = await page.$$eval('a[href$=".pdf"], a[href*="/ugd/"]', (els) =>
     els.map((e) => ({ name: e.textContent?.trim() || 'file', url: (e as HTMLAnchorElement).href })),
   );
+  const widgets: { name: string; url: string; file?: string }[] = await fileWidgets(page);
+  const attachments = [...widgets, ...linked.filter((l) => !widgets.some((w) => w.url === l.url))];
   const imgs = await imagesOn(page, 'article');
   return {
     slug,
@@ -255,9 +364,9 @@ async function extractSponsor(page: Page, url: string) {
   const name = await page
     .$eval('h1, h2', (e) => e.textContent?.trim() || '')
     .catch(() => texts[0] || slug);
-  const links = await page.$$eval('a[href^="http"]', (els) =>
-    els.map((e) => (e as HTMLAnchorElement).href),
-  );
+  const links = await page.$$eval('a[href]', (els) => [
+    ...new Set(els.map((e) => (e as HTMLAnchorElement).href).filter((h) => h.startsWith('http'))),
+  ]);
   const website = links.find(
     (l) =>
       !/french-tech-bangkok|wix|instagram|facebook|linkedin\.com\/company\/14602794|youtube|whatsapp/.test(
@@ -277,6 +386,7 @@ async function extractSponsor(page: Page, url: string) {
     gallery: imgs.slice(1).map((i) => queueImage(i, 'orgs')),
     website: website || null,
     linkedin: linkedin || null,
+    links, // every link on the page, to check by hand when website/linkedin are empty
     url,
   };
 }
@@ -547,12 +657,23 @@ async function main() {
   }
   if (want('posts')) {
     const posts = await run('posts', urls.posts, (u) => extractPost(page, u));
+    const cats = await categoryMap(page, urls.categories);
     for (const p of posts) {
-      for (const a of p.attachments) {
+      if (cats[p.slug]?.length) p.categories = cats[p.slug];
+    }
+    console.log(
+      `categories: ${Object.keys(cats).length} posts mapped from ${urls.categories.length} category pages`,
+    );
+    for (const p of posts) {
+      for (const a of p.attachments as { name: string; url: string; file?: string }[]) {
+        if (a.file) continue;
         try {
           const res = await fetch(a.url);
           if (!res.ok) throw new Error(String(res.status));
-          const name = decodeURIComponent(a.url.split('/').pop() || 'file.pdf');
+          // Keep the name readers saw on Wix ("Thailand_Tech_Pulse_Q3_2026.pdf") over Wix's file id.
+          const name = /\.\w{2,4}$/.test(a.name)
+            ? a.name
+            : decodeURIComponent(a.url.split('/').pop()?.split('?')[0] || 'file.pdf');
           await save(path.join(ROOT, 'files', name), Buffer.from(await res.arrayBuffer()) as never);
           Object.assign(a, { file: `files/${name}` });
         } catch (e) {
