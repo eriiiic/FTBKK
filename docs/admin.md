@@ -7,11 +7,22 @@ pages refresh within a minute) and recorded in Ecosystem > History.
 ## Posts
 
 - **New post**: title, text (Markdown), then **Save**. Leave it as _Draft_ until it is ready.
-- **Insert image / Attach PDF** in the editor uploads the file and inserts a link where your cursor
-  is. Use **Preview** to see the result.
+- **Insert image** in the editor uploads an image and inserts it where your cursor is. Use
+  **Preview** to see the result.
+- **PDFs**: **Attach PDF** in the editor, or the **PDF attachments** panel on the right, uploads the
+  file and adds it to the post's list. **Insert** places a download button at the cursor as a tag,
+  `{{download: report.pdf | Download the full report}}`; the words after `|` are the button text.
+- **Authors**: one row per author (name, role, LinkedIn link); **+ Add an author** for co-authors.
+  A byline typed at the top of the text (By … / role / La French Tech Bangkok) moves to these rows
+  when you open or save the post; the Posts list has a button to do it for every post at once.
 - A **publication date** in the future schedules the post. Empty means now.
 - Categories: tick existing ones or type a new one.
 - Old posts can be deleted at the bottom of the page.
+
+## Files
+
+Every uploaded PDF, with where it is used. Copy a link, upload new ones, or delete a file nothing
+uses any more.
 
 ## Events
 

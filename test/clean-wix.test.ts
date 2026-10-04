@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { moveByline, resolveAuthors } from '../src/lib/byline';
 import {
   cleanWixMarkdown,
   decodeEntities,
@@ -30,6 +31,10 @@ describe('extractByline', () => {
     expect(extractByline(md)).toEqual({
       authorName: 'Jane Doe and John Roe',
       authorRole: 'Board Members',
+      authors: [
+        { name: 'Jane Doe', role: 'Board Members', url: 'https://linkedin.com/in/jd' },
+        { name: 'John Roe', role: 'Board Members', url: 'https://x' },
+      ],
       body: 'First paragraph.',
     });
   });
@@ -37,9 +42,17 @@ describe('extractByline', () => {
     expect(extractByline('Just text.')).toEqual({
       authorName: null,
       authorRole: null,
+      authors: [],
       body: 'Just text.',
     });
   });
+});
+
+it('splits an unlinked byline into authors', () => {
+  expect(extractByline('By Jane Doe & John Roe\n\nText.').authors).toEqual([
+    { name: 'Jane Doe' },
+    { name: 'John Roe' },
+  ]);
 });
 
 describe('inlineAttachments', () => {
@@ -95,5 +108,30 @@ describe('postCategories', () => {
       'Studies & ressources',
       'Ecosystem News',
     ]);
+  });
+});
+
+describe('moveByline', () => {
+  it('fills the author list from the typed byline and removes it from the text', () => {
+    const md = 'By [Jane Doe](https://l/jd) and [John Roe](https://l/jr)\n\nCo-presidents\n\nText.';
+    expect(moveByline({ bodyMd: md })).toEqual({
+      bodyMd: 'Text.',
+      authors: [
+        { name: 'Jane Doe', role: 'Co-presidents', url: 'https://l/jd' },
+        { name: 'John Roe', role: 'Co-presidents', url: 'https://l/jr' },
+      ],
+      authorName: 'Jane Doe and John Roe',
+      authorRole: 'Co-presidents',
+    });
+    expect(moveByline({ bodyMd: 'Text.' })).toBeNull();
+  });
+  it('prefers the editor author list over a leftover byline', () => {
+    const r = resolveAuthors({
+      bodyMd: 'By Jane Doe\n\nText.',
+      authors: [{ name: 'Ann Lee' }],
+      authorName: 'Ann Lee',
+      authorRole: null,
+    });
+    expect(r).toEqual({ authors: [{ name: 'Ann Lee' }], body: 'Text.' });
   });
 });

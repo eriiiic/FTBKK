@@ -38,6 +38,8 @@ export async function storeUpload(
   const key = `${opts.prefix.replace(/\/$/, '')}/${base || 'file'}-${randomToken(6)}.${TYPES[file.type]}`;
   await env.MEDIA.put(key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
+    // The original name, shown in the admin Files list.
+    customMetadata: { name: encodeURIComponent(file.name.slice(0, 200)) },
   });
   return { key };
 }

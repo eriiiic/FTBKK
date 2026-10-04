@@ -17,8 +17,8 @@ export const OrgFields = z.object({
   category: z.enum(CATEGORY_KEYS as [string, ...string[]], { error: 'Choose a category.' }),
   pitch: z.string().min(10, 'Write a one-line pitch (10 characters or more).').max(160),
   descriptionMd: z.string().max(4000).optional().default(''),
-  website: optionalUrl,
-  linkedin: optionalUrl,
+  website: optionalUrl(),
+  linkedin: optionalUrl(),
   foundedYear: z
     .union([z.literal(''), z.coerce.number().int().min(1800).max(new Date().getFullYear())])
     .optional()

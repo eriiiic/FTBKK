@@ -92,6 +92,13 @@ export interface Attachment {
   size?: number;
 }
 
+/** A post author; `url` is usually their LinkedIn profile. */
+export interface PostAuthor {
+  name: string;
+  role?: string;
+  url?: string;
+}
+
 export const posts = sqliteTable('posts', {
   id: id(),
   slug: text('slug').notNull().unique(),
@@ -101,6 +108,7 @@ export const posts = sqliteTable('posts', {
   coverKey: text('cover_key'),
   authorName: text('author_name'),
   authorRole: text('author_role'),
+  authors: json<PostAuthor[]>('authors').notNull().default([]),
   publishedAt: ts('published_at'),
   status: text('status', { enum: ['draft', 'published'] })
     .notNull()
