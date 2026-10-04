@@ -4,6 +4,7 @@
  * the old site and a hand-typed byline at the top of every post.
  */
 import { redirectFor } from '../../src/lib/redirects';
+import { joinLinkText } from '../../src/lib/markdown';
 
 const OLD_SITE = /https?:\/\/(?:www\.)?french-tech-bangkok\.com(\/[^\s)"']*)?/g;
 
@@ -26,6 +27,8 @@ export function cleanWixMarkdown(md: string): string {
     const pathname = (p ?? '/').split(/[?#]/)[0] || '/';
     return redirectFor(pathname) ?? pathname;
   });
+  // Wix buttons: link text spread over blank lines.
+  s = joinLinkText(s);
   // Wix authors style intro paragraphs as h4-h6: long "headings" are paragraphs.
   s = s.replace(/^#{4,6}\s+(.{120,})$/gm, '$1');
   // Wix exports every list as a loose list (blank line between items): make them tight.

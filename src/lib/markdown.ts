@@ -18,8 +18,19 @@ export function localLink(href: string) {
 }
 
 /** Render admin- or owner-written Markdown to safe HTML. */
+/**
+ * Wix buttons come through as links whose text spans blank lines ("[\n\nLet's talk\n\n](/x)"),
+ * which Markdown can't parse: put the text on one line. Image links ("![…]") are left alone.
+ */
+export function joinLinkText(md: string): string {
+  return md.replace(/(?<!!)\[([^\]]*\n[^\]]*)\]\(/g, (_all, text: string) => {
+    const one = text.replace(/\s+/g, ' ').trim();
+    return `[${one}](`;
+  });
+}
+
 export function renderMarkdown(md: string): string {
-  const html = marked.parse(md ?? '', { async: false, gfm: true, breaks: false });
+  const html = marked.parse(joinLinkText(md ?? ''), { async: false, gfm: true, breaks: false });
   return sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'del']),
     allowedAttributes: {
