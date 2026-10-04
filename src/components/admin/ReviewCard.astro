@@ -1,0 +1,65 @@
+---
+import Badge from '../Badge.astro';
+import Button from '../Button.astro';
+import { MODERATION_TARGET_DAYS, ageDays } from '../../lib/lifecycle';
+import type { ReviewItem } from '../../lib/review';
+
+interface Props {
+  item: ReviewItem;
+  now: Date;
+  /** On an organisation's page: decide there and come back to it. */
+  back?: string;
+}
+const { item: it, now, back } = Astro.props;
+const age = ageDays(it.at, now);
+const action = back ? '/admin/ecosystem?tab=queue' : undefined;
+---
+
+<article class="admin-panel">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h2 class="text-base">
+      <a href={`/admin/ecosystem/${it.org.id}`}>{it.title}</a>
+    </h2>
+    <Badge tone={age > MODERATION_TARGET_DAYS ? 'danger' : age >= 3 ? 'warning' : 'neutral'}>
+      {age} day{age === 1 ? '' : 's'} old
+    </Badge>
+  </div>
+  <ul class="mt-2 grid gap-1 text-sm">
+    {it.lines.filter(Boolean).map((l) => (
+      <li class="break-words whitespace-pre-line">{l}</li>
+    ))}
+  </ul>
+  <div class="mt-4 flex flex-wrap items-end gap-3">
+    {!back && (
+      <Button href={`/admin/ecosystem/${it.org.id}`} size="sm" variant="secondary">
+        Open details &amp; edit
+      </Button>
+    )}
+    <form method="post" action={action}>
+      <input type="hidden" name="kind" value={it.kind} />
+      <input type="hidden" name="id" value={it.id} />
+      {back && <input type="hidden" name="back" value={back} />}
+      <Button type="submit" name="action" value="approve" size="sm">
+        Approve
+      </Button>
+    </form>
+    <form method="post" action={action} class="flex flex-1 flex-wrap items-end gap-2">
+      <input type="hidden" name="kind" value={it.kind} />
+      <input type="hidden" name="id" value={it.id} />
+      {back && <input type="hidden" name="back" value={back} />}
+      <label class="min-w-56 flex-1 text-sm">
+        <span class="sr-only">Reason for rejecting</span>
+        <input
+          name="reason"
+          required
+          minlength={5}
+          placeholder="Reason (sent to them)"
+          class="w-full rounded-lg border border-line px-3 py-1.5"
+        />
+      </label>
+      <Button type="submit" name="action" value="reject" size="sm" variant="secondary">
+        Reject
+      </Button>
+    </form>
+  </div>
+</article>

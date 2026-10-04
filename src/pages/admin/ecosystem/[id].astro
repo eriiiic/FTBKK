@@ -5,6 +5,9 @@ import OrgFormFields from '../../../components/OrgFormFields.astro';
 import FormField from '../../../components/FormField.astro';
 import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
+import ReviewCard from '../../../components/admin/ReviewCard.astro';
+import { moderationQueue } from '../../../lib/cron-directory';
+import { reviewItems } from '../../../lib/review';
 import { getDb } from '../../../db';
 import { organisations, type Organisation } from '../../../db/schema';
 import { AdminOrgExtras, inviteToClaim, toDateInput } from '../../../lib/admin';
@@ -124,9 +127,27 @@ if (Astro.request.method === 'POST') {
 }
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 const badges = (values.badges as string[] | undefined) ?? [];
+// What is waiting for a decision on this organisation (new listing, change, claim, membership).
+const pending = org
+  ? reviewItems(await moderationQueue()).filter((it) => it.org.id === org!.id)
+  : [];
+const now = new Date();
 ---
 
 <AdminLayout title={org ? org.name : 'Add an organisation'}>
+  {pending.length > 0 && (
+    <section class="mb-6 grid gap-3" aria-labelledby="review-heading">
+      <h2 id="review-heading" class="text-lg">
+        Waiting for review
+      </h2>
+      <p class="text-sm text-muted">
+        Check the details below, edit and save the listing if needed, then approve or reject.
+      </p>
+      {pending.map((it) => (
+        <ReviewCard item={it} now={now} back={`/admin/ecosystem/${org!.id}`} />
+      ))}
+    </section>
+  )}
   {org && (
     <div class="mb-4 flex flex-wrap gap-4 text-sm text-muted">
       {org.status === 'published' && (
