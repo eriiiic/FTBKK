@@ -28,16 +28,27 @@ async function getKeys(teamDomain: string) {
   return keys;
 }
 
-export async function verifyAccessJwt(token: string, teamDomain: string, aud: string) {
+export type AccessCheck = { email: string } | { reason: string };
+
+/** Verifies a Cloudflare Access JWT, and says why when it is refused. */
+export async function checkAccessJwt(
+  token: string,
+  teamDomain: string,
+  aud: string,
+): Promise<AccessCheck> {
   const [h, p, s] = token.split('.');
-  if (!h || !p || !s) return null;
+  if (!h || !p || !s) return { reason: 'The Access token is malformed.' };
   const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h))) as {
     kid: string;
     alg: string;
   };
-  if (header.alg !== 'RS256') return null;
+  if (header.alg !== 'RS256') return { reason: `Unexpected token algorithm ${header.alg}.` };
   const jwk = (await getKeys(teamDomain)).find((k) => k.kid === header.kid);
-  if (!jwk) return null;
+  if (!jwk) {
+    return {
+      reason: `The token was not signed by ${teamDomain}. Check ACCESS_TEAM_DOMAIN in wrangler.jsonc.`,
+    };
+  }
   const key = await crypto.subtle.importKey(
     'jwk',
     { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
@@ -51,7 +62,7 @@ export async function verifyAccessJwt(token: string, teamDomain: string, aud: st
     b64urlToBytes(s),
     new TextEncoder().encode(`${h}.${p}`),
   );
-  if (!ok) return null;
+  if (!ok) return { reason: 'The token signature is invalid.' };
   const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p))) as {
     aud: string | string[];
     exp: number;
@@ -59,29 +70,54 @@ export async function verifyAccessJwt(token: string, teamDomain: string, aud: st
     email?: string;
   };
   const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!auds.includes(aud)) return null;
-  if (payload.exp * 1000 < Date.now()) return null;
-  if (payload.iss !== `https://${teamDomain}`) return null;
-  return payload.email ?? null;
+  if (!auds.includes(aud)) {
+    // Audience tags are not secret (they sit in wrangler.jsonc), so naming them is safe.
+    return {
+      reason: `The login belongs to another Access application (audience ${auds.join(', ')}). ACCESS_AUD in wrangler.jsonc is ${aud}.`,
+    };
+  }
+  if (payload.exp * 1000 < Date.now()) return { reason: 'The Access login has expired.' };
+  if (payload.iss !== `https://${teamDomain}`) {
+    return { reason: `The token was issued by ${payload.iss}, not https://${teamDomain}.` };
+  }
+  if (!payload.email) return { reason: 'The Access login carries no email address.' };
+  return { email: payload.email };
 }
 
-/** Returns the admin's email, or null when the request is not an authenticated admin. */
-export async function requireAdmin(request: Request): Promise<string | null> {
+export async function verifyAccessJwt(token: string, teamDomain: string, aud: string) {
+  const res = await checkAccessJwt(token, teamDomain, aud);
+  return 'email' in res ? res.email : null;
+}
+
+/** The admin's email, or why the request is not an authenticated admin. */
+export async function checkAdmin(request: Request): Promise<AccessCheck> {
   if (!env.ACCESS_AUD || !env.ACCESS_TEAM_DOMAIN) {
     // Local development only: DEV_ADMIN_EMAIL lives in .dev.vars and is never deployed, and the
     // bypass only answers on localhost so a stray variable can never open the live admin.
     const host = new URL(request.url).hostname;
     const local = host === 'localhost' || host === '127.0.0.1';
-    return local ? env.DEV_ADMIN_EMAIL || null : null;
+    if (local && env.DEV_ADMIN_EMAIL) return { email: env.DEV_ADMIN_EMAIL };
+    return { reason: 'ACCESS_AUD or ACCESS_TEAM_DOMAIN is missing from this deployment.' };
   }
   const token =
     request.headers.get('cf-access-jwt-assertion') ??
     request.headers.get('cookie')?.match(/CF_Authorization=([^;]+)/)?.[1];
-  if (!token) return null;
+  if (!token) {
+    return {
+      reason:
+        'No Cloudflare Access login came with this request, so Access is not covering this path.',
+    };
+  }
   try {
-    return await verifyAccessJwt(token, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
+    return await checkAccessJwt(token, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
   } catch (e) {
     console.error('[auth]', e);
-    return null;
+    return { reason: `The Access check failed: ${e instanceof Error ? e.message : String(e)}` };
   }
+}
+
+/** Returns the admin's email, or null when the request is not an authenticated admin. */
+export async function requireAdmin(request: Request): Promise<string | null> {
+  const res = await checkAdmin(request);
+  return 'email' in res ? res.email : null;
 }

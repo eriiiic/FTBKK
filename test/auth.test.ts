@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
-import { requireAdmin, verifyAccessJwt } from '../src/lib/auth';
+import { checkAccessJwt, requireAdmin, verifyAccessJwt } from '../src/lib/auth';
 
 const TEAM = 'ftbkk.cloudflareaccess.com';
 const AUD = 'aud-123';
@@ -114,5 +114,16 @@ describe('requireAdmin', () => {
       'admin@example.com',
     );
     expect(await requireAdmin(new Request('https://site/admin'))).toBeNull();
+  });
+});
+
+describe('checkAccessJwt reasons', () => {
+  it('names the audience when the login belongs to another Access app', async () => {
+    const res = await checkAccessJwt(await sign({ ...valid(), aud: ['other'] }), TEAM, AUD);
+    expect('reason' in res && res.reason).toContain('audience other');
+  });
+  it('flags a token signed by another team', async () => {
+    const res = await checkAccessJwt(await sign(valid(), 'unknown-kid'), TEAM, AUD);
+    expect('reason' in res && res.reason).toContain('ACCESS_TEAM_DOMAIN');
   });
 });

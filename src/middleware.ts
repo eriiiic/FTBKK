@@ -1,6 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import { redirectFor } from './lib/redirects';
-import { requireAdmin } from './lib/auth';
+import { checkAdmin } from './lib/auth';
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname, search } = context.url;
@@ -18,9 +18,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
     pathname.startsWith('/admin/') ||
     pathname.startsWith('/api/admin/')
   ) {
-    const email = await requireAdmin(context.request);
-    if (!email) return new Response('Forbidden', { status: 403 });
-    context.locals.adminEmail = email;
+    const check = await checkAdmin(context.request);
+    if (!('email' in check)) {
+      // Plain text so nothing from the token can render as HTML; the reason helps fix Access setup.
+      console.warn('[auth] admin refused:', check.reason);
+      return new Response(`Forbidden\n\n${check.reason}\n`, {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+    context.locals.adminEmail = check.email;
     const res = await next();
     try {
       res.headers.set('Cache-Control', 'private, no-store');
