@@ -4,7 +4,8 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
 import { getDb } from '../../db';
-import { events, organisations, posts, registrations, submissions } from '../../db/schema';
+import { events, organisations, posts, submissions } from '../../db/schema';
+import { registrationCount } from '../../lib/registrations';
 import { moderationQueue } from '../../lib/cron-directory';
 import { MODERATION_TARGET_DAYS, ageDays } from '../../lib/lifecycle';
 import { formatEventDate } from '../../lib/format';
@@ -21,8 +22,8 @@ const [queue, upcoming, [drafts], [unread], [listed], [renewSoon]] = await Promi
       endsAt: events.endsAt,
       status: events.status,
       capacity: events.capacity,
-      registered: sql<number>`(select count(*) from ${registrations} r where r.event_id = ${events.id} and r.status in ('registered','attended'))`,
-      waitlist: sql<number>`(select count(*) from ${registrations} r where r.event_id = ${events.id} and r.status = 'waitlist')`,
+      registered: registrationCount(['registered', 'attended']),
+      waitlist: registrationCount(['waitlist']),
     })
     .from(events)
     .where(gte(events.startsAt, new Date(now.getTime() - 86400_000)))
