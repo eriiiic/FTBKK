@@ -24,6 +24,13 @@ describe('localLink', () => {
     expect(localLink('#top')).toBe('#top');
     expect(localLink('/media/files/a.pdf')).toBe('/media/files/a.pdf');
   });
+  it('reads Wix buttons whose text sits on its own lines as links', () => {
+    const html = renderMarkdown(
+      "Intro.\n\n[\n\nLet's talk\n\n](https://www.french-tech-bangkok.com/contact-8)\n\nNext.",
+    );
+    expect(html).toContain('<a href="/about#contact">Let\'s talk</a>');
+    expect(html).not.toContain('](');
+  });
   it('rewrites links in rendered posts', () => {
     expect(renderMarkdown('[Talk](https://www.french-tech-bangkok.com/contact-8)')).toContain(
       'href="/about#contact"',

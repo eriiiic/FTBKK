@@ -19,7 +19,13 @@ export function localLink(href: string) {
 
 /** Render admin- or owner-written Markdown to safe HTML. */
 export function renderMarkdown(md: string): string {
-  const html = marked.parse(md ?? '', { async: false, gfm: true, breaks: false });
+  // Wix buttons came over as links whose text sits on its own lines ("[\n\nLet's talk\n\n](…)"),
+  // which Markdown does not read as a link: pull the text back inside the brackets.
+  const fixed = (md ?? '').replace(
+    /\[\s*\n\s*([^\]]*?\S)\s*\](?=\()/g,
+    (_all, text: string) => `[${text.replace(/\s*\n\s*/g, ' ')}]`,
+  );
+  const html = marked.parse(fixed, { async: false, gfm: true, breaks: false });
   return sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'del']),
     allowedAttributes: {
