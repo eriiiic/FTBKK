@@ -400,11 +400,31 @@ export const people = sqliteTable('people', {
     onDelete: 'set null',
   }),
   organisationName: text('organisation_name'),
-  group: text('group', { enum: ['board', 'institutional'] }).notNull(),
+  /** 'speaker' is someone who only spoke at events; board and institutional people can speak too. */
+  group: text('group', { enum: ['board', 'institutional', 'speaker'] }).notNull(),
   linkedin: text('linkedin'),
   photoKey: text('photo_key'),
   sortOrder: integer('sort_order').notNull().default(0),
 });
+
+/** Who spoke at an event, in the order shown on its page. */
+export const eventSpeakers = sqliteTable(
+  'event_speakers',
+  {
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    personId: integer('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+    talkTitle: text('talk_title'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.personId] }),
+    index('event_speakers_person').on(t.personId),
+  ],
+);
 
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -459,5 +479,6 @@ export type Post = typeof posts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
 export type Person = typeof people.$inferSelect;
+export type EventSpeaker = typeof eventSpeakers.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;

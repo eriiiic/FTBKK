@@ -8,15 +8,17 @@ https://ft-bkk-site.edelattre.workers.dev until the domain moves over.
 
 Public pages:
 
-- **Home** and **About**: the community, the board and institutional partners, "You can join us"
-  cards and the contact form. Texts are edited in the admin.
+- **Home** and **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
+  at a past event, most recent first), institutional partners, "You can join us" cards and the
+  contact form. Texts are edited in the admin.
 - **Ecosystem**: a directory of French startups, companies, service providers, investors,
   incubators, schools and institutions in Thailand. Anyone can request a listing; owners manage
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
   a Member badge, validated by the board.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
-  ticket and cancel link, and a **feedback email** the day after (one-click 1 to 5 rating, then
+  ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
+  People and reused across events), and a **feedback email** the day after (one-click 1 to 5 rating, then
   an optional comment; results on the admin's event stats). Past events can show a **recap**: a
   photo gallery (with a lightbox), slides to download, the video (YouTube and Vimeo play on the
   page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a

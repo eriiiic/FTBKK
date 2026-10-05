@@ -6,7 +6,14 @@ import Icon from '../../../components/Icon.astro';
 import Alert from '../../../components/Alert.astro';
 import RegistrationForm from '../../../components/RegistrationForm.astro';
 import PostCard from '../../../components/PostCard.astro';
-import { eventBySlug, isUpcoming, publishedPostById, upcomingEvents } from '../../../lib/queries';
+import PersonCard from '../../../components/PersonCard.astro';
+import {
+  eventBySlug,
+  isUpcoming,
+  publishedPostById,
+  speakersForEvent,
+  upcomingEvents,
+} from '../../../lib/queries';
 import { hasRecap, videoEmbed, videoSite } from '../../../lib/recap';
 import { formatEventDate, mediaUrl } from '../../../lib/format';
 import { plainText, renderMarkdown } from '../../../lib/markdown';
@@ -27,6 +34,7 @@ const event = await eventBySlug(Astro.params.slug!);
 if (!event) return Astro.rewrite('/404');
 
 const upcoming = isUpcoming(event);
+const speakers = await speakersForEvent(event.id);
 // A past event points to the next one instead of leaving its side column empty.
 const [nextEvent] = upcoming
   ? []
@@ -223,6 +231,28 @@ const jsonLd = {
         </p>
       </aside>
     </div>
+    {speakers.length > 0 && (
+      <section aria-labelledby="speakers" class="border-t border-line">
+        <div class="container-page py-12">
+          <h2 id="speakers" class="mb-8 text-2xl md:text-3xl">
+            {speakers.length === 1 ? 'Speaker' : 'Speakers'}
+          </h2>
+          <ul class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4">
+            {speakers.map((p) => (
+              <li>
+                <PersonCard person={{ ...p, organisation: p.organisationName }}>
+                  {p.talkTitle && (
+                    <p class="mt-2 text-sm text-ink italic">
+                      <span class="sr-only">Talk: </span>“{p.talkTitle}”
+                    </p>
+                  )}
+                </PersonCard>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    )}
     {recap && (
       <section aria-labelledby="recap" class="border-t border-line bg-surface">
         <div class="container-page grid gap-10 py-12">

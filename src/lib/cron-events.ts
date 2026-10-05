@@ -107,6 +107,7 @@ const BACKUP_TABLES = [
   'blocked_senders',
   'message_notes',
   'event_feedback',
+  'event_speakers',
 ];
 const KEEP_BACKUPS = 12;
 

@@ -31,6 +31,14 @@ uses any more.
   Tech Connect.
 - **Capacity** empty means unlimited. When full, people join the waitlist.
 - **Cancel the event** keeps it on the site with a "Cancelled" label and closes registration.
+- **Speakers** (below the event form, once the event is saved): pick someone already in People
+  (speakers, board or institutional partners) and give an optional talk title, or fill in **Or
+  someone new** (name, job title, company, LinkedIn, photo) to add them to People in the
+  Speakers group and link them in one go. Reorder with the arrows, edit talk titles, tick
+  "Remove" to unlink (the person stays in People), then **Save the speakers**. They show on the
+  event page with their photo, title, company, talk title and LinkedIn. Speakers are reused
+  across events: next time, just pick them from the list. Everyone who spoke at a past
+  published event appears in **Speakers we've hosted** on About (the 24 most recent).
 - **Recap** (at the bottom of an event's page, about 10 minutes after the event): add photos
   (select several at once, up to 20 per save, 5 MB each), reorder them with the arrows, give them
   an optional alt text or caption, or tick "Remove" (the file is deleted). Upload the speakers'
@@ -117,7 +125,10 @@ them in Settings > Directory moderators.
 ## People, Messages, Settings
 
 - **People**: board and institutional partners on the About page, with their job title and
-  company. Use ↑ ↓ to reorder.
+  company. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
+  (added here or from an event's Speakers section); edit their photo, title or company here and
+  every event page updates. Each person shows how many events they spoke at; removing a person
+  also removes them from those events.
 - **Messages**: contact form messages, filed in folders: Inbox, Answered, Handled, Spam and
   Deleted. Nothing is ever removed, so every folder keeps a record; "Back to inbox" undoes any
   move. **Reply** opens your mail app with the message quoted; mark it answered afterwards.

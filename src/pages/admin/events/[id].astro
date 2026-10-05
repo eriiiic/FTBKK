@@ -1,12 +1,12 @@
 ---
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import FormField from '../../../components/FormField.astro';
 import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import MarkdownEditor from '../../../components/admin/MarkdownEditor.astro';
 import { getDb } from '../../../db';
-import { events, posts, type Event } from '../../../db/schema';
+import { eventSpeakers, events, people, posts, type Event } from '../../../db/schema';
 import { EventSchema, toLocalInput, uniqueContentSlug } from '../../../lib/admin';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
@@ -24,6 +24,14 @@ import {
   labelFromFileName,
   slideRef,
 } from '../../../lib/recap';
+import {
+  MAX_SPEAKERS,
+  SPEAKER_ARRAYS,
+  SpeakersFormSchema,
+  personLine,
+  planSpeakers,
+} from '../../../lib/speakers';
+import { speakersForEvent } from '../../../lib/queries';
 import { env } from 'cloudflare:workers';
 
 const db = getDb();
@@ -72,6 +80,23 @@ let recapValues: Record<string, unknown> = {
   postId: event?.recap?.postId ?? '',
 };
 
+// Speakers: people (any group) linked to the event, with an optional talk title.
+const speakers = event ? await speakersForEvent(event.id) : [];
+const everyone = event
+  ? await db
+      .select({
+        id: people.id,
+        name: people.name,
+        title: people.title,
+        organisationName: people.organisationName,
+        group: people.group,
+      })
+      .from(people)
+      .orderBy(asc(people.name))
+  : [];
+let speakerErrors: Record<string, string> = {};
+let speakerValues: Record<string, unknown> = {};
+
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = event
   ? asValues(event)
@@ -117,7 +142,77 @@ if (Astro.request.method === 'POST') {
     );
     return Astro.redirect(`/admin/events/${event.id}?saved=1`);
   }
-  if (event && action === 'recap') {
+  if (event && action === 'speakers') {
+    speakerValues = formToObject(form, SPEAKER_ARRAYS);
+    const parsed = SpeakersFormSchema.safeParse(speakerValues);
+    if (!parsed.success) speakerErrors = fieldErrors(parsed.error);
+    const picked = form.get('newPhoto');
+    const hasPhoto = picked instanceof File && picked.size > 0;
+    if (parsed.success) {
+      const d = parsed.data;
+      if (d.addPersonId && !everyone.some((p) => p.id === d.addPersonId))
+        speakerErrors.addPersonId = 'Pick someone from the list.';
+      if (hasPhoto && !d.newName) speakerErrors.newName = 'Enter the name of the new speaker.';
+      const kept = speakers.filter((s) => !d.speakerRemove.includes(String(s.id))).length;
+      if (kept + (d.addPersonId || d.newName ? 1 : 0) > MAX_SPEAKERS)
+        speakerErrors.addPersonId = `An event has at most ${MAX_SPEAKERS} speakers.`;
+    }
+    // Upload only once the rest is valid, so a rejected form leaves no orphan file in R2.
+    const photo =
+      parsed.success && !Object.keys(speakerErrors).length
+        ? await storeUpload(picked, {
+            prefix: 'people',
+            maxBytes: 2 * 1024 * 1024,
+            types: IMAGE_TYPES,
+          })
+        : { key: null, error: null };
+    if (photo.error) speakerErrors.newPhoto = photo.error;
+    if (parsed.success && !Object.keys(speakerErrors).length) {
+      const d = parsed.data;
+      let added = d.addPersonId;
+      if (d.newName) {
+        const person = {
+          name: d.newName,
+          title: d.newTitle,
+          organisationName: d.newCompany,
+          linkedin: d.newLinkedin,
+          group: 'speaker' as const,
+        };
+        const [ins] = await db
+          .insert(people)
+          .values({ ...person, photoKey: photo.key })
+          .returning({ id: people.id });
+        added = ins!.id;
+        everyone.push({ id: added, ...person });
+        await audit(actor, 'create', 'person', added, null, person);
+      }
+      const ids = new Set(everyone.map((p) => p.id));
+      const plan = planSpeakers(
+        speakers.map((s) => ({ personId: s.id, talkTitle: s.talkTitle })),
+        d,
+        (id) => ids.has(id),
+        added,
+      );
+      await db.batch([
+        db.delete(eventSpeakers).where(eq(eventSpeakers.eventId, event.id)),
+        ...plan.map((s) => db.insert(eventSpeakers).values({ ...s, eventId: event!.id })),
+      ]);
+      const summary = (list: { personId: number; talkTitle: string | null }[]) =>
+        list.map((s) => ({
+          person: everyone.find((p) => p.id === s.personId)?.name ?? s.personId,
+          talk: s.talkTitle,
+        }));
+      await audit(
+        actor,
+        'speakers',
+        'event',
+        event.id,
+        summary(speakers.map((s) => ({ personId: s.id, talkTitle: s.talkTitle }))),
+        summary(plan),
+      );
+      return Astro.redirect(`/admin/events/${event.id}?saved=1#speakers`);
+    }
+  } else if (event && action === 'recap') {
     recapValues = formToObject(form, RECAP_ARRAYS);
     const parsed = RecapFormSchema.safeParse(recapValues);
     if (!parsed.success) recapErrors = fieldErrors(parsed.error);
@@ -233,6 +328,14 @@ if (Astro.request.method === 'POST') {
     }
   }
 }
+const sstr = (k: string) =>
+  speakerValues[k] === null || speakerValues[k] === undefined ? '' : String(speakerValues[k]);
+const linked = new Set(speakers.map((s) => s.id));
+const GROUP_LABELS = {
+  board: 'Board',
+  institutional: 'Institutional partners',
+  speaker: 'Speakers',
+};
 const rstr = (k: string) =>
   recapValues[k] === null || recapValues[k] === undefined ? '' : String(recapValues[k]);
 const recap = event?.recap ?? null;
@@ -455,6 +558,148 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
   </form>
 
   {event && (
+    <section id="speakers" aria-labelledby="speakers-title" class="admin-panel mt-8 grid gap-6">
+      <div>
+        <h2 id="speakers-title" class="text-lg">
+          Speakers
+        </h2>
+        <p class="mt-1 text-sm text-muted">
+          Shown on the event page with their photo, title and company. Everyone who spoke at a past
+          event also appears in "Speakers we've hosted" on About. Edit a speaker's details in{' '}
+          <a href="/admin/people">People</a>.
+        </p>
+      </div>
+      {Object.keys(speakerErrors).length > 0 && (
+        <Alert tone="danger">
+          The speakers were not saved. {Object.values(speakerErrors).join(' ')}
+        </Alert>
+      )}
+      <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid gap-6">
+        <input type="hidden" name="action" value="speakers" />
+        {speakers.length > 0 ? (
+          <ol class="grid gap-3" data-speakers>
+            {speakers.map((p) => (
+              <li class="grid gap-3 rounded-lg border border-line p-3 sm:grid-cols-[3rem_1fr_1fr_auto] sm:items-center">
+                <input type="hidden" name="speakerId" value={p.id} />
+                {p.photoKey ? (
+                  <img
+                    src={mediaUrl(p.photoKey)}
+                    alt=""
+                    class="size-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <span class="hidden size-12 rounded-full bg-surface sm:block" />
+                )}
+                <div class="min-w-0">
+                  <p class="font-semibold text-navy">{p.name}</p>
+                  <p class="text-sm text-muted">{personLine(p)}</p>
+                </div>
+                <label class="text-sm">
+                  Talk title<span class="sr-only"> of {p.name}</span>
+                  <input
+                    name="speakerTalk"
+                    value={p.talkTitle ?? ''}
+                    maxlength={200}
+                    class="admin-input mt-1"
+                  />
+                </label>
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                  <button type="button" data-move="-1" class="rounded border border-line px-2">
+                    ↑<span class="sr-only"> Move {p.name} earlier</span>
+                  </button>
+                  <button type="button" data-move="1" class="rounded border border-line px-2">
+                    ↓<span class="sr-only"> Move {p.name} later</span>
+                  </button>
+                  <label class="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      name="speakerRemove"
+                      value={p.id}
+                      class="size-4 accent-brand"
+                    />
+                    Remove<span class="sr-only"> {p.name}</span>
+                  </label>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p class="text-sm text-muted">No speakers yet.</p>
+        )}
+
+        <fieldset class="grid gap-4">
+          <legend class="font-semibold text-navy">Add a speaker</legend>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="text-sm font-semibold text-ink">
+              Someone already in People
+              <select name="addPersonId" class="admin-input mt-1 font-normal">
+                <option value="">Choose…</option>
+                {(['speaker', 'board', 'institutional'] as const).map((g) => {
+                  const list = everyone.filter((p) => p.group === g && !linked.has(p.id));
+                  return (
+                    list.length > 0 && (
+                      <optgroup label={GROUP_LABELS[g]}>
+                        {list.map((p) => (
+                          <option value={p.id} selected={sstr('addPersonId') === String(p.id)}>
+                            {p.name}
+                            {personLine(p) ? ` (${personLine(p)})` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )
+                  );
+                })}
+              </select>
+            </label>
+            <FormField
+              name="addTalkTitle"
+              label="Talk title"
+              maxlength={200}
+              value={sstr('addTalkTitle')}
+              hint="Optional."
+            />
+          </div>
+          <p class="text-sm text-muted">Or someone new (added to People, in Speakers):</p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <FormField
+              name="newName"
+              label="Name"
+              maxlength={120}
+              value={sstr('newName')}
+              error={speakerErrors.newName}
+            />
+            <FormField name="newTitle" label="Job title" maxlength={120} value={sstr('newTitle')} />
+            <FormField
+              name="newCompany"
+              label="Company"
+              maxlength={120}
+              value={sstr('newCompany')}
+            />
+            <FormField
+              name="newLinkedin"
+              label="LinkedIn"
+              value={sstr('newLinkedin')}
+              error={speakerErrors.newLinkedin}
+              placeholder="https://www.linkedin.com/in/…"
+            />
+            <FormField
+              name="newPhoto"
+              label="Photo"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              error={speakerErrors.newPhoto}
+              hint="Square works best. 2 MB max."
+            />
+          </div>
+        </fieldset>
+        <div>
+          <Button type="submit">Save the speakers</Button>
+        </div>
+      </form>
+    </section>
+  )}
+
+  {event && (
     <section id="recap" aria-labelledby="recap-title" class="admin-panel mt-8 grid gap-6">
       <div>
         <h2 id="recap-title" class="text-lg">
@@ -639,7 +884,8 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
 
 <script>
   // Recap photos: the arrows move a photo; the order of the hidden fields is the saved order.
-  document.querySelectorAll<HTMLElement>('[data-recap-photos]').forEach((list) => {
+  // Speakers use the same arrows.
+  document.querySelectorAll<HTMLElement>('[data-recap-photos], [data-speakers]').forEach((list) => {
     list.addEventListener('click', (e) => {
       const b = (e.target as Element | null)?.closest<HTMLButtonElement>('button[data-move]');
       const item = b?.closest('li');
