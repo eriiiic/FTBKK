@@ -31,12 +31,15 @@ const [eventRows, regRows, feedbackRows] = await Promise.all([
       createdAt: registrations.createdAt,
       checkedInAt: registrations.checkedInAt,
       howHeard: registrations.howHeard,
+      feedbackSentAt: registrations.feedbackSentAt,
     })
     .from(registrations),
   db.select({ eventId: eventFeedback.eventId, rating: eventFeedback.rating }).from(eventFeedback),
 ]);
 const s = eventStats(eventRows, regRows, now);
 const feedback = new Map<number, ReturnType<typeof feedbackSummary>>();
+// Events that got the feedback email (older ones never did: they show "–", not a 0 link).
+const feedbackEmailed = new Set(regRows.filter((r) => r.feedbackSentAt).map((r) => r.eventId));
 for (const id of new Set(feedbackRows.map((f) => f.eventId))) {
   feedback.set(id, feedbackSummary(feedbackRows.filter((f) => f.eventId === id)));
 }
@@ -264,7 +267,8 @@ const kpis = [
             <td data-sort={r.waitlist}>{r.waitlist}</td>
             <td data-sort={r.cancelled}>{r.cancelled}</td>
             <td data-sort={feedback.get(r.event.id)?.responses ?? -1} class="whitespace-nowrap">
-              {r.event.startsAt < now ? (
+              {r.event.startsAt < now &&
+              (feedbackEmailed.has(r.event.id) || feedback.has(r.event.id)) ? (
                 <a href={`/admin/events/${r.event.id}/feedback`}>
                   {feedback.get(r.event.id)?.responses ?? 0}
                   <span class="sr-only"> feedback responses for {r.event.title}</span>

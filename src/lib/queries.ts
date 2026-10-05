@@ -104,6 +104,16 @@ export async function publishedPostById(id: number) {
   return p ?? null;
 }
 
+/** The ids among `ids` of posts that are published (for recaps that link a write-up). */
+export async function publishedPostIds(ids: number[]) {
+  if (!ids.length) return new Set<number>();
+  const rows = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(inArray(posts.id, ids), publishedPost()));
+  return new Set(rows.map((r) => r.id));
+}
+
 export async function categoriesWithCounts() {
   return getDb()
     .select({

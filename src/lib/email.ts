@@ -11,7 +11,7 @@ export interface EmailAttachment {
 export interface EmailMessage {
   to: string | string[];
   subject: string;
-  /** Short paragraphs (plain text, no HTML). */
+  /** Short paragraphs (plain text, no HTML; a line break shows as one). */
   paragraphs: string[];
   /** A row of one-click choices, such as a 1 to 5 rating, shown before the button. */
   choices?: {
@@ -95,7 +95,7 @@ export function renderEmail(m: EmailMessage) {
 <table role="presentation" width="560" style="max-width:560px;width:100%;background:#fff;border-radius:16px;overflow:hidden">
 <tr><td style="background:${navy};padding:20px 28px;color:#fff;font-weight:700;font-size:18px">La French Tech Bangkok</td></tr>
 <tr><td style="padding:28px;color:#1a1530;font-size:16px;line-height:1.6">
-${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p)}</p>`).join('')}
+${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}
 ${details}${logos}${ticket}${choices}${button}${links}
 </td></tr>
 <tr><td style="padding:16px 28px;background:#f5f5f5;color:#5c5a73;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>

@@ -31,6 +31,9 @@ uses any more.
   Tech Connect.
 - **Capacity** empty means unlimited. When full, people join the waitlist.
 - **Cancel the event** keeps it on the site with a "Cancelled" label and closes registration.
+- Below the event form, **Speakers**, **Sponsors and hosts** and **Recap** each have their own
+  save button and save only that section. If another section has unsaved changes, the page asks
+  before saving, since those changes would be lost: save one section at a time.
 - **Speakers** (below the event form, once the event is saved): pick someone already in People
   (speakers, board or institutional partners) and give an optional talk title, or fill in **Or
   someone new** (name, job title, company, LinkedIn, photo) to add them to People in the
@@ -51,11 +54,15 @@ uses any more.
   hand-entered one, remove it and add it again; to change a directory organisation's logo, edit it
   in Ecosystem. Something to show sponsors: their logo on the page and in every attendee's inbox.
 - **Recap** (at the bottom of an event's page, about 10 minutes after the event): add photos
-  (select several at once, up to 20 per save, 5 MB each), reorder them with the arrows, give them
-  an optional alt text or caption, or tick "Remove" (the file is deleted). Upload the speakers'
+  (select several at once, up to 20 per save, 5 MB each and 40 MB in all with the slides: save
+  big batches in several goes), reorder them with the arrows, give them an optional caption
+  (shown under the full-size photo and read to people using screen readers), or tick "Remove"
+  (the file is deleted). Upload the speakers'
   slides as PDFs (the file name becomes the label, which you can edit) or paste a link to them,
   paste the video link (YouTube or Vimeo play on the page, other sites open in a new page), and
-  pick the blog write-up among published posts. Click **Save the recap**. It shows on the event
+  pick the blog write-up among published posts. Click **Save the recap**. If the recap can't be
+  saved (a bad link, for example), the files you picked are not kept: choose them again after
+  fixing the error. It shows on the event
   page once the event has passed, and the event gets a "Recap" badge in the past events list.
   Uploaded slides also appear in **Files**, used by the event.
 
@@ -95,21 +102,29 @@ uses any more.
   message to the people of one event: a venue change, the slides after the talk, a last-minute
   reminder. Choose who gets it (**Registered**, **Checked in**, **Waitlist** or **Everyone not
   cancelled**; each shows how many people that is), write a subject and a plain-text message
-  (leave a blank line between paragraphs; `{name}` becomes the person's first name), and
+  (leave a blank line between paragraphs; single line breaks, for an address or a list, are kept;
+  `{name}` becomes the person's first name), and
   optionally a button with its link (for example "Download the slides"). The email uses the
   site's usual layout and adds the event's date, venue and a link to its page. **Send me a test**
-  sends it to you only. **Send** asks for confirmation with the number of people. Replies go to
+  sends it to you only. **Send** asks for confirmation with the number of people and the event's
+  name. After the event, **Checked in** is preselected when check-in was used, otherwise
+  **Registered**. Replies go to
   the contact address in Settings. Walk-ins without an email are skipped, and the same email
   can't go to the same people twice within 10 minutes unless you tick "Send it again". Everything
-  sent is listed on that page, with who sent it and to how many people.
+  sent is listed on that page, with who sent it and to how many people. If sending stops part way
+  (the email service failing), the page lists the addresses not reached: don't send again to the
+  whole audience, or the first people get it twice.
 - **Feedback**: at 09:00 the day after a published event (not cancelled ones), everyone who
   was checked in gets an email asking "How was it?" with five one-click buttons (1 = poor to
-  5 = excellent). If nobody was checked in for that event, everyone still registered gets it.
+  5 = excellent). If nobody who registered was checked in (walk-ins don't count), everyone
+  still registered gets it, and walk-ins with an email too. If the email service fails that
+  morning, it tries again the next morning.
   Each person gets it once; walk-ins without an email are skipped. The click records the rating
   and opens a page where they can add a comment (up to 2,000 characters) or change the rating,
   any time later, with the same link.
-- **Event stats** shows, for each past event, the number of feedback responses and the average
-  rating; click the number to open the event's **Feedback** page (also linked at the top of a
+- **Event stats** shows, for each past event that got the feedback email, the number of feedback
+  responses and the average rating (events from before feedback emails show "–"); click the
+  number to open the event's **Feedback** page (also linked at the top of a
   past event's page). It shows the average, the share of emailed people who answered, how many
   gave each rating, and every rating and comment with the person's name. Names are for the team
   only: **Hide names (to share)** shows the comments without names, ready to show speakers,

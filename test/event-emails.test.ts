@@ -7,6 +7,7 @@ import {
   recipientsFor,
   toParagraphs,
 } from '../src/lib/event-emails';
+import { renderEmail } from '../src/lib/email';
 
 const rows = [
   { name: 'Ann Lee', email: 'ann@x.com', status: 'registered' as const },
@@ -34,12 +35,20 @@ describe('recipientsFor', () => {
 });
 
 describe('toParagraphs', () => {
-  it('splits on blank lines and joins wrapped lines', () => {
-    expect(toParagraphs('Hello,\r\n\r\nThe venue\nhas moved.\n   \n\nSee you!\n')).toEqual([
-      'Hello,',
-      'The venue has moved.',
-      'See you!',
-    ]);
+  it('splits on blank lines and keeps single line breaks', () => {
+    expect(
+      toParagraphs('Hello,\r\n\r\nNew venue:  \n  True Digital Park\n   \n\nSee you!\n'),
+    ).toEqual(['Hello,', 'New venue:\nTrue Digital Park', 'See you!']);
+  });
+
+  it('renders line breaks as <br> in the HTML email', () => {
+    const { html, text } = renderEmail({
+      to: 'a@x.com',
+      subject: 'S',
+      paragraphs: ['New venue:\nBuilding <B>'],
+    });
+    expect(html).toContain('New venue:<br>Building &lt;B&gt;');
+    expect(text).toContain('New venue:\nBuilding <B>');
   });
 });
 

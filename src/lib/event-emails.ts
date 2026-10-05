@@ -47,12 +47,21 @@ export const EventEmailSchema = z
   });
 export type EventEmailInput = z.infer<typeof EventEmailSchema>;
 
-/** Plain text -> paragraphs: blank lines separate them, single line breaks are kept as spaces. */
+/**
+ * Plain text -> paragraphs: blank lines separate them; single line breaks (an address, a list)
+ * stay inside the paragraph and show as line breaks in the email.
+ */
 export function toParagraphs(body: string) {
   return body
     .replace(/\r\n?/g, '\n')
     .split(/\n\s*\n/)
-    .map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
+    .map((p) =>
+      p
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .join('\n'),
+    )
     .filter(Boolean);
 }
 

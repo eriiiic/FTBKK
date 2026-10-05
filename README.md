@@ -44,7 +44,8 @@ who didn't register.
 Organisers can **email an event's registrants** from the admin (venue change, slides after the
 talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not
 cancelled, with counts), write a subject and message with an optional button, send a test to
-themselves, then send. Each message sent is kept in the event's email history.
+themselves, then send. Each message sent is kept in the event's email history (and in the weekly
+backup); a second send of the same message within 10 minutes, even from another tab, is refused.
 
 **Contacts** in the admin lists everyone who ever registered for an event or walked in, one line
 per person (grouped by email), with no sign-up needed. For each person it shows how many events

@@ -7,11 +7,29 @@ import { optionalText, optionalUrl } from './forms';
 
 export const MAX_RECAP_PHOTOS = 120;
 export const MAX_RECAP_SLIDES = 20;
-/** Files per upload, so one request stays well under the Worker's body and memory limits. */
+/** Files per upload. */
 export const MAX_FILES_PER_UPLOAD = 20;
+/**
+ * Total size of the files in one recap save. The whole request is buffered by the Worker (128 MB
+ * memory) and Cloudflare rejects bodies over 100 MB, so stay well below both.
+ */
+export const MAX_RECAP_UPLOAD_BYTES = 40 * 1024 * 1024;
 
-export function hasRecap(r: EventRecap | null | undefined): r is EventRecap {
-  return !!r && (r.photos.length > 0 || r.slides.length > 0 || !!r.videoUrl || !!r.postId);
+/**
+ * Whether a recap has anything to show. Pass `postLive` when known: a write-up that was
+ * unpublished or deleted since doesn't count.
+ */
+export function hasRecap(
+  r: EventRecap | null | undefined,
+  postLive: (id: number) => boolean = () => true,
+): r is EventRecap {
+  return (
+    !!r &&
+    (r.photos.length > 0 ||
+      r.slides.length > 0 ||
+      !!r.videoUrl ||
+      (!!r.postId && postLive(r.postId)))
+  );
 }
 
 const list = (max: number, len = 600) => z.array(z.string().max(len)).max(max).default([]);

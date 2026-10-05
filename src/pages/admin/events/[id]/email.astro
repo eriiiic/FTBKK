@@ -1,5 +1,5 @@
 ---
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt, lt } from 'drizzle-orm';
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import FormField from '../../../../components/FormField.astro';
 import Button from '../../../../components/Button.astro';
@@ -42,8 +42,11 @@ let rows = await loadRows();
 let errors: Record<string, string> = {};
 let error = '';
 let notice = '';
+let unreached: string[] = [];
+// After the event, default to the people checked in, unless check-in wasn't used.
+const ended = (event.endsAt ?? event.startsAt) < new Date();
 let values: Record<string, unknown> = {
-  audience: (event.endsAt ?? event.startsAt) < new Date() ? 'attended' : 'registered',
+  audience: ended && audienceCounts(rows).attended > 0 ? 'attended' : 'registered',
 };
 
 if (Astro.request.method === 'POST') {
@@ -65,53 +68,68 @@ if (Astro.request.method === 'POST') {
   } else if (action === 'send') {
     const d = parsed.data;
     const to = recipientsFor(rows, d.audience);
-    // A double click or a resubmitted form must not email everyone twice.
-    const [dupe] = await db
-      .select({ id: eventEmails.id })
-      .from(eventEmails)
-      .where(
-        and(
-          eq(eventEmails.eventId, event.id),
-          eq(eventEmails.audience, d.audience),
-          eq(eventEmails.subject, d.subject),
-          gt(eventEmails.createdAt, new Date(Date.now() - 10 * 60_000)),
-        ),
-      )
-      .limit(1);
+    // A double click, a resubmitted form or a second tab must not email everyone twice. The row
+    // is written before sending, so a submission that overlaps a send in progress sees it too.
+    const recent = (before?: number) =>
+      db
+        .select({ id: eventEmails.id })
+        .from(eventEmails)
+        .where(
+          and(
+            eq(eventEmails.eventId, event.id),
+            eq(eventEmails.audience, d.audience),
+            eq(eventEmails.subject, d.subject),
+            gt(eventEmails.createdAt, new Date(Date.now() - 10 * 60_000)),
+            before ? lt(eventEmails.id, before) : undefined,
+          ),
+        )
+        .limit(1);
+    const dupeError =
+      'This email went to the same people less than 10 minutes ago (or is being sent right now). Tick "Send it again" if you really mean to.';
     if (!to.length) error = 'Nobody to send to: this audience has no one with an email address.';
-    else if (dupe && !values.resend)
-      error =
-        'This email went to the same people less than 10 minutes ago. Tick "Send it again" if you really mean to.';
+    else if (!values.resend && (await recent()).length) error = dupeError;
     else {
-      const settings = await getSettings();
-      const res = await sendEmailBatch(
-        to.map((r) => eventBroadcast(event, r, d, { replyTo: settings.contactEmail })),
-      );
-      if (res.sent > 0) {
-        const [row] = await db
-          .insert(eventEmails)
-          .values({
-            eventId: event.id,
-            audience: d.audience,
-            subject: d.subject,
-            body: d.body,
-            actionLabel: d.actionLabel || null,
-            actionUrl: d.actionUrl,
-            recipients: res.sent,
-            sentBy: actor,
-          })
-          .returning({ id: eventEmails.id });
-        await audit(actor, 'email_registrants', 'event', event.id, null, {
-          emailId: row?.id,
+      const [row] = await db
+        .insert(eventEmails)
+        .values({
+          eventId: event.id,
           audience: d.audience,
           subject: d.subject,
-          recipients: res.sent,
-        });
+          body: d.body,
+          actionLabel: d.actionLabel || null,
+          actionUrl: d.actionUrl,
+          recipients: 0,
+          sentBy: actor,
+        })
+        .returning({ id: eventEmails.id });
+      // Two submissions that passed the check at the same moment: the later one stands down.
+      if (!values.resend && (await recent(row!.id)).length) {
+        await db.delete(eventEmails).where(eq(eventEmails.id, row!.id));
+        error = dupeError;
+      } else {
+        const settings = await getSettings();
+        const res = await sendEmailBatch(
+          to.map((r) => eventBroadcast(event, r, d, { replyTo: settings.contactEmail })),
+        );
+        if (res.sent > 0) {
+          await db
+            .update(eventEmails)
+            .set({ recipients: res.sent })
+            .where(eq(eventEmails.id, row!.id));
+          await audit(actor, 'email_registrants', 'event', event.id, null, {
+            emailId: row!.id,
+            audience: d.audience,
+            subject: d.subject,
+            recipients: res.sent,
+          });
+        } else await db.delete(eventEmails).where(eq(eventEmails.id, row!.id));
+        if (res.ok) return Astro.redirect(`/admin/events/${event.id}/email?sent=${res.sent}`);
+        // Emails go out in order, so the ones not reached are the end of the list.
+        unreached = to.slice(res.sent).map((r) => r.email);
+        error = res.sent
+          ? `Sending stopped after ${res.sent} of ${to.length} emails. Sending again to this audience would email the first ${res.sent} people twice: once the email service works again, write to the ${unreached.length} people listed below instead.`
+          : 'The email service refused the message. Nothing was sent.';
       }
-      if (res.ok) return Astro.redirect(`/admin/events/${event.id}/email?sent=${res.sent}`);
-      error = res.sent
-        ? `Sending stopped after ${res.sent} of ${to.length} emails. Check the email service, then send again to the audience if needed.`
-        : 'The email service refused the message. Nothing was sent.';
     }
   } else error = 'Unknown action.';
   rows = await loadRows();
@@ -131,7 +149,7 @@ const audience = (AUDIENCE_KEYS as string[]).includes(str('audience'))
 const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
 ---
 
-<AdminLayout title="Email registrants">
+<AdminLayout title={`Email registrants: ${event.title}`}>
   <div class="mb-4 flex flex-wrap gap-4 text-sm">
     <a href={`/admin/events/${event.id}`}>← {event.title}</a>
     <a href={`/admin/registrations?event=${event.id}`}>Registrations</a>
@@ -153,6 +171,12 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
   {error && (
     <Alert tone="danger" class="mb-6">
       {error}
+      {unreached.length > 0 && (
+        <details class="mt-2">
+          <summary class="cursor-pointer">Not reached ({unreached.length})</summary>
+          <p class="mt-1 text-sm break-all">{unreached.join(', ')}</p>
+        </details>
+      )}
     </Alert>
   )}
   {Object.keys(errors).length > 0 && (
@@ -162,7 +186,12 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
   )}
 
   <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
-    <form method="post" class="admin-panel grid content-start gap-5" data-email-form>
+    <form
+      method="post"
+      class="admin-panel grid content-start gap-5"
+      data-email-form
+      data-warn-unsaved
+    >
       <fieldset>
         <legend class="text-sm font-semibold text-ink">Send to</legend>
         <div class="mt-2 grid gap-2 sm:grid-cols-2">
@@ -232,7 +261,8 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
           name="action"
           value="send"
           data-send
-          data-confirm={`Send this email to ${plural(counts[audience])}?`}
+          data-event={event.title}
+          data-confirm={`Send this email to ${plural(counts[audience])} for ${event.title}?`}
         >
           Send
         </Button>
@@ -285,6 +315,16 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
   form?.addEventListener('change', () => {
     const picked = form.querySelector<HTMLInputElement>('input[name=audience]:checked');
     const n = Number(picked?.dataset.count ?? 0);
-    if (send) send.dataset.confirm = `Send this email to ${n} ${n === 1 ? 'person' : 'people'}?`;
+    if (send)
+      send.dataset.confirm = `Send this email to ${n} ${n === 1 ? 'person' : 'people'} for ${send.dataset.event}?`;
+  });
+  // Sending to a large audience takes a few seconds: block a second click meanwhile.
+  form?.addEventListener('submit', (e) => {
+    if (e.submitter !== send || !send) return;
+    setTimeout(() => {
+      if (e.defaultPrevented) return;
+      send.disabled = true;
+      send.textContent = 'Sending…';
+    });
   });
 </script>

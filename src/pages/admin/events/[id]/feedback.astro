@@ -6,6 +6,7 @@ import { getDb } from '../../../../db';
 import { eventFeedback, events, registrations } from '../../../../db/schema';
 import { RATING_LABELS, feedbackSummary, formatRating } from '../../../../lib/feedback';
 import { formatDate, formatEventDate } from '../../../../lib/format';
+import { DAY_MS } from '../../../../lib/lifecycle';
 
 // Day-after feedback for one event: ratings and comments. Names are shown here only; ?anon=1
 // hides them, to share the screen or a copy with speakers and sponsors.
@@ -41,6 +42,10 @@ const [rows, [sent]] = await Promise.all([
 ]);
 const s = feedbackSummary(rows);
 const emailed = sent?.n ?? 0;
+// The daily job sends it the morning after, and retries the next morning.
+const pending =
+  event.status === 'published' &&
+  (event.endsAt ?? event.startsAt).getTime() > Date.now() - 2 * DAY_MS;
 const max = Math.max(1, ...s.distribution);
 const withComments = rows.filter((r) => r.comment);
 const base = `/admin/events/${event.id}/feedback`;
@@ -79,7 +84,9 @@ const base = `/admin/events/${event.id}/feedback`;
       <p class="mt-1 text-xs text-muted">
         {emailed
           ? `${emailed} emailed (${Math.min(100, Math.round((s.responses / emailed) * 100))}% answered)`
-          : 'The email goes out at 09:00 the day after the event.'}
+          : pending
+            ? 'The email goes out at 09:00 the day after the event.'
+            : 'No feedback email was sent for this event (it ran before feedback emails started, or the daily job missed it).'}
       </p>
     </div>
     <div class="admin-panel">

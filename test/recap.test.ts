@@ -39,6 +39,13 @@ describe('hasRecap', () => {
     expect(hasRecap({ photos: [], slides: [], postId: 3 })).toBe(true);
     expect(hasRecap(prev)).toBe(true);
   });
+
+  it('ignores a write-up that is no longer published', () => {
+    const onlyPost = { photos: [], slides: [], postId: 3 };
+    expect(hasRecap(onlyPost, (id) => id === 4)).toBe(false);
+    expect(hasRecap(onlyPost, (id) => id === 3)).toBe(true);
+    expect(hasRecap({ ...onlyPost, videoUrl: 'https://youtu.be/x' }, () => false)).toBe(true);
+  });
 });
 
 describe('buildRecap', () => {

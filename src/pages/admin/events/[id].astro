@@ -25,6 +25,7 @@ import { sendEventCancelled } from '../../../lib/registrations';
 import {
   MAX_FILES_PER_UPLOAD,
   MAX_RECAP_PHOTOS,
+  MAX_RECAP_UPLOAD_BYTES,
   MAX_RECAP_SLIDES,
   RECAP_ARRAYS,
   RecapFormSchema,
@@ -147,7 +148,15 @@ let values: Record<string, unknown> = event
       }
     : { status: 'draft', series: 'French Tech Connect', registrationOpen: true };
 
-if (Astro.request.method === 'POST') {
+// Only the recap form can carry this much (other uploads are 5 MB at most). Refuse it before
+// buffering the body, which could exceed the Worker's memory.
+const bodyTooLarge =
+  Astro.request.method === 'POST' &&
+  Number(Astro.request.headers.get('content-length')) > MAX_RECAP_UPLOAD_BYTES + 1024 * 1024;
+const MB = (n: number) => `${Math.round(n / 1024 / 1024)} MB`;
+if (bodyTooLarge) {
+  recapErrors.recapPhotos = `Upload at most ${MB(MAX_RECAP_UPLOAD_BYTES)} of photos and slides per save: save them in several goes.`;
+} else if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = form.get('action');
   if (event && action === 'delete') {
@@ -186,7 +195,11 @@ if (Astro.request.method === 'POST') {
     if (parsed.success) {
       const d = parsed.data;
       if (d.addOrgId && !org) sponsorErrors.addOrgId = 'Pick an organisation from the list.';
-      if (hasLogo && !d.addName) sponsorErrors.addName = 'Enter the name that goes with the logo.';
+      if (hasLogo && d.addOrgId)
+        sponsorErrors.addLogo =
+          'An organisation from the directory uses its own logo: remove this file, or edit the logo in Ecosystem.';
+      else if (hasLogo && !d.addName)
+        sponsorErrors.addName = 'Enter the name that goes with the logo.';
       const kept = sponsors.filter((s) => !d.sponsorRemove.includes(String(s.id))).length;
       if (kept + (d.addOrgId || d.addName ? 1 : 0) > MAX_SPONSORS)
         sponsorErrors.addOrgId = `An event has at most ${MAX_SPONSORS} hosts, sponsors and partners.`;
@@ -199,7 +212,13 @@ if (Astro.request.method === 'POST') {
             maxBytes: 2 * 1024 * 1024,
             types: IMAGE_TYPES,
           })
-        : { key: null, error: null };
+        : {
+            key: null,
+            error:
+              hasLogo && !sponsorErrors.addLogo
+                ? 'Choose the logo again after fixing the other fields.'
+                : null,
+          };
     if (logo.error) sponsorErrors.addLogo = logo.error;
     if (parsed.success && !Object.keys(sponsorErrors).length) {
       const d = parsed.data;
@@ -268,7 +287,10 @@ if (Astro.request.method === 'POST') {
             maxBytes: 2 * 1024 * 1024,
             types: IMAGE_TYPES,
           })
-        : { key: null, error: null };
+        : {
+            key: null,
+            error: hasPhoto ? 'Choose the photo again after fixing the other fields.' : null,
+          };
     if (photo.error) speakerErrors.newPhoto = photo.error;
     if (parsed.success && !Object.keys(speakerErrors).length) {
       const d = parsed.data;
@@ -336,6 +358,9 @@ if (Astro.request.method === 'POST') {
     if (photoError) recapErrors.recapPhotos = photoError;
     const slideError = check(slideFiles, PDF_TYPES, SLIDES_MAX, 'files');
     if (slideError) recapErrors.recapSlides = slideError;
+    const total = [...photoFiles, ...slideFiles].reduce((n, f) => n + f.size, 0);
+    if (total > MAX_RECAP_UPLOAD_BYTES && !photoError && !slideError)
+      recapErrors.recapPhotos = `These files add up to ${MB(total)}: upload at most ${MB(MAX_RECAP_UPLOAD_BYTES)} of photos and slides per save.`;
     if (parsed.success) {
       const d = parsed.data;
       if (d.postId && !writeUps.some((p) => p.id === d.postId))
@@ -346,6 +371,13 @@ if (Astro.request.method === 'POST') {
       const keptSlides = d.slideRef.filter((r) => !d.slideRemove.includes(r)).length;
       if (keptSlides + slideFiles.length + (d.newSlideUrl ? 1 : 0) > MAX_RECAP_SLIDES)
         recapErrors.recapSlides = `A recap holds at most ${MAX_RECAP_SLIDES} slide decks.`;
+    }
+    // Files are stored only when everything is valid: say so, since the inputs come back empty.
+    if (Object.keys(recapErrors).length) {
+      if (photoFiles.length && !recapErrors.recapPhotos)
+        recapErrors.recapPhotos = 'Choose the photos again after fixing the other fields.';
+      if (slideFiles.length && !recapErrors.recapSlides)
+        recapErrors.recapSlides = 'Choose the PDFs again after fixing the other fields.';
     }
     if (parsed.success && !Object.keys(recapErrors).length) {
       const uploaded = { photos: [] as string[], slides: [] as { key: string; label: string }[] };
@@ -688,7 +720,13 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
           The sponsors were not saved. {Object.values(sponsorErrors).join(' ')}
         </Alert>
       )}
-      <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid gap-6">
+      <form
+        method="post"
+        action={`/admin/events/${event.id}#sponsors`}
+        enctype="multipart/form-data"
+        data-warn-unsaved
+        class="grid gap-6"
+      >
         <input type="hidden" name="action" value="sponsors" />
         {sponsors.length > 0 ? (
           <ol class="grid gap-3" data-sponsors>
@@ -856,7 +894,13 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
           The speakers were not saved. {Object.values(speakerErrors).join(' ')}
         </Alert>
       )}
-      <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid gap-6">
+      <form
+        method="post"
+        action={`/admin/events/${event.id}#speakers`}
+        enctype="multipart/form-data"
+        data-warn-unsaved
+        class="grid gap-6"
+      >
         <input type="hidden" name="action" value="speakers" />
         {speakers.length > 0 ? (
           <ol class="grid gap-3" data-speakers>
@@ -996,7 +1040,14 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
       {Object.keys(recapErrors).length > 0 && (
         <Alert tone="danger">The recap was not saved. Please fix the highlighted fields.</Alert>
       )}
-      <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid gap-6">
+      <form
+        method="post"
+        action={`/admin/events/${event.id}#recap`}
+        enctype="multipart/form-data"
+        data-warn-unsaved
+        data-recap-form
+        class="grid gap-6"
+      >
         <input type="hidden" name="action" value="recap" />
         <fieldset class="grid gap-4">
           <legend class="font-semibold text-navy">Photos</legend>
@@ -1013,7 +1064,7 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
                   <div class="grid min-w-0 content-start gap-2">
                     <input type="hidden" name="photoKey" value={p.key} />
                     <label class="text-sm">
-                      <span class="sr-only">Photo {i + 1}: </span>Alt text or caption
+                      <span class="sr-only">Photo {i + 1}: </span>Caption
                       <input
                         name="photoAlt"
                         value={p.alt ?? ''}
@@ -1050,7 +1101,7 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
             multiple
             accept="image/png,image/jpeg,image/webp"
             error={recapErrors.recapPhotos}
-            hint={`Select several at once (up to ${MAX_FILES_PER_UPLOAD} per save, 5 MB each). Use the arrows to reorder; alt text is optional but helps people using screen readers.`}
+            hint={`Select several at once (up to ${MAX_FILES_PER_UPLOAD} per save, 5 MB each, ${MB(MAX_RECAP_UPLOAD_BYTES)} in all with the slides). Use the arrows to reorder. A caption is optional: it shows under the full-size photo and is read to people using screen readers.`}
           />
         </fieldset>
 
@@ -1163,6 +1214,23 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
     </div>
   )}
 </AdminLayout>
+
+<script define:vars={{ maxBytes: MAX_RECAP_UPLOAD_BYTES }}>
+  // Recap uploads: refuse a selection too large for one save before sending it.
+  const recapForm = document.querySelector('form[data-recap-form]');
+  if (recapForm) {
+    const inputs = [...recapForm.querySelectorAll('input[type=file]')];
+    const checkTotal = () => {
+      const total = inputs.flatMap((i) => [...(i.files ?? [])]).reduce((n, f) => n + f.size, 0);
+      const msg =
+        total > maxBytes
+          ? `These files add up to ${Math.round(total / 1048576)} MB. Upload at most ${Math.round(maxBytes / 1048576)} MB of photos and slides per save.`
+          : '';
+      inputs.forEach((i) => i.setCustomValidity(msg));
+    };
+    inputs.forEach((i) => i.addEventListener('change', checkTotal));
+  }
+</script>
 
 <script>
   // Recap photos: the arrows move a photo; the order of the hidden fields is the saved order.

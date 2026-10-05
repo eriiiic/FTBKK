@@ -97,8 +97,10 @@ if (isPost) {
   }
 }
 // Recap of a past event: photos, slides, video and the blog write-up.
-const recap = !upcoming && hasRecap(event.recap) ? event.recap : null;
-const writeUp = recap?.postId ? await publishedPostById(recap.postId) : null;
+const writeUp =
+  !upcoming && event.recap?.postId ? await publishedPostById(event.recap.postId) : null;
+// A write-up unpublished since doesn't count, so the section never shows empty.
+const recap = !upcoming && hasRecap(event.recap, (id) => writeUp?.id === id) ? event.recap : null;
 const embed = videoEmbed(recap?.videoUrl);
 const photoAlt = (alt: string | undefined, i: number) =>
   alt || `Photo ${i + 1} of ${recap?.photos.length} from ${event.title}`;
@@ -361,6 +363,7 @@ const jsonLd = {
                       href={mediaUrl(p.key)}
                       class="block overflow-hidden rounded-lg bg-paper"
                       data-index={i}
+                      data-caption={p.alt || undefined}
                     >
                       <img
                         src={mediaUrl(p.key)}
@@ -485,7 +488,9 @@ const jsonLd = {
       const thumb = links[current]!.querySelector('img')!;
       img.src = links[current]!.href;
       img.alt = thumb.alt;
-      caption.textContent = `${current + 1} / ${links.length}`;
+      // The admin's own text doubles as a caption; the generic fallback alt isn't shown.
+      const own = links[current]!.dataset.caption;
+      caption.textContent = `${own ? `${own} · ` : ''}${current + 1} / ${links.length}`;
     };
     gallery.addEventListener('click', (e) => {
       const a = (e.target as Element | null)?.closest<HTMLAnchorElement>('a[data-index]');

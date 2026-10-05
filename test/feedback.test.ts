@@ -31,9 +31,13 @@ describe('feedbackDue', () => {
     expect(feedbackDue(ev('2026-11-03T18:00:00Z'), now)).toBe(true);
   });
 
-  it('is not due the day of, two days after, or before the event', () => {
+  it('is still due two days after, so a failed run is retried the next morning', () => {
+    expect(feedbackDue(ev('2026-11-03T11:30:00Z', '2026-11-03T14:00:00Z'), now)).toBe(true);
+  });
+
+  it('is not due the day of, three days after, or before the event', () => {
     expect(feedbackDue(ev('2026-11-05T01:00:00Z'), now)).toBe(false); // this morning
-    expect(feedbackDue(ev('2026-11-03T11:30:00Z', '2026-11-03T14:00:00Z'), now)).toBe(false);
+    expect(feedbackDue(ev('2026-11-02T11:30:00Z', '2026-11-02T14:00:00Z'), now)).toBe(false);
     expect(feedbackDue(ev('2026-11-05T11:30:00Z'), now)).toBe(false);
   });
 
