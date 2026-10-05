@@ -97,6 +97,11 @@ uses any more.
   adds someone who never registered. **Delete this contact** removes them and all their
   registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
+- **Guests registered on Wix** are imported from the Wix guest list export with
+  `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
+  exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests
+  get no email; they show up in Registrations and Contacts like everyone else, with the date they
+  registered on Wix.
 - Cancelling an event emails everyone registered or on the waitlist.
 - **Email registrants** (on an event's page, or the button in Registrations) sends your own
   message to the people of one event: a venue change, the slides after the talk, a last-minute
