@@ -82,6 +82,11 @@ export function bangkokTimestamp(v: string): number | null {
 }
 
 const clean = (v: string | undefined) => v?.replace(/\s+/g, ' ').trim() || null;
+/** Placeholder answers people type to get past a required question ("-", "NA", "nope"). */
+const answer = (v: string | undefined) => {
+  const s = clean(v);
+  return s && !/^['"]?(-+|\.+|n\/?a|none|no|nope|nothing|ok|not yet)['".!]*$/i.test(s) ? s : null;
+};
 
 export function parseWixGuests(text: string): WixGuest[] {
   const [header, ...rows] = parseDelimited(text);
@@ -116,10 +121,10 @@ export function parseWixGuests(text: string): WixGuest[] {
     const guest: WixGuest = {
       name: tidyName(name) || email,
       email,
-      company: clean(get(idx.company)),
-      role: clean(get(idx.role)) ?? clean(get(idx.profile)),
+      company: answer(get(idx.company)),
+      role: answer(get(idx.role)) ?? answer(get(idx.profile)),
       linkedin: linkedinUrl(get(idx.linkedin) ?? ''),
-      notes: [clean(get(idx.notes)), clean(get(idx.comment))].filter(Boolean).join('\n') || null,
+      notes: [answer(get(idx.notes)), answer(get(idx.comment))].filter(Boolean).join('\n') || null,
       checkedIn: /^(yes|true|1|checked in)$/i.test(get(idx.checkedIn)?.trim() ?? ''),
       orderedAt: bangkokTimestamp(get(idx.date) ?? '') ?? Math.floor(Date.now() / 1000),
     };

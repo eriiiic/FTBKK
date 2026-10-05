@@ -131,6 +131,14 @@ describe('parseWixGuests on an RSVP export', () => {
   });
 });
 
+it('drops placeholder answers', () => {
+  const text = [
+    HEADER.join('\t'),
+    "C1\t2026-07-31 15:56:09\tSylvain\tLyoen\ts@x.com\tC11P\tFree\tNo\tNA\tf.COO\t'-\tNope",
+  ].join('\n');
+  expect(parseWixGuests(text)[0]).toMatchObject({ company: null, role: 'f.COO', notes: null });
+});
+
 describe('helpers', () => {
   it('reads Wix order dates as Bangkok time', () => {
     expect(bangkokTimestamp('2026-10-01 07:35:34')).toBe(Date.parse('2026-10-01T00:35:34Z') / 1000);
