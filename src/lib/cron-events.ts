@@ -5,6 +5,8 @@ import { events } from '../db/schema';
 import { DAY_MS } from './lifecycle';
 import { TZ } from './format';
 import { sendReminders } from './registrations';
+import { sendEmailBatch } from './email';
+import { feedbackEmail } from './feedback';
 
 /** Bangkok calendar date (YYYY-MM-DD) of an instant. */
 export function bangkokDay(d: Date) {
@@ -40,6 +42,73 @@ export async function sendEventReminders(now: Date) {
   return { reminders: sent };
 }
 
+/**
+ * Whether the day-after feedback email is due for an event this morning: published (not draft or
+ * cancelled) and it ended (or, without an end time, started) on the previous Bangkok calendar day,
+ * or the day before that, so a run that failed (Resend down, cron missed) is retried the next
+ * morning. The per-registration marker keeps it to one email per person.
+ */
+export function feedbackDue(
+  e: { status: string; startsAt: Date; endsAt: Date | null },
+  now: Date,
+): boolean {
+  if (e.status !== 'published') return false;
+  const end = e.endsAt ?? e.startsAt;
+  if (end > now) return false;
+  const day = bangkokDay(end);
+  return (
+    day === bangkokDay(new Date(now.getTime() - DAY_MS)) ||
+    day === bangkokDay(new Date(now.getTime() - 2 * DAY_MS))
+  );
+}
+
+/**
+ * Day-after feedback email (one-click 1 to 5 rating) to the people who came: those checked in, or,
+ * when check-in wasn't used for the event, everyone still registered. Once per registration.
+ */
+export async function sendFeedbackRequests(now: Date) {
+  const recent = await getDb()
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.status, 'published'),
+        gte(events.startsAt, new Date(now.getTime() - 30 * DAY_MS)),
+        lt(events.startsAt, now),
+      ),
+    );
+  let sent = 0;
+  for (const e of recent.filter((e) => feedbackDue(e, now))) {
+    // Mark first so a crash mid-way never sends twice. Check-in counts as used only when someone
+    // pre-registered was checked in: walk-ins are added as 'attended' without any scan.
+    const { results } = await env.DB.prepare(
+      `UPDATE registrations SET feedback_sent_at = unixepoch()
+       WHERE event_id = ?1 AND email IS NOT NULL AND feedback_sent_at IS NULL
+         AND (status = 'attended' OR (status = 'registered' AND NOT EXISTS (
+           SELECT 1 FROM registrations
+           WHERE event_id = ?1 AND status = 'attended' AND walk_in = 0)))
+       RETURNING name, email, token`,
+    )
+      .bind(e.id)
+      .all<{ name: string; email: string; token: string }>();
+    const res = await sendEmailBatch(results.map((r) => feedbackEmail(e, r)));
+    if (!res.ok) {
+      // Unmark the people the batch didn't reach so tomorrow's run retries them.
+      const unsent = results.slice(res.sent).map((r) => r.token);
+      console.error(`[cron] feedback for event ${e.id}: ${unsent.length} not sent, will retry`);
+      for (const token of unsent) {
+        await env.DB.prepare(
+          'UPDATE registrations SET feedback_sent_at = NULL WHERE event_id = ? AND token = ?',
+        )
+          .bind(e.id, token)
+          .run();
+      }
+    }
+    sent += res.sent;
+  }
+  return { feedback: sent };
+}
+
 const BACKUP_TABLES = [
   'events',
   'registrations',
@@ -57,6 +126,10 @@ const BACKUP_TABLES = [
   'submissions',
   'blocked_senders',
   'message_notes',
+  'event_emails',
+  'event_feedback',
+  'event_speakers',
+  'event_sponsors',
 ];
 const KEEP_BACKUPS = 12;
 

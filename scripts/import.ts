@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { slugify } from '../src/lib/format';
 import { plainText } from '../src/lib/markdown';
+import { DEFAULT_CODE_OF_CONDUCT } from '../src/lib/code-of-conduct';
 import { mapWixCategory, sectorsFor } from './lib/wix-categories';
 import {
   cleanWixMarkdown,
@@ -105,6 +106,7 @@ if (pages && !Array.isArray(pages.data)) {
     aboutIntro: about.intro,
     communityText: about.community ?? '',
     joinPaths: about.join,
+    codeOfConduct: DEFAULT_CODE_OF_CONDUCT,
   };
   const verb = args.has('--force-settings') ? 'INSERT OR REPLACE' : 'INSERT OR IGNORE';
   for (const [k, v] of Object.entries(values)) {

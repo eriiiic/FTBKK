@@ -11,12 +11,20 @@ export interface EmailAttachment {
 export interface EmailMessage {
   to: string | string[];
   subject: string;
-  /** Short paragraphs (plain text, no HTML). */
+  /** Short paragraphs (plain text, no HTML; a line break shows as one). */
   paragraphs: string[];
+  /** A row of one-click choices, such as a 1 to 5 rating, shown before the button. */
+  choices?: {
+    question: string;
+    options: { label: string; url: string; title?: string }[];
+    hint?: string;
+  };
   /** Optional call-to-action button. */
   action?: { label: string; url: string };
   /** Extra rows rendered as "Label: value" (event date, venue…). */
   details?: [string, string][];
+  /** A row of logos (hosts, sponsors) under the details: absolute image URLs, alt = name. */
+  logos?: { src: string; alt: string; url?: string }[];
   /** Optional secondary links under the button. */
   links?: { label: string; url: string }[];
   footer?: string;
@@ -45,6 +53,27 @@ export function renderEmail(m: EmailMessage) {
         )
         .join('')}</table>`
     : '';
+  const logos = m.logos?.length
+    ? `<p style="margin:0 0 16px">${m.logos
+        .map((l) => {
+          const img = `<img src="${esc(l.src)}" alt="${esc(l.alt)}" height="40" style="height:40px;width:auto;max-width:140px;vertical-align:middle;border:0;margin:0 16px 8px 0">`;
+          return l.url ? `<a href="${esc(l.url)}">${img}</a>` : img;
+        })
+        .join('')}</p>`
+    : '';
+  const choices = m.choices
+    ? `<p style="margin:20px 0 8px;font-weight:600;color:${navy}">${esc(m.choices.question)}</p>
+<table role="presentation" style="border-collapse:separate;border-spacing:0 0"><tr>${m.choices.options
+        .map(
+          (o) =>
+            `<td style="padding:0 8px 0 0"><a href="${esc(o.url)}"${o.title ? ` title="${esc(o.title)}"` : ''} style="display:inline-block;width:44px;height:44px;line-height:44px;text-align:center;border:2px solid ${navy};border-radius:10px;color:${navy};font-weight:700;font-size:18px;text-decoration:none">${esc(o.label)}</a></td>`,
+        )
+        .join('')}</tr></table>${
+        m.choices.hint
+          ? `<p style="margin:8px 0 0;font-size:13px;color:#5c5a73">${esc(m.choices.hint)}</p>`
+          : ''
+      }`
+    : '';
   const button = m.action
     ? `<p style="margin:24px 0"><a href="${esc(m.action.url)}" style="background:${brand};color:#fff;text-decoration:none;padding:12px 24px;border-radius:999px;font-weight:600;display:inline-block">${esc(m.action.label)}</a></p>`
     : '';
@@ -66,8 +95,8 @@ export function renderEmail(m: EmailMessage) {
 <table role="presentation" width="560" style="max-width:560px;width:100%;background:#fff;border-radius:16px;overflow:hidden">
 <tr><td style="background:${navy};padding:20px 28px;color:#fff;font-weight:700;font-size:18px">La French Tech Bangkok</td></tr>
 <tr><td style="padding:28px;color:#1a1530;font-size:16px;line-height:1.6">
-${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p)}</p>`).join('')}
-${details}${ticket}${button}${links}
+${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}
+${details}${logos}${ticket}${choices}${button}${links}
 </td></tr>
 <tr><td style="padding:16px 28px;background:#f5f5f5;color:#5c5a73;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>
 </table></td></tr></table></body></html>`;
@@ -76,6 +105,14 @@ ${details}${ticket}${button}${links}
     ...(m.details ?? []).map(([k, v]) => `${k}: ${v}`),
     ...(m.ticket
       ? [`Your ticket: ${m.ticket.code} (show it at the entrance): ${m.ticket.url}`]
+      : []),
+    ...(m.choices
+      ? [
+          [
+            `${m.choices.question}${m.choices.hint ? ` (${m.choices.hint})` : ''}:`,
+            ...m.choices.options.map((o) => `${o.title ?? o.label}: ${o.url}`),
+          ].join('\n'),
+        ]
       : []),
     ...(m.action ? [`${m.action.label}: ${m.action.url}`] : []),
     ...(m.links ?? []).map((l) => `${l.label}: ${l.url}`),

@@ -22,6 +22,26 @@ const json = <T>(name: string) => text(name, { mode: 'json' }).$type<T>();
 
 // ---------- events ----------
 
+/** A recap photo: an R2 key, with optional alt text / caption. */
+export interface RecapPhoto {
+  key: string;
+  alt?: string;
+}
+/** Slides after the talk: an uploaded PDF (key) or a link elsewhere (url). */
+export interface RecapSlide {
+  label: string;
+  key?: string;
+  url?: string;
+}
+/** What happened at a past event, shown on its page. */
+export interface EventRecap {
+  photos: RecapPhoto[];
+  slides: RecapSlide[];
+  videoUrl?: string | null;
+  /** The blog write-up. */
+  postId?: number | null;
+}
+
 export const events = sqliteTable(
   'events',
   {
@@ -51,6 +71,8 @@ export const events = sqliteTable(
     status: text('status', { enum: ['draft', 'published', 'cancelled'] })
       .notNull()
       .default('draft'),
+    /** Photos, slides, video and blog write-up of a past event; null = no recap yet. */
+    recap: json<EventRecap>('recap'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -80,11 +102,54 @@ export const registrations = sqliteTable(
     createdAt: createdAt(),
     checkedInAt: ts('checked_in_at'),
     reminderSentAt: ts('reminder_sent_at'),
+    /** When the day-after feedback email went out (src/lib/cron-events.ts). */
+    feedbackSentAt: ts('feedback_sent_at'),
   },
   (t) => [
     uniqueIndex('registrations_event_email').on(t.eventId, t.email),
     index('registrations_event_status').on(t.eventId, t.status),
   ],
+);
+
+/** Day-after feedback: one rating (1 to 5) and an optional comment per registration. */
+export const eventFeedback = sqliteTable(
+  'event_feedback',
+  {
+    id: id(),
+    registrationId: integer('registration_id')
+      .notNull()
+      .unique()
+      .references(() => registrations.id, { onDelete: 'cascade' }),
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    rating: integer('rating').notNull(),
+    comment: text('comment'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('event_feedback_event').on(t.eventId)],
+);
+
+/** Messages an admin sent to an event's registrants from /admin/events/[id]/email. */
+export const eventEmails = sqliteTable(
+  'event_emails',
+  {
+    id: id(),
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    audience: text('audience', { enum: ['registered', 'attended', 'waitlist', 'all'] }).notNull(),
+    subject: text('subject').notNull(),
+    body: text('body').notNull(),
+    actionLabel: text('action_label'),
+    actionUrl: text('action_url'),
+    /** How many emails went out. */
+    recipients: integer('recipients').notNull(),
+    sentBy: text('sent_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('event_emails_event').on(t.eventId)],
 );
 
 /**
@@ -335,11 +400,58 @@ export const people = sqliteTable('people', {
     onDelete: 'set null',
   }),
   organisationName: text('organisation_name'),
-  group: text('group', { enum: ['board', 'institutional'] }).notNull(),
+  /** 'speaker' is someone who only spoke at events; board and institutional people can speak too. */
+  group: text('group', { enum: ['board', 'institutional', 'speaker'] }).notNull(),
   linkedin: text('linkedin'),
   photoKey: text('photo_key'),
   sortOrder: integer('sort_order').notNull().default(0),
 });
+
+/** Who spoke at an event, in the order shown on its page. */
+export const eventSpeakers = sqliteTable(
+  'event_speakers',
+  {
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    personId: integer('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+    talkTitle: text('talk_title'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.personId] }),
+    index('event_speakers_person').on(t.personId),
+  ],
+);
+
+/**
+ * Who hosts, sponsors or partners an event, in the order shown on its page. Linked to an
+ * organisation of the ecosystem directory (its name, logo and website are used while it exists)
+ * or entered by hand. `name` is kept as a fallback when the organisation is deleted.
+ */
+export const eventSponsors = sqliteTable(
+  'event_sponsors',
+  {
+    id: id(),
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ['host', 'sponsor', 'partner'] }).notNull(),
+    organisationId: integer('organisation_id').references(() => organisations.id, {
+      onDelete: 'set null',
+    }),
+    name: text('name').notNull(),
+    logoKey: text('logo_key'),
+    url: text('url'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [
+    index('event_sponsors_event').on(t.eventId),
+    index('event_sponsors_org').on(t.organisationId),
+  ],
+);
 
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -388,9 +500,13 @@ export const blockedSenders = sqliteTable('blocked_senders', {
 
 export type Event = typeof events.$inferSelect;
 export type Registration = typeof registrations.$inferSelect;
+export type EventEmail = typeof eventEmails.$inferSelect;
+export type EventFeedback = typeof eventFeedback.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
 export type Person = typeof people.$inferSelect;
+export type EventSpeaker = typeof eventSpeakers.$inferSelect;
+export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;

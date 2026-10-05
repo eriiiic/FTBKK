@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getSettings } from '../lib/settings';
+import { renderMarkdown } from '../lib/markdown';
+import { fillCodeOfConduct } from '../lib/code-of-conduct';
+
+const settings = await getSettings();
+const html = renderMarkdown(fillCodeOfConduct(settings.codeOfConduct, settings.contactEmail));
+---
+
+<BaseLayout
+  title="Code of conduct"
+  description="How we expect everyone to behave at La French Tech Bangkok events, in our online groups and on this website, and how to report a problem."
+>
+  <section class="bg-navy text-paper">
+    <div class="container-page py-14 md:py-20">
+      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">
+        Events and community
+      </p>
+      <h1 class="text-4xl text-paper uppercase md:text-5xl">Code of conduct</h1>
+    </div>
+  </section>
+  <section class="container-page py-12 md:py-16">
+    <div class="prose max-w-3xl break-words prose-headings:font-display" set:html={html} />
+  </section>
+</BaseLayout>

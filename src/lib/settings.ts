@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { DEFAULT_CODE_OF_CONDUCT } from './code-of-conduct';
 
 /** Site-wide settings, editable in /admin/settings. Stored as key/JSON rows in the settings table. */
 export interface Settings {
@@ -24,6 +25,8 @@ export interface Settings {
   communityText: string;
   /** "You can join us" cards on the home and About pages; link is optional. */
   joinPaths: { title: string; text: string; link?: string }[];
+  /** /code-of-conduct page (Markdown); {contactEmail} is replaced by the contact email. */
+  codeOfConduct: string;
   membershipOpen: boolean;
   memberPriority: boolean;
   analyticsToken: string;
@@ -45,6 +48,7 @@ export const defaultSettings: Settings = {
   aboutIntro: '',
   communityText: '',
   joinPaths: [],
+  codeOfConduct: DEFAULT_CODE_OF_CONDUCT,
   membershipOpen: false,
   memberPriority: false,
   analyticsToken: '',

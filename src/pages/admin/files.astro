@@ -10,8 +10,9 @@ import { storeUpload } from '../../lib/uploads';
 import { audit } from '../../lib/orgs';
 import { formatDate, mediaUrl } from '../../lib/format';
 
-// Every PDF or document uploaded to the site: post attachments (files/), and the files the Wix
-// import brought over (posts/files/). Shows where each one is used; unused ones can be deleted.
+// Every PDF or document uploaded to the site: post attachments and event recap slides (files/),
+// and the files the Wix import brought over (posts/files/).
+// Shows where each one is used; unused ones can be deleted.
 const PREFIXES = ['files/', 'posts/files/'];
 const actor = Astro.locals.adminEmail ?? 'admin';
 const db = getDb();
@@ -25,7 +26,9 @@ const [postRows, eventRows] = await Promise.all([
       attachments: posts.attachments,
     })
     .from(posts),
-  db.select({ id: events.id, title: events.title, bodyMd: events.bodyMd }).from(events),
+  db
+    .select({ id: events.id, title: events.title, bodyMd: events.bodyMd, recap: events.recap })
+    .from(events),
 ]);
 /** Posts and events that attach or link to a file. */
 const usage = (key: string) => {
@@ -36,7 +39,7 @@ const usage = (key: string) => {
       .filter((p) => p.attachments.some((a) => a.key === key) || inText(p.bodyMd))
       .map((p) => ({ label: p.title, href: `/admin/posts/${p.id}` })),
     ...eventRows
-      .filter((e) => inText(e.bodyMd))
+      .filter((e) => inText(e.bodyMd) || !!e.recap?.slides.some((s) => s.key === key))
       .map((e) => ({ label: e.title, href: `/admin/events/${e.id}` })),
   ];
 };

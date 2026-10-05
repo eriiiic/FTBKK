@@ -8,7 +8,8 @@ import Button from '../components/Button.astro';
 import Alert from '../components/Alert.astro';
 import Turnstile from '../components/Turnstile.astro';
 import { getSettings } from '../lib/settings';
-import { peopleByGroup } from '../lib/queries';
+import { hostedSpeakers, peopleByGroup } from '../lib/queries';
+import { HOSTED_SPEAKERS_LIMIT } from '../lib/speakers';
 import JoinUs from '../components/JoinUs.astro';
 import { renderMarkdown } from '../lib/markdown';
 import { clientIp, email, fieldErrors, formToObject, optionalText } from '../lib/forms';
@@ -20,10 +21,16 @@ import { messageNotes, submissions } from '../db/schema';
 import { blockedBy } from '../lib/messages';
 
 const settings = await getSettings();
-const [board, institutional] = await Promise.all([
+const [board, institutional, speakers] = await Promise.all([
   peopleByGroup('board'),
   peopleByGroup('institutional'),
+  hostedSpeakers(HOSTED_SPEAKERS_LIMIT),
 ]);
+// Sections after "Join us" alternate backgrounds, whichever of them have content.
+const shown = [board.length > 0, speakers.length > 0, institutional.length > 0, true];
+let n = 0;
+const tones = shown.map((on) => (on && n++ % 2 === 1 ? 'surface' : 'paper') as 'paper' | 'surface');
+const [boardTone, speakersTone, institutionalTone, contactTone] = tones;
 const intro = renderMarkdown(settings.aboutIntro, { breaks: true });
 const community = renderMarkdown(settings.communityText, { breaks: true });
 
@@ -136,7 +143,7 @@ if (isPost) {
   <JoinUs id="join" paths={settings.joinPaths} />
 
   {board.length > 0 && (
-    <Section tone="paper" title="Meet the board">
+    <Section tone={boardTone} title="Meet the board">
       <div class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
         {board.map((p) => (
           <PersonCard person={{ ...p, organisation: p.organisationName }} />
@@ -145,8 +152,29 @@ if (isPost) {
     </Section>
   )}
 
+  {speakers.length > 0 && (
+    <Section
+      tone={speakersTone}
+      title="Speakers we've hosted"
+      intro="Founders, investors and experts who shared what they know at our events."
+    >
+      <ul class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+        {speakers.map((p) => (
+          <li>
+            <PersonCard person={{ ...p, organisation: p.organisationName }}>
+              <a href={`/events/${p.eventSlug}`} class="mt-2 text-sm text-accent underline">
+                <span class="sr-only">Spoke at </span>
+                {p.eventTitle}
+              </a>
+            </PersonCard>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  )}
+
   {institutional.length > 0 && (
-    <Section tone="surface" title="Our institutional partners">
+    <Section tone={institutionalTone} title="Our institutional partners">
       <div class="grid grid-cols-2 gap-8 md:grid-cols-3">
         {institutional.map((p) => (
           <PersonCard person={{ ...p, organisation: p.organisationName }} />
@@ -155,7 +183,12 @@ if (isPost) {
     </Section>
   )}
 
-  <Section id="contact" title="Contact us" intro={`Or write to ${settings.contactEmail}.`}>
+  <Section
+    id="contact"
+    tone={contactTone}
+    title="Contact us"
+    intro={`Or write to ${settings.contactEmail}.`}
+  >
     <div class="max-w-2xl">
       {sent ? (
         <Alert tone="success">Thanks, your message was sent. We'll get back to you soon.</Alert>

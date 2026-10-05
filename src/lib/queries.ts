@@ -2,6 +2,8 @@ import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import {
   categories,
+  eventSpeakers,
+  eventSponsors,
   events,
   organisations,
   people,
@@ -9,6 +11,7 @@ import {
   posts,
   type PostAuthor,
 } from '../db/schema';
+import { type SponsorWithOrg } from './sponsors';
 
 const nowDate = () => new Date();
 
@@ -90,6 +93,25 @@ export async function postBySlug(slug: string) {
     .where(and(eq(posts.slug, slug), publishedPost()))
     .limit(1);
   return p ?? null;
+}
+
+export async function publishedPostById(id: number) {
+  const [p] = await getDb()
+    .select()
+    .from(posts)
+    .where(and(eq(posts.id, id), publishedPost()))
+    .limit(1);
+  return p ?? null;
+}
+
+/** The ids among `ids` of posts that are published (for recaps that link a write-up). */
+export async function publishedPostIds(ids: number[]) {
+  if (!ids.length) return new Set<number>();
+  const rows = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(inArray(posts.id, ids), publishedPost()));
+  return new Set(rows.map((r) => r.id));
 }
 
 export async function categoriesWithCounts() {
@@ -184,12 +206,85 @@ export async function featuredOrganisations(limit = 6) {
 
 // ---------- people ----------
 
-export async function peopleByGroup(group: 'board' | 'institutional') {
+export async function peopleByGroup(group: 'board' | 'institutional' | 'speaker') {
   return getDb()
     .select()
     .from(people)
     .where(eq(people.group, group))
     .orderBy(asc(people.sortOrder), asc(people.name));
+}
+
+/** An event's speakers, in the order set in the admin. */
+export async function speakersForEvent(eventId: number) {
+  return getDb()
+    .select({
+      id: people.id,
+      name: people.name,
+      title: people.title,
+      organisationName: people.organisationName,
+      linkedin: people.linkedin,
+      photoKey: people.photoKey,
+      group: people.group,
+      talkTitle: eventSpeakers.talkTitle,
+    })
+    .from(eventSpeakers)
+    .innerJoin(people, eq(people.id, eventSpeakers.personId))
+    .where(eq(eventSpeakers.eventId, eventId))
+    .orderBy(asc(eventSpeakers.sortOrder), asc(people.name));
+}
+
+/** Hosts, sponsors and partners of an event, in page order, with their linked organisation. */
+export async function sponsorsForEvent(eventId: number): Promise<SponsorWithOrg[]> {
+  return getDb()
+    .select({
+      id: eventSponsors.id,
+      role: eventSponsors.role,
+      organisationId: eventSponsors.organisationId,
+      name: eventSponsors.name,
+      logoKey: eventSponsors.logoKey,
+      url: eventSponsors.url,
+      orgName: organisations.name,
+      orgSlug: organisations.slug,
+      orgLogoKey: organisations.logoKey,
+      orgWebsite: organisations.website,
+      orgStatus: organisations.status,
+    })
+    .from(eventSponsors)
+    .leftJoin(organisations, eq(organisations.id, eventSponsors.organisationId))
+    .where(eq(eventSponsors.eventId, eventId))
+    .orderBy(asc(eventSponsors.sortOrder), asc(eventSponsors.id));
+}
+
+/**
+ * People who spoke at past published events, each once, most recent talk first, with the event
+ * of that talk ("Speakers we've hosted" on About).
+ */
+export async function hostedSpeakers(limit: number) {
+  const now = Math.floor(Date.now() / 1000);
+  const rows = await getDb()
+    .select({
+      id: people.id,
+      name: people.name,
+      title: people.title,
+      organisationName: people.organisationName,
+      linkedin: people.linkedin,
+      photoKey: people.photoKey,
+      eventTitle: events.title,
+      eventSlug: events.slug,
+      startsAt: events.startsAt,
+    })
+    .from(eventSpeakers)
+    .innerJoin(people, eq(people.id, eventSpeakers.personId))
+    .innerJoin(events, eq(events.id, eventSpeakers.eventId))
+    .where(
+      and(
+        eq(events.status, 'published'),
+        lt(sql`coalesce(${events.endsAt}, ${events.startsAt})`, now),
+      ),
+    )
+    .orderBy(desc(events.startsAt), asc(eventSpeakers.sortOrder));
+  const seen = new Set<number>();
+  return rows.filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, limit);
 }
 
 /** Post authors matched with the board or institutional people of the same name (photo, LinkedIn). */

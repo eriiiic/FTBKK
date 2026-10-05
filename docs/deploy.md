@@ -31,6 +31,18 @@ first deploy creates the `ftbkk` D1 database automatically (the R2 bucket comes 
 Other branches upload a preview version with its own URL (shown on the PR check). Previews share
 the production database, and migrations only run from `main`.
 
+A branch that adds migrations (new tables or columns) therefore fails on its preview URL with
+errors such as `no such column`, and right after the merge production serves the new code for a
+few seconds before the migrations finish. When the new migrations only add tables and columns
+(the old code ignores them), apply them before merging, from your computer on the branch:
+
+```sh
+npm run db:migrate:remote   # applies the branch's pending migrations to the production D1
+```
+
+The preview then works, and the merge deploy finds nothing left to apply. Don't do this for a
+migration that drops or renames something the code on `main` still uses.
+
 ## 3. Load the content
 
 On your computer, once: `npx wrangler login`. Then:

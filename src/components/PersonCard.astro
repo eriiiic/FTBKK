@@ -34,6 +34,7 @@ const photo = mediaUrl(person.photoKey);
   <h3 class="mt-4 text-base">{person.name}</h3>
   {person.title && <p class="text-sm text-muted">{person.title}</p>}
   {person.organisation && <p class="text-sm font-semibold text-ink">{person.organisation}</p>}
+  <slot />
   {person.linkedin && (
     <a href={person.linkedin} class="mt-2 text-accent hover:text-navy" rel="noopener">
       <Icon name="linkedin" class="size-5" label={`${person.name} on LinkedIn`} />
