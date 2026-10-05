@@ -18,6 +18,7 @@
     "capture": "tsx migration/capture.ts",
     "deploy:ci": "wrangler deploy && wrangler d1 migrations apply ftbkk --remote",
     "import": "tsx scripts/import.ts",
+    "import:guests": "tsx scripts/import-guests.ts",
     "check:redirects": "tsx scripts/check-redirects.ts"
   },
   "dependencies": {

@@ -67,6 +67,11 @@ uses any more.
   tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
   rows) and **Delete** (asks first; removes those contacts and their registrations, and freed
   seats on upcoming events go to the waitlist).
+- **Guests registered on Wix** are imported from the Wix guest list export with
+  `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
+  exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests
+  get no email; they show up in Registrations and Contacts like everyone else, with the date they
+  registered on Wix.
 - Cancelling an event emails everyone registered or on the waitlist.
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.
