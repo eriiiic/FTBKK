@@ -5,6 +5,7 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import ContactForm from '../../../components/admin/ContactForm.astro';
 import {
+  CONTACT_TAGS,
   ContactSchema,
   contactExists,
   deleteContacts,
@@ -33,7 +34,7 @@ if (Astro.request.method === 'POST') {
     await deleteContacts([key], actor, now);
     return Astro.redirect('/admin/contacts?saved=deleted');
   }
-  values = formToObject(form);
+  values = formToObject(form, ['tags']);
   const parsed = ContactSchema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else {
@@ -123,6 +124,13 @@ const stats = [
             </div>
           ))}
         </dl>
+        {c.tags.length > 0 && (
+          <p class="mt-3 flex flex-wrap gap-1" aria-label="Tags">
+            {c.tags.map((t) => (
+              <Badge tone="brand">{CONTACT_TAGS[t]}</Badge>
+            ))}
+          </p>
+        )}
         {c.notes && (
           <div class="mt-3 rounded-lg bg-surface p-3 text-sm whitespace-pre-line">{c.notes}</div>
         )}

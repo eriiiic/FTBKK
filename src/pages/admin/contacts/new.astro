@@ -12,7 +12,7 @@ let values: Record<string, unknown> = {};
 let existing = '';
 
 if (Astro.request.method === 'POST') {
-  values = formToObject(await Astro.request.formData());
+  values = formToObject(await Astro.request.formData(), ['tags']);
   const parsed = ContactSchema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else {

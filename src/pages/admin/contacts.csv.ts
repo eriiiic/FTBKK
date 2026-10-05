@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { filterContacts, loadContacts, type Contact } from '../../lib/contacts';
+import { CONTACT_TAGS, filterContacts, loadContacts, type Contact } from '../../lib/contacts';
 import { toDateInput } from '../../lib/admin';
 
 // Admin only (guarded in middleware). The Contacts list as a CSV, with the page's filters.
@@ -17,6 +17,7 @@ export const GET: APIRoute = async ({ url }) =>
       q: url.searchParams.get('q') ?? '',
       show: url.searchParams.get('show') ?? 'all',
       event: Number(url.searchParams.get('event')) || 0,
+      tag: url.searchParams.get('tag') ?? '',
     }),
   );
 
@@ -37,6 +38,7 @@ function csvResponse(contacts: Contact[]) {
     'Phone',
     'Company',
     'Role',
+    'Tags',
     'Attended',
     'Registered',
     'No-shows',
@@ -58,6 +60,7 @@ function csvResponse(contacts: Contact[]) {
       c.phone,
       c.company,
       c.role,
+      c.tags.map((t) => CONTACT_TAGS[t]).join('; '),
       c.attended,
       c.registrations,
       c.noShows,

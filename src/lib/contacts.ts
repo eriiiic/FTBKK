@@ -13,6 +13,27 @@ import { audit } from './orgs';
 // without an email by their name. A saved contact card (contacts table) overrides the details
 // taken from registrations and adds notes; it can also be someone who never registered.
 
+/** Tags the team puts on contacts by hand. The order here is the order they are shown in. */
+export const CONTACT_TAGS = {
+  speaker: 'Speaker',
+  sponsor: 'Sponsor',
+  volunteer: 'Volunteer',
+  board: 'Board',
+  press: 'Press',
+} as const;
+export type ContactTag = keyof typeof CONTACT_TAGS;
+const TAG_KEYS = Object.keys(CONTACT_TAGS) as ContactTag[];
+export const isContactTag = (t: unknown): t is ContactTag =>
+  typeof t === 'string' && Object.hasOwn(CONTACT_TAGS, t);
+
+/** Known tags only, without duplicates, in CONTACT_TAGS order (whatever is stored in D1). */
+export const normalizeTags = (tags: readonly unknown[] | null | undefined): ContactTag[] =>
+  TAG_KEYS.filter((k) => (tags ?? []).includes(k));
+
+/** The tags after adding or removing one. */
+export const withTag = (tags: readonly unknown[], tag: ContactTag, add: boolean) =>
+  normalizeTags(add ? [...tags, tag] : tags.filter((t) => t !== tag));
+
 export interface ContactRegistration {
   name: string;
   email: string | null;
@@ -44,6 +65,7 @@ export interface SavedContact {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
+  tags?: string[] | null;
   createdAt: Date;
 }
 
@@ -58,6 +80,7 @@ export interface Contact {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
+  tags: ContactTag[];
   /** Registrations not cancelled (registered, waitlist or attended). */
   registrations: number;
   attended: number;
@@ -138,6 +161,7 @@ export function buildContacts(
         role: card ? card.role : pick('role'),
         linkedin: card?.linkedin ?? null,
         notes: card?.notes ?? null,
+        tags: normalizeTags(card?.tags),
         registrations: live.length,
         attended: attended.length,
         noShows: rs.filter(
@@ -211,7 +235,12 @@ export type ContactFilter = keyof typeof CONTACT_FILTERS;
 /** The list filters shared by the Contacts page and its CSV export. */
 export function filterContacts(
   list: Contact[],
-  { q = '', show = 'all', event = 0 }: { q?: string; show?: string; event?: number },
+  {
+    q = '',
+    show = 'all',
+    event = 0,
+    tag = '',
+  }: { q?: string; show?: string; event?: number; tag?: string },
 ) {
   const query = q.trim().toLowerCase();
   return list.filter((c) => {
@@ -224,6 +253,7 @@ export function filterContacts(
         .includes(query)
     )
       return false;
+    if (isContactTag(tag) && !c.tags.includes(tag)) return false;
     if (event && !c.history.some((r) => r.event.id === event && r.status !== 'cancelled'))
       return false;
     if (show === 'attended') return c.attended > 0;
@@ -244,6 +274,7 @@ export interface ContactInput {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
+  tags: ContactTag[];
 }
 
 /** The contact form, as posted from /admin/contacts. */
@@ -268,6 +299,11 @@ export const ContactSchema = z.object({
     .max(4000)
     .optional()
     .transform((s) => (s?.trim() ? s.replace(/\r\n/g, '\n').trim() : null)),
+  tags: z
+    .array(z.enum(TAG_KEYS as [ContactTag, ...ContactTag[]]))
+    .max(20)
+    .default([])
+    .transform(normalizeTags),
 });
 
 type Result = { key: string } | { error: string; key?: string };
@@ -330,8 +366,8 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
   if (email && (await cardTaken(email, card?.id))) {
     return { error: 'Another contact already has this email.', key: email };
   }
-  if (!email && (input.notes || input.linkedin) && key.startsWith('name:')) {
-    return { error: 'Add an email to save notes or LinkedIn for a walk-in.' };
+  if (!email && (input.notes || input.linkedin || input.tags.length) && key.startsWith('name:')) {
+    return { error: 'Add an email to save notes, tags or LinkedIn for a walk-in.' };
   }
   const now = new Date();
 
@@ -395,6 +431,52 @@ export async function createContact(input: ContactInput): Promise<Result> {
   }
   const [row] = await db.insert(contacts).values(input).returning({ id: contacts.id });
   return { key: savedKey({ id: row!.id, email: input.email }) };
+}
+
+/**
+ * Adds or removes a tag on several contacts, logging each change. Someone without a saved card
+ * gets one (with the details from their latest registration), as when editing them. Walk-ins
+ * without an email can't hold a card: they are skipped and counted.
+ */
+export async function tagContacts(
+  keys: string[],
+  tag: ContactTag,
+  add: boolean,
+  actor: string,
+  now = new Date(),
+) {
+  const db = getDb();
+  const wanted = new Set(keys);
+  let changed = 0;
+  let skipped = 0;
+  for (const c of await loadContacts(now)) {
+    if (!wanted.has(c.key)) continue;
+    if (c.key.startsWith('name:')) {
+      skipped++;
+      continue;
+    }
+    const tags = withTag(c.tags, tag, add);
+    if (tags.length === c.tags.length) continue; // already there, or already gone
+    if (c.savedId) {
+      await db.update(contacts).set({ tags, updatedAt: now }).where(eq(contacts.id, c.savedId));
+    } else {
+      const { name, email, phone, company, role } = c;
+      await db
+        .insert(contacts)
+        .values({ name, email, phone, company, role, tags })
+        .onConflictDoUpdate({ target: contacts.email, set: { tags, updatedAt: now } });
+    }
+    await audit(
+      actor,
+      add ? 'contact_tag_add' : 'contact_tag_remove',
+      'contact',
+      null,
+      { key: c.key, tags: c.tags },
+      { key: c.key, tags },
+    );
+    changed++;
+  }
+  return { changed, skipped };
 }
 
 /**

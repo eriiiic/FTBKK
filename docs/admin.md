@@ -87,19 +87,27 @@ uses any more.
   registered for and missed (registered for a past event where check-in was used, but not
   checked in), and the ecosystem listings their email manages or is the contact for. Filter by
   "came at least once", "came 2 times or more", "registered, never came", "linked to an
-  ecosystem listing" or by event, then **Export CSV** (the export keeps the filters). Click a
+  ecosystem listing", by tag or by event, then **Export CSV** (the export keeps the filters and has
+  a Tags column). Click a
   name to see their full event history. Details come from their latest registration.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
-  **Call** buttons, and **Edit** for name, email, phone, company, role, LinkedIn and team notes.
+  **Call** buttons, and **Edit** for name, email, phone, company, role, tags, LinkedIn and team
+  notes.
   Once edited, the saved details win over what the person types in later registrations. Changing
   the email moves their registrations to the new one; if that email already registered, the two
   merge. Adding an email to a walk-in groups their future registrations with it. **New contact**
   adds someone who never registered. **Delete this contact** removes them and all their
   registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
+- **Tags**: Speaker, Sponsor, Volunteer, Board and Press. You set them by hand (nothing is tagged
+  automatically) and only the admin team sees them. They show as small badges next to the name,
+  and the **Any tag** menu on the list shows only the people with one tag (it combines with the
+  other filters and the search). Tagging someone saves a contact card for them, as editing does.
+  A walk-in without an email can't be tagged until you add an email on their page.
 - **Bulk actions on Contacts**: tick the boxes in front of the names (or the box in the header to
   tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
-  rows) and **Delete** (asks first; removes those contacts and their registrations, and freed
+  rows), **Add tag** / **Remove tag** (choose the tag in the menu first; walk-ins without an email
+  are skipped, and the message says how many) and **Delete** (asks first; removes those contacts and their registrations, and freed
   seats on upcoming events go to the waitlist).
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already

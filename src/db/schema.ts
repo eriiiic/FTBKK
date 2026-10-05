@@ -166,6 +166,8 @@ export const contacts = sqliteTable('contacts', {
   role: text('role'),
   linkedin: text('linkedin'),
   notes: text('notes'),
+  /** Tag keys from CONTACT_TAGS in lib/contacts.ts (speaker, sponsor, volunteer, board, press). */
+  tags: json<string[]>('tags').notNull().default([]),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

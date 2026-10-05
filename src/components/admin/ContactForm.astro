@@ -1,6 +1,7 @@
 ---
 import FormField from '../FormField.astro';
 import Button from '../Button.astro';
+import { CONTACT_TAGS } from '../../lib/contacts';
 
 interface Props {
   values: Record<string, unknown>;
@@ -11,6 +12,7 @@ interface Props {
 }
 const { values, errors, submit, walkIn = false } = Astro.props;
 const v = (k: string) => (values[k] as string | null | undefined) ?? '';
+const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
 ---
 
 <form method="post" class="grid gap-4" data-warn-unsaved>
@@ -58,6 +60,29 @@ const v = (k: string) => (values[k] as string | null | undefined) ?? '';
       placeholder="https://www.linkedin.com/in/…"
     />
   </div>
+  <fieldset>
+    <legend class="text-sm font-semibold">Tags</legend>
+    <div class="mt-2 flex flex-wrap gap-2">
+      {Object.entries(CONTACT_TAGS).map(([k, label]) => (
+        <label class="cursor-pointer">
+          <input
+            type="checkbox"
+            name="tags"
+            value={k}
+            checked={tags.includes(k)}
+            class="peer sr-only"
+          />
+          <span class="inline-block rounded-full border border-line px-3 py-1 text-sm peer-checked:border-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+            {label}
+          </span>
+        </label>
+      ))}
+    </div>
+    <p class="mt-1 text-sm text-muted">
+      {walkIn ? 'Needs an email for a walk-in.' : 'Only the admin team sees these.'}
+    </p>
+    {errors.tags && <p class="mt-1 text-sm text-danger">{errors.tags}</p>}
+  </fieldset>
   <FormField
     name="notes"
     label="Notes"

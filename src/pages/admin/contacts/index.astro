@@ -2,12 +2,17 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
 import { z } from 'zod';
 import {
   CONTACT_FILTERS,
+  CONTACT_TAGS,
   deleteContacts,
   filterContacts,
+  isContactTag,
   loadContacts,
+  tagContacts,
+  type ContactTag,
 } from '../../../lib/contacts';
 import { formatDate } from '../../../lib/format';
 
@@ -15,25 +20,62 @@ const url = Astro.url;
 if (Astro.request.method === 'POST') {
   // Bulk actions on the selected rows (export goes to contacts.csv instead).
   const form = await Astro.request.formData();
+  const keys = z.array(z.string().min(1).max(320)).min(1).max(2000);
   const parsed = z
-    .object({
-      action: z.literal('delete'),
-      keys: z.array(z.string().min(1).max(320)).min(1).max(2000),
-    })
-    .safeParse({ action: form.get('action'), keys: form.getAll('c') });
-  if (parsed.success) {
-    await deleteContacts(parsed.data.keys, Astro.locals.adminEmail ?? 'admin');
-    const back = new URLSearchParams(url.search);
+    .discriminatedUnion('action', [
+      z.object({ action: z.literal('delete'), keys }),
+      z.object({
+        action: z.enum(['tag-add', 'tag-remove']),
+        keys,
+        tag: z.enum(Object.keys(CONTACT_TAGS) as [ContactTag, ...ContactTag[]]),
+      }),
+    ])
+    .safeParse({ action: form.get('action'), keys: form.getAll('c'), tag: form.get('tag') });
+  const back = new URLSearchParams(url.search);
+  for (const k of ['saved', 'tagged', 'n', 'skipped', 'which']) back.delete(k);
+  const actor = Astro.locals.adminEmail ?? 'admin';
+  if (parsed.success && parsed.data.action === 'delete') {
+    await deleteContacts(parsed.data.keys, actor);
     back.set('saved', 'deleted');
-    return Astro.redirect(`/admin/contacts?${back}`);
+  } else if (parsed.success && parsed.data.action !== 'delete') {
+    const add = parsed.data.action === 'tag-add';
+    const { changed, skipped } = await tagContacts(parsed.data.keys, parsed.data.tag, add, actor);
+    back.set('tagged', add ? 'added' : 'removed');
+    back.set('which', parsed.data.tag);
+    back.set('n', String(changed));
+    if (skipped) back.set('skipped', String(skipped));
   }
-  return Astro.redirect(`/admin/contacts${url.search}`);
+  return Astro.redirect(`/admin/contacts${back.size ? `?${back}` : ''}`);
 }
 const q = url.searchParams.get('q') ?? '';
 const show = url.searchParams.get('show') ?? 'all';
 const event = Number(url.searchParams.get('event')) || 0;
+const tagParam = url.searchParams.get('tag') ?? '';
+const tag = isContactTag(tagParam) ? tagParam : '';
 const all = await loadContacts();
-const shown = filterContacts(all, { q, show, event });
+const shown = filterContacts(all, { q, show, event, tag });
+
+// The result of an "Add tag" / "Remove tag" bulk action, shown once after the redirect.
+const tagged = Astro.request.method === 'GET' ? url.searchParams.get('tagged') : null;
+const which = url.searchParams.get('which') ?? '';
+let taggedText = '';
+if ((tagged === 'added' || tagged === 'removed') && isContactTag(which)) {
+  const n = Number(url.searchParams.get('n')) || 0;
+  const skipped = Number(url.searchParams.get('skipped')) || 0;
+  const people = (k: number) => `${k} contact${k === 1 ? '' : 's'}`;
+  const label = CONTACT_TAGS[which];
+  taggedText =
+    tagged === 'added'
+      ? n
+        ? `Tag “${label}” added to ${people(n)}.`
+        : `Everyone selected already had the tag “${label}”.`
+      : n
+        ? `Tag “${label}” removed from ${people(n)}.`
+        : `Nobody selected had the tag “${label}”.`;
+  if (skipped) {
+    taggedText += ` ${skipped === 1 ? '1 walk-in' : `${skipped} walk-ins`} without an email ${skipped === 1 ? 'was' : 'were'} skipped: add an email on their page to tag them.`;
+  }
+}
 
 // Events people registered for, newest first, for the event filter.
 const eventOptions = [
@@ -46,7 +88,7 @@ const summary = [
   ['Linked to the ecosystem', all.filter((c) => c.organisations.length > 0).length],
 ];
 const csv = `/admin/contacts.csv${url.search}`;
-const filtered = Boolean(q || event || show !== 'all');
+const filtered = Boolean(q || event || tag || show !== 'all');
 const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', ');
 ---
 
@@ -69,6 +111,12 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       </div>
     ))}
   </dl>
+
+  {taggedText && (
+    <Alert tone="success" class="mb-4">
+      {taggedText}
+    </Alert>
+  )}
 
   <div class="admin-panel overflow-x-auto">
     <form method="get" role="search" class="mb-4 flex flex-wrap items-center gap-2">
@@ -94,6 +142,22 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       >
         {Object.entries(CONTACT_FILTERS).map(([k, label]) => (
           <option value={k} selected={k === show}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <label for="tag" class="sr-only">
+        Tag
+      </label>
+      <select
+        id="tag"
+        name="tag"
+        class="max-w-full rounded-lg border border-line px-3 py-1.5"
+        onchange="this.form.requestSubmit()"
+      >
+        <option value="">Any tag</option>
+        {Object.entries(CONTACT_TAGS).map(([k, label]) => (
+          <option value={k} selected={k === tag}>
             {label}
           </option>
         ))}
@@ -148,6 +212,42 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
           <p class="mr-auto text-sm font-semibold" aria-live="polite">
             <span data-bulk-count>0</span> selected
           </p>
+          <span class="flex flex-wrap items-center gap-2">
+            <label for="bulk-tag" class="sr-only">
+              Tag to add or remove
+            </label>
+            <select
+              id="bulk-tag"
+              name="tag"
+              data-bulk-tag
+              class="rounded-lg border border-paper/40 bg-navy px-2 py-1 text-sm text-paper"
+            >
+              <option value="">Choose a tag…</option>
+              {Object.entries(CONTACT_TAGS).map(([k, label]) => (
+                <option value={k}>{label}</option>
+              ))}
+            </select>
+            <Button
+              type="submit"
+              size="sm"
+              variant="light"
+              name="action"
+              value="tag-add"
+              data-bulk-tag-action
+            >
+              Add tag
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              variant="light"
+              name="action"
+              value="tag-remove"
+              data-bulk-tag-action
+            >
+              Remove tag
+            </Button>
+          </span>
           <Button type="button" size="sm" variant="light" data-bulk-copy>
             Copy emails
           </Button>
@@ -206,6 +306,11 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
                 </td>
                 <td>
                   <a href={`/admin/contacts/view?c=${encodeURIComponent(c.key)}`}>{c.name}</a>
+                  {c.tags.map((t) => (
+                    <Badge tone="brand" class="ml-1">
+                      {CONTACT_TAGS[t]}
+                    </Badge>
+                  ))}
                   <span class="block text-xs break-all text-muted">
                     {c.email ?? 'Walk-in, no email'}
                   </span>
@@ -255,6 +360,8 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       const all = form.querySelector<HTMLInputElement>('[data-bulk-all]')!;
       const del = form.querySelector<HTMLButtonElement>('[data-bulk-delete]')!;
       const copy = form.querySelector<HTMLButtonElement>('[data-bulk-copy]')!;
+      const tag = form.querySelector('[data-bulk-tag]') as unknown as HTMLSelectElement;
+      const tagButtons = [...form.querySelectorAll<HTMLButtonElement>('[data-bulk-tag-action]')];
       const boxes = () => [...form.querySelectorAll<HTMLInputElement>('input[name="c"]')];
       const update = () => {
         const ticked = boxes().filter((b) => b.checked);
@@ -267,6 +374,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
         const emails = new Set(ticked.map((b) => b.dataset.email).filter(Boolean));
         copy.disabled = emails.size === 0;
         copy.textContent = `Copy emails (${emails.size})`;
+        for (const b of tagButtons) b.disabled = !tag.value;
       };
       form.addEventListener('change', update);
       all.addEventListener('change', () => {

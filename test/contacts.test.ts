@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ContactSchema,
   buildContacts,
   filterContacts,
+  normalizeTags,
+  withTag,
   whatsappUrl,
   type ContactRegistration,
   type SavedContact,
@@ -132,6 +135,60 @@ describe('saved contact cards', () => {
   it('add people who never registered', () => {
     const dana = list.find((c) => c.key === 'id:2')!;
     expect(dana).toMatchObject({ registrations: 0, lastEvent: null, organisations: [] });
+  });
+});
+
+describe('contact tags', () => {
+  const card = (p: Partial<SavedContact>): SavedContact => ({
+    id: 1,
+    email: null,
+    name: 'Card',
+    phone: null,
+    company: null,
+    role: null,
+    linkedin: null,
+    notes: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    ...p,
+  });
+
+  it('keeps known tags only, once each, in the fixed order', () => {
+    expect(normalizeTags(['press', 'speaker', 'press', 'vip', 3])).toEqual(['speaker', 'press']);
+    expect(normalizeTags(null)).toEqual([]);
+  });
+
+  it('adds and removes one tag', () => {
+    expect(withTag(['press'], 'board', true)).toEqual(['board', 'press']);
+    expect(withTag(['board', 'press'], 'board', true)).toEqual(['board', 'press']);
+    expect(withTag(['board', 'press'], 'press', false)).toEqual(['board']);
+    expect(withTag([], 'press', false)).toEqual([]);
+  });
+
+  it('come from the saved card and filter the list, with the other filters', () => {
+    const list = buildContacts(regs, orgs, now, [
+      card({ id: 1, email: 'bob@example.com', name: 'Bob', tags: ['speaker', 'bogus'] }),
+      card({ id: 2, name: 'Dana Manual', tags: ['speaker', 'board'] }),
+    ]);
+    expect(list.find((c) => c.key === 'bob@example.com')!.tags).toEqual(['speaker']);
+    expect(list.find((c) => c.key === 'alice@example.com')!.tags).toEqual([]);
+    expect(filterContacts(list, { tag: 'speaker' }).map((c) => c.key)).toEqual([
+      'bob@example.com',
+      'id:2',
+    ]);
+    expect(filterContacts(list, { tag: 'board' }).map((c) => c.key)).toEqual(['id:2']);
+    expect(filterContacts(list, { tag: 'speaker', show: 'attended' }).map((c) => c.key)).toEqual([
+      'bob@example.com',
+    ]);
+    expect(filterContacts(list, { tag: 'speaker', q: 'dana' }).map((c) => c.key)).toEqual(['id:2']);
+    // An unknown tag in the URL filters nothing out.
+    expect(filterContacts(list, { tag: 'vip' })).toHaveLength(list.length);
+  });
+
+  it('are validated on the contact form', () => {
+    const ok = ContactSchema.parse({ name: 'Bob', tags: ['press', 'speaker', 'press'] });
+    expect(ok.tags).toEqual(['speaker', 'press']);
+    expect(ContactSchema.parse({ name: 'Bob' }).tags).toEqual([]);
+    expect(ContactSchema.safeParse({ name: 'Bob', tags: ['vip'] }).success).toBe(false);
   });
 });
 
