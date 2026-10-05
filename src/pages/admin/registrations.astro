@@ -101,7 +101,8 @@ const counts = {
 const shown = rows.filter(
   (r) =>
     (!statusFilter || r.status === statusFilter) &&
-    (!q || `${r.name} ${r.email ?? ''} ${r.company ?? ''}`.toLowerCase().includes(q)),
+    (!q ||
+      `${r.name} ${r.email ?? ''} ${r.company ?? ''} ${r.note ?? ''}`.toLowerCase().includes(q)),
 );
 const tone = (s: string) =>
   s === 'registered'
@@ -198,7 +199,7 @@ const tone = (s: string) =>
             id="q"
             name="q"
             value={q}
-            placeholder="Name, email or company"
+            placeholder="Name, email, company or note"
             class="rounded-lg border border-line px-3 py-1.5"
           />
           <label for="status" class="sr-only">
@@ -237,6 +238,11 @@ const tone = (s: string) =>
                     {r.name}
                     {r.role && <span class="block text-xs text-muted">{r.role}</span>}
                     {r.walkIn && <span class="block text-xs text-muted">Walk-in</span>}
+                    {r.note && (
+                      <span class="mt-1 block max-w-xs text-xs whitespace-pre-line text-muted">
+                        <span class="font-semibold">Note:</span> {r.note}
+                      </span>
+                    )}
                   </td>
                   <td class="break-all">{r.email ?? ''}</td>
                   <td>{r.company ?? ''}</td>

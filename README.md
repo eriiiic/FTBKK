@@ -16,7 +16,9 @@ Public pages:
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
   a Member badge, validated by the board.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
-  automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
+  automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
+  accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
+  check-in screen and the contact's event history), confirmation email with a calendar invite, reminder the day before, QR
   ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
   People and reused across events), **hosts, sponsors and partners** with their logo (linked to
   their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and

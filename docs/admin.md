@@ -71,6 +71,11 @@ uses any more.
 - People register on the event page (name, email, company, role, photo notice, and an optional
   newsletter box, unticked by default). They get a
   confirmation with a calendar invite and a cancel link, and a reminder the day before.
+- The form also asks, optionally, **"Anything we should know, or something you're looking for?"**
+  (up to 500 characters: dietary needs, accessibility, "looking for a CTO"...). Only the team sees
+  the answer: under the person's name in **Registrations** (the search finds words in it too), in
+  the **Note** column of the CSV, in small grey text on the check-in screen so door volunteers can
+  spot it, and next to each event in the contact's event history. It is never repeated in emails.
 - When the event is full, new people join the **waitlist**. If someone cancels, the first person
   on the waitlist is registered automatically and emailed.
 - **Registrations** (or the count on the Events page): counts, search, check in, register someone

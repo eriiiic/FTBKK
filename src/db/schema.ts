@@ -93,6 +93,8 @@ export const registrations = sqliteTable(
     phone: text('phone'),
     role: text('role'),
     howHeard: text('how_heard'),
+    /** Optional free text: "Anything we should know, or something you're looking for?" */
+    note: text('note'),
     photoConsent: integer('photo_consent', { mode: 'boolean' }).notNull().default(false),
     /** Ticked "Send me the newsletter" (opt-in, unticked by default). */
     newsletterConsent: integer('newsletter_consent', { mode: 'boolean' }).notNull().default(false),

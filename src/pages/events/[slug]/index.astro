@@ -90,7 +90,9 @@ if (isPost) {
       const row = await insertRegistration(event.id, parsed.data, mine.capacity);
       if (!row) result = { status: 'duplicate', email: parsed.data.email };
       else {
-        await sendConfirmation(event, { ...parsed.data, status: row.status, token: row.token });
+        // Only what the email needs: the note stays with the organisers.
+        const { name, email } = parsed.data;
+        await sendConfirmation(event, { name, email, status: row.status, token: row.token });
         result = { status: row.status, email: parsed.data.email };
       }
     }

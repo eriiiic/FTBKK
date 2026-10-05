@@ -47,6 +47,8 @@ export interface ContactRegistration {
   /** Ticked the newsletter box; newsletterConsentAt is null when they were never asked. */
   newsletterConsent?: boolean;
   newsletterConsentAt?: Date | null;
+  /** What they wrote in "Anything we should know?" when registering. */
+  note?: string | null;
   event: { id: number; title: string; slug: string; startsAt: Date; endsAt: Date | null };
 }
 
@@ -240,6 +242,7 @@ export async function loadContacts(now = new Date()) {
         createdAt: registrations.createdAt,
         newsletterConsent: registrations.newsletterConsent,
         newsletterConsentAt: registrations.newsletterConsentAt,
+        note: registrations.note,
         event: {
           id: events.id,
           title: events.title,

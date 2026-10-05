@@ -230,6 +230,11 @@ const stats = [
               </span>
             </span>
             <Badge tone={tone(r.status)}>{statusLabel(r)}</Badge>
+            {r.note && (
+              <p class="w-full text-sm whitespace-pre-line text-muted">
+                <span class="font-semibold">Their note:</span> {r.note}
+              </p>
+            )}
           </li>
         ))}
       </ul>

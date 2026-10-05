@@ -24,6 +24,7 @@ const rows = await Promise.all(
         company: registrations.company,
         status: registrations.status,
         walkIn: registrations.walkIn,
+        note: registrations.note,
         token: registrations.token,
       })
       .from(registrations)
@@ -222,6 +223,12 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
                 {[r.company, r.email, r.phone].filter(Boolean).join(' · ') ||
                   (r.walkIn ? 'Walk-in' : '')}
               </span>
+              {r.note && (
+                <span class="mt-1 line-clamp-2 block text-sm whitespace-pre-line text-muted italic">
+                  <span class="sr-only">Their note: </span>
+                  {r.note}
+                </span>
+              )}
             </span>
             <span data-label class="shrink-0 text-sm font-semibold">
               {r.status === 'attended'

@@ -3,7 +3,7 @@ import Alert from './Alert.astro';
 import Button from './Button.astro';
 import FormField from './FormField.astro';
 import Turnstile from './Turnstile.astro';
-import { HOW_HEARD, type RegistrationState } from '../lib/registrations';
+import { HOW_HEARD, NOTE_MAX, type RegistrationState } from '../lib/registrations';
 import { formatDate, formatTime } from '../lib/format';
 
 interface Props {
@@ -89,6 +89,15 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         label="How did you hear about us?"
         value={str('howHeard')}
         options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
+      />
+      <FormField
+        name="note"
+        label="Anything we should know, or something you're looking for?"
+        rows={3}
+        maxlength={NOTE_MAX}
+        value={str('note')}
+        error={errors.note}
+        hint="Optional. For example dietary needs, accessibility, or who you'd like to meet. Only the organisers see it."
       />
       <FormField
         name="photoConsent"
