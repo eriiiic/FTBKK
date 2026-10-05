@@ -29,6 +29,7 @@ events, registrations and the ecosystem directory. Full plan: `docs/plan.md`. Cl
   verifies the `Cf-Access-Jwt-Assertion` JWT against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (skipped
   only locally, when `ACCESS_AUD` is empty, using `DEV_ADMIN_EMAIL`).
 - Old Wix URLs keep working through redirects.
+- Every feature PR also updates `README.md` (and `docs/admin.md` for admin features).
 - Before saying a task is done: `npm run check` and `npm run build` pass. Commit at the end of each
   phase.
 
