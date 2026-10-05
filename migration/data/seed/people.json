@@ -1,24 +1,79 @@
 [
-  { "name": "Olivier Dombey", "title": "", "organisation": "AlphOmega8", "group": "board" },
-  { "name": "Mathieu Verhaeghe", "title": "", "organisation": "Accor", "group": "board" },
-  { "name": "Seren Gaultier", "title": "", "organisation": "Michelin", "group": "board" },
-  { "name": "Emma Longieras", "title": "", "organisation": "S2M", "group": "board" },
-  { "name": "Julien Gadea", "title": "", "organisation": "SalesMind AI", "group": "board" },
-  { "name": "Malika Ait El Mouden", "title": "", "organisation": "DIGITAL 4 GOOD", "group": "board" },
-  { "name": "Vincent Birot", "title": "", "organisation": "Belaws", "group": "board" },
-  { "name": "Laetitia Hoquetis", "title": "", "organisation": "Ez group", "group": "board" },
-  { "name": "Maxime Carpentier", "title": "", "organisation": "Alkia AI Services", "group": "board" },
-  { "name": "Laetitia Lim", "title": "", "organisation": "QUIVIDI", "group": "board" },
+  {
+    "name": "Olivier Dombey",
+    "title": "Founder & Managing Director",
+    "organisation": "AlphOmega8",
+    "group": "board"
+  },
+  {
+    "name": "Mathieu Verhaeghe",
+    "title": "Director, B2C Connected Partners",
+    "organisation": "Accor",
+    "group": "board"
+  },
+  {
+    "name": "Seren Gaultier",
+    "title": "Digital Communications Executive",
+    "organisation": "Michelin",
+    "group": "board"
+  },
+  {
+    "name": "Emma Longieras",
+    "title": "People and Team Lead",
+    "organisation": "S2M",
+    "group": "board"
+  },
+  {
+    "name": "Julien Gadea",
+    "title": "CEO",
+    "organisation": "SalesMind AI",
+    "group": "board"
+  },
+  {
+    "name": "Malika Ait El Mouden",
+    "title": "GM",
+    "organisation": "DIGITAL 4 GOOD",
+    "group": "board"
+  },
+  {
+    "name": "Vincent Birot",
+    "title": "Co-founder",
+    "organisation": "Belaws",
+    "group": "board"
+  },
+  {
+    "name": "Laetitia Hoquetis",
+    "title": "CDO",
+    "organisation": "Ez group",
+    "group": "board"
+  },
+  {
+    "name": "Maxime Carpentier",
+    "title": "Founder",
+    "organisation": "Alkia AI Services",
+    "group": "board"
+  },
+  {
+    "name": "Laetitia Lim",
+    "title": "CEO",
+    "organisation": "QUIVIDI",
+    "group": "board"
+  },
   {
     "name": "Séverine Clément Derville",
-    "title": "",
+    "title": "Executive Director",
     "organisation": "Franco-Thai Chamber of Commerce",
     "group": "institutional"
   },
-  { "name": "Julien Hohl", "title": "", "organisation": "French Treasury", "group": "institutional" },
+  {
+    "name": "Julien Hohl",
+    "title": "Economic Attaché",
+    "organisation": "French Treasury",
+    "group": "institutional"
+  },
   {
     "name": "Phutachart Chaiwatana",
-    "title": "",
+    "title": "Head of Tech and Services",
     "organisation": "Business France",
     "group": "institutional"
   }

@@ -61,7 +61,7 @@ if (Astro.request.method === 'POST') {
   if (form.get('action') === 'delete' && post) {
     await db.delete(posts).where(eq(posts.id, post.id));
     await audit(actor, 'delete', 'post', post.id, { title: post.title, slug: post.slug }, null);
-    return Astro.redirect('/admin/posts?saved=1');
+    return Astro.redirect('/admin/posts?saved=deleted');
   }
   values = formToObject(form, [
     'categoryIds',
@@ -181,7 +181,12 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       Please fix the highlighted fields.
     </Alert>
   )}
-  <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+  <form
+    method="post"
+    enctype="multipart/form-data"
+    data-warn-unsaved
+    class="grid gap-6 lg:grid-cols-[1fr_20rem]"
+  >
     <div class="admin-panel grid content-start gap-4">
       <FormField name="title" label="Title" required value={str('title')} error={errors.title} />
       <FormField

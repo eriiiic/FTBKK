@@ -50,6 +50,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>Check-in · {event.title}</title>
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body class="min-h-screen bg-surface">
     <header class="sticky top-0 z-10 bg-navy p-4 text-paper">
@@ -59,7 +61,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         </a>
         <p class="text-sm" aria-live="polite">
           <span data-count>{rows.filter((r) => r.status === 'attended').length}</span> /{' '}
-          {rows.filter((r) => r.status !== 'waitlist').length} checked in
+          {rows.length} checked in
         </p>
       </div>
       <h1 class="mt-1 truncate text-lg text-paper">{event.title}</h1>
@@ -72,7 +74,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           type="search"
           autocomplete="off"
           enterkeyhint="go"
-          placeholder="Name, email, phone or code…"
+          placeholder="Name, email or code"
           class="min-w-0 flex-1 rounded-xl border-0 bg-paper px-4 py-3 text-lg text-ink"
           autofocus
         />
@@ -192,7 +194,10 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       };
       search.addEventListener('input', filter);
 
-      /** Checks one person in (or undoes it). Returns false when the request failed. */
+      /**
+       * Checks one person in (or undoes it). 'done' = changed here, 'already' = another phone got
+       * there first (the server answers 409), 'failed' = try again.
+       */
       const toggle = async (b: HTMLButtonElement, undo: boolean) => {
         const label = b.querySelector('[data-label]') as unknown as HTMLElement;
         label.textContent = '…';
@@ -200,27 +205,34 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ id: Number(b.dataset.id), eventId, undo }),
-        });
-        if (res.ok) {
-          b.dataset.status = undo ? 'registered' : 'attended';
+        }).catch(() => null);
+        const result = res?.ok ? 'done' : res?.status === 409 ? 'already' : 'failed';
+        if (result !== 'failed') b.dataset.status = undo ? 'registered' : 'attended';
+        if (result === 'done')
           count.textContent = String(Number(count.textContent) + (undo ? -1 : 1));
-        }
         label.textContent =
-          b.dataset.status === 'attended' ? '✓ In' : res.ok ? 'Tap to check in' : 'Try again';
-        return res.ok;
+          b.dataset.status === 'attended'
+            ? '✓ In'
+            : result === 'failed'
+              ? 'Try again'
+              : 'Tap to check in';
+        return result;
       };
 
       const checkIn = async (b: HTMLButtonElement) => {
         const name = b.dataset.name ?? '';
         if (b.dataset.status === 'attended') return say(`${name} is already checked in`, 'warn');
-        if (await toggle(b, false)) {
+        const wasWaitlist = b.dataset.status === 'waitlist';
+        const result = await toggle(b, false);
+        if (result === 'failed') return say('Check-in failed. Try again.', 'bad');
+        if (result === 'already') say(`${name} is already checked in`, 'warn');
+        else
           say(
-            `✓ ${name}${b.dataset.status === 'waitlist' ? ' (was on the waitlist)' : ''}`,
-            'good',
+            `✓ ${name}${wasWaitlist ? ' (was on the waitlist)' : ''}`,
+            wasWaitlist ? 'warn' : 'good',
           );
-          search.value = '';
-          filter();
-        } else say('Check-in failed. Try again.', 'bad');
+        search.value = '';
+        filter();
       };
 
       for (const b of buttons) {

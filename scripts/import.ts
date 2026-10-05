@@ -103,6 +103,7 @@ if (pages && !Array.isArray(pages.data)) {
     ecosystemHeading: home.ecosystemHeading,
     pillars: home.pillars,
     aboutIntro: about.intro,
+    communityText: about.community ?? '',
     joinPaths: about.join,
   };
   const verb = args.has('--force-settings') ? 'INSERT OR REPLACE' : 'INSERT OR IGNORE';

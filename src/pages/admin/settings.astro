@@ -2,9 +2,11 @@
 import { z } from 'zod';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import FormField from '../../components/FormField.astro';
+import MarkdownEditor from '../../components/admin/MarkdownEditor.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
-import { getSettings, saveSettings, type Settings } from '../../lib/settings';
+import CardFields from '../../components/admin/CardFields.astro';
+import { cardsFromForm, getSettings, saveSettings, type Settings } from '../../lib/settings';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
 
@@ -16,15 +18,29 @@ const lines = (s: string) =>
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
-/** "Title | text" lines <-> [{title, text}] */
-const pairs = (s: string) =>
-  lines(s).map((l) => {
-    const [title, ...rest] = l.split('|');
-    return { title: title!.trim(), text: rest.join('|').trim() };
-  });
-const fromPairs = (p: { title: string; text: string }[]) =>
-  p.map((x) => `${x.title} | ${x.text}`).join('\n');
+/** Long texts: Windows line endings from the browser become plain new lines. */
+const longText = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .transform((s) => s.replace(/\r\n?/g, '\n'));
 const url = z.union([z.literal(''), z.url('Enter a full URL starting with https://')]);
+const card = z.object({
+  title: z.string().min(1, 'Give every card a title.').max(80),
+  text: z.string().max(400),
+  link: z
+    .string()
+    .regex(/^(\/|https?:\/\/|mailto:)\S*$/, 'A link starts with /, https:// or mailto:')
+    .max(300)
+    .optional(),
+});
+const socials = [
+  ['linkedin', 'LinkedIn'],
+  ['instagram', 'Instagram'],
+  ['facebook', 'Facebook'],
+  ['whatsapp', 'WhatsApp group invite link'],
+  ['youtube', 'YouTube'],
+] as const;
 
 const Schema = z.object({
   siteTitle: z.string().min(2).max(100),
@@ -40,13 +56,14 @@ const Schema = z.object({
   linkedin: url,
   youtube: url,
   heroTitle: z.string().min(2).max(120),
-  heroTagline: z.string().max(300),
-  mission: z.string().max(2000),
+  heroTagline: z.string().min(2, 'The home page needs a main heading.').max(300),
+  mission: longText(2000),
   values: z.string().transform(lines),
   ecosystemHeading: z.string().max(200),
-  pillars: z.string().transform(pairs),
-  aboutIntro: z.string().max(4000),
-  joinPaths: z.string().transform(pairs),
+  pillars: z.array(card.omit({ link: true })).max(6),
+  aboutIntro: longText(6000),
+  communityText: longText(6000),
+  joinPaths: z.array(card).max(6),
   membershipOpen: z.boolean().optional().default(false),
   memberPriority: z.boolean().optional().default(false),
   analyticsToken: z.string().max(100),
@@ -58,13 +75,21 @@ let values: Record<string, unknown> = {
   ...current.socials,
   moderatorEmails: current.moderatorEmails.join('\n'),
   values: current.values.join('\n'),
-  pillars: fromPairs(current.pillars),
-  joinPaths: fromPairs(current.joinPaths),
 };
+let pillars = current.pillars;
+let joinPaths = current.joinPaths;
 
 if (Astro.request.method === 'POST') {
-  values = formToObject(await Astro.request.formData());
-  const parsed = Schema.safeParse(values);
+  values = formToObject(await Astro.request.formData(), [
+    'pillarTitle',
+    'pillarText',
+    'joinTitle',
+    'joinText',
+    'joinLink',
+  ]);
+  pillars = cardsFromForm(values, 'pillar');
+  joinPaths = cardsFromForm(values, 'join', true);
+  const parsed = Schema.safeParse({ ...values, pillars, joinPaths });
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else {
     const { instagram, whatsapp, facebook, linkedin, youtube, ...rest } = parsed.data;
@@ -86,13 +111,14 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       Please fix the highlighted fields.
     </Alert>
   )}
-  <form method="post" class="grid max-w-3xl gap-6">
+  <form method="post" data-warn-unsaved class="grid max-w-3xl gap-6">
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Site</h2>
       <FormField
         name="siteTitle"
         label="Site name"
         required
+        maxlength={100}
         value={str('siteTitle')}
         error={errors.siteTitle}
       />
@@ -102,6 +128,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         rows={2}
         maxlength={300}
         value={str('siteDescription')}
+        error={errors.siteDescription}
       />
       <FormField
         name="contactEmail"
@@ -124,14 +151,8 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
 
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Social links</h2>
-      {(['linkedin', 'instagram', 'facebook', 'whatsapp', 'youtube'] as const).map((k) => (
-        <FormField
-          name={k}
-          label={k[0]!.toUpperCase() + k.slice(1)}
-          value={str(k)}
-          error={errors[k]}
-          placeholder="https://"
-        />
+      {socials.map(([k, label]) => (
+        <FormField name={k} label={label} value={str(k)} error={errors[k]} placeholder="https://" />
       ))}
     </section>
 
@@ -139,43 +160,82 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       <h2 class="text-lg">Home page</h2>
       <FormField
         name="heroTitle"
-        label="Main title"
+        label="Small line above the heading"
         required
+        maxlength={120}
         value={str('heroTitle')}
         error={errors.heroTitle}
       />
-      <FormField name="heroTagline" label="Tagline" rows={2} value={str('heroTagline')} />
-      <FormField name="mission" label="Mission" rows={4} value={str('mission')} />
-      <FormField name="values" label="Values" rows={4} value={str('values')} hint="One per line." />
       <FormField
-        name="ecosystemHeading"
-        label="Ecosystem section heading"
-        value={str('ecosystemHeading')}
+        name="heroTagline"
+        label="Main heading"
+        required
+        rows={2}
+        maxlength={300}
+        value={str('heroTagline')}
+        error={errors.heroTagline}
       />
       <FormField
-        name="pillars"
-        label="Pillars"
-        rows={5}
-        value={str('pillars')}
-        hint="One per line, as: Title | short text"
+        name="mission"
+        label="Mission"
+        rows={3}
+        maxlength={2000}
+        value={str('mission')}
+        error={errors.mission}
+        hint="Under the heading, and in the footer."
+      />
+      <FormField
+        name="values"
+        label="Values"
+        rows={4}
+        value={str('values')}
+        error={errors.values}
+        hint="One per line."
+      />
+      <FormField
+        name="ecosystemHeading"
+        label="Navy section heading"
+        maxlength={200}
+        value={str('ecosystemHeading')}
+        error={errors.ecosystemHeading}
+        hint="The big title above the three pillars."
+      />
+      <CardFields prefix="pillar" legend="Pillars" items={pillars} error={errors.pillars} />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">You can join us</h2>
+      <CardFields
+        prefix="join"
+        legend="Cards"
+        items={joinPaths}
+        error={errors.joinPaths}
+        withLink
+        hint="Navy cards on the home and About pages. With a link, the whole card is clickable: a page such as /events or /about#contact, or a full https:// address."
       />
     </section>
 
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">About page</h2>
-      <FormField
+      <MarkdownEditor
         name="aboutIntro"
-        label="Introduction"
-        rows={6}
+        label="Who we are"
+        rows={12}
         value={str('aboutIntro')}
-        hint="Markdown works."
+        error={errors.aboutIntro}
+        breaks
+        uploads={false}
+        hint="Top of the About page. Line breaks are kept; leave an empty line between paragraphs. **bold**, [link text](https://…), - list. Use Preview to check."
       />
-      <FormField
-        name="joinPaths"
-        label="Ways to get involved"
-        rows={5}
-        value={str('joinPaths')}
-        hint="One per line, as: Title | short text"
+      <MarkdownEditor
+        name="communityText"
+        label="Official French Tech Community"
+        rows={10}
+        value={str('communityText')}
+        error={errors.communityText}
+        breaks
+        uploads={false}
+        hint="Shown next to the official logo on the About page. Start a line with ## for a heading. Empty = hidden."
       />
     </section>
 
@@ -193,7 +253,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         label="Member priority on events"
         type="checkbox"
         checked={!!values.memberPriority}
-        hint="Planned for 2027: early registration and reserved seats for members, set per event."
+        hint="Adds early registration days and reserved seats for members to each event's settings."
       />
     </section>
 
@@ -202,12 +262,14 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       <FormField
         name="analyticsToken"
         label="Cloudflare Web Analytics token"
+        maxlength={100}
         value={str('analyticsToken')}
+        error={errors.analyticsToken}
         hint="From Cloudflare dashboard > Analytics & Logs > Web Analytics. Empty = off."
       />
     </section>
 
-    <div>
+    <div class="sticky bottom-0 z-10 -mx-4 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur md:mx-0 md:rounded-card md:border md:bg-paper/95">
       <Button type="submit">Save settings</Button>
     </div>
   </form>

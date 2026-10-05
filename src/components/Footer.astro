@@ -22,7 +22,7 @@ const labels = {
 <footer class="bg-navy text-paper">
   <div class="container-page grid gap-10 py-12 md:grid-cols-3">
     <div>
-      <Logo tone="light" />
+      <Logo tone="light" class="h-24" />
       {settings.mission && <p class="mt-4 max-w-xs text-sm text-accent-soft">{settings.mission}</p>}
     </div>
     <nav aria-label="Footer">
@@ -57,6 +57,11 @@ const labels = {
             Get listed
           </a>
         </li>
+        <li>
+          <a href="/about#contact" class="text-paper hover:text-accent-soft">
+            Contact
+          </a>
+        </li>
       </ul>
     </nav>
     <div>
@@ -84,7 +89,8 @@ const labels = {
   </div>
   <div class="border-t border-paper/10">
     <p class="container-page py-4 text-xs text-accent-soft">
-      © {new Date().getFullYear()} La French Tech Bangkok. A volunteer-run community.
+      © {new Date().getFullYear()} La French Tech Bangkok. An official French Tech Community, run by
+      volunteers.
     </p>
   </div>
 </footer>

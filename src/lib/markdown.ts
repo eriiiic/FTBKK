@@ -17,15 +17,18 @@ export function localLink(href: string) {
   return `${path}${url.search}${url.hash}`;
 }
 
-/** Render admin- or owner-written Markdown to safe HTML. */
-export function renderMarkdown(md: string): string {
+/**
+ * Render admin- or owner-written Markdown to safe HTML. `breaks` keeps single line breaks, for
+ * short texts typed in a settings box where Enter should start a new line.
+ */
+export function renderMarkdown(md: string, { breaks = false } = {}): string {
   // Wix buttons came over as links whose text sits on its own lines ("[\n\nLet's talk\n\n](…)"),
   // which Markdown does not read as a link: pull the text back inside the brackets.
   const fixed = (md ?? '').replace(
     /\[\s*\n\s*([^\]]*?\S)\s*\](?=\()/g,
     (_all, text: string) => `[${text.replace(/\s*\n\s*/g, ' ')}]`,
   );
-  const html = marked.parse(fixed, { async: false, gfm: true, breaks: false });
+  const html = marked.parse(fixed, { async: false, gfm: true, breaks });
   return sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'del']),
     allowedAttributes: {
@@ -35,6 +38,8 @@ export function renderMarkdown(md: string): string {
       td: ['align'],
     },
     allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    // Headings left empty in the editor (an Enter after "## ") would show as blank gaps.
+    exclusiveFilter: (frame) => /^h[1-6]$/.test(frame.tag) && !frame.text.trim(),
     transformTags: {
       img: (tagName, attribs) => ({ tagName, attribs: { ...attribs, loading: 'lazy' } }),
       a: (tagName, attribs) => {

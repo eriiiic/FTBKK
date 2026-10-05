@@ -104,7 +104,7 @@ const facts: [string, string][] = [
     <div class="mt-10 grid gap-10 md:grid-cols-3">
       <div class="md:col-span-2">
         {org.descriptionMd ? (
-          <div class="prose max-w-none" set:html={renderMarkdown(org.descriptionMd)} />
+          <div class="prose max-w-none break-words" set:html={renderMarkdown(org.descriptionMd)} />
         ) : (
           <p class="text-muted">No description yet.</p>
         )}

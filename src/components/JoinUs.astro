@@ -1,0 +1,48 @@
+---
+// "You can join us": the three ways in (individual, startup, business partner), as on the original
+// site. Cards come from Settings > About page > Ways to get involved; a card with a link is clickable.
+import Icon from './Icon.astro';
+import type { Settings } from '../lib/settings';
+
+interface Props {
+  paths: Settings['joinPaths'];
+  id?: string;
+}
+const { paths, id } = Astro.props;
+const external = (href: string) => /^https?:/.test(href);
+---
+
+{paths.length > 0 && (
+  <section id={id} class="bg-surface py-14 md:py-20">
+    <div class="container-page">
+      <h2 class="text-center text-3xl md:text-4xl">You can join us</h2>
+      <span class="mx-auto mt-4 mb-10 block h-0.5 w-10 bg-navy" aria-hidden="true"></span>
+      <ul class="grid gap-6 md:grid-cols-3">
+        {paths.map((p) => (
+          <li class="group relative flex flex-col items-center bg-navy px-6 py-10 text-center text-paper md:min-h-80 md:px-8 md:py-14 transition-colors has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-navy has-[a:hover]:bg-navy-soft">
+            <h3 class="text-xl tracking-wide text-paper uppercase md:text-2xl">
+              {p.link ? (
+                <a
+                  href={p.link}
+                  class="text-paper no-underline after:absolute after:inset-0 focus-visible:outline-none"
+                  rel={external(p.link) ? 'noopener' : undefined}
+                >
+                  {p.title}
+                </a>
+              ) : (
+                p.title
+              )}
+            </h3>
+            <p class="mt-4 mb-6 max-w-xs">{p.text}</p>
+            {p.link && (
+              <Icon
+                name="arrow"
+                class="mt-auto size-6 text-accent-soft transition-transform group-hover:translate-x-1"
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+)}

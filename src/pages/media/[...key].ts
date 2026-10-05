@@ -19,8 +19,15 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (key.endsWith('.svg'))
     headers.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
   if (!headers.has('content-type')) headers.set('content-type', guessType(key));
+  headers.set('Accept-Ranges', 'bytes');
   if (!('body' in obj)) return new Response(null, { status: 304, headers });
-  return new Response(obj.body, { status: obj.range ? 206 : 200, headers });
+  // R2 can report a range even when none was asked for: only a Range request gets a 206.
+  const range = request.headers.has('range') ? obj.range : undefined;
+  if (!range) return new Response(obj.body, { status: 200, headers });
+  const start = 'suffix' in range ? obj.size - range.suffix : (range.offset ?? 0);
+  const end = 'suffix' in range ? obj.size - 1 : start + (range.length ?? obj.size - start) - 1;
+  headers.set('Content-Range', `bytes ${start}-${end}/${obj.size}`);
+  return new Response(obj.body, { status: 206, headers });
 };
 
 function guessType(key: string) {

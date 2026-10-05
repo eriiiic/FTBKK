@@ -44,7 +44,7 @@ if (Astro.request.method === 'POST') {
   if (org && action === 'delete') {
     await db.delete(organisations).where(eq(organisations.id, org.id));
     await audit(actor, 'delete', 'organisation', org.id, { name: org.name }, null);
-    return Astro.redirect('/admin/ecosystem?tab=all&saved=1');
+    return Astro.redirect('/admin/ecosystem?tab=all&saved=deleted');
   }
   if (org && (action === 'approve' || action === 'reject')) {
     const parsed = DecisionForm.safeParse(Object.fromEntries(form));
@@ -173,7 +173,12 @@ const badges = (values.badges as string[] | undefined) ?? [];
       ))}
     </section>
   )}
-  <form method="post" enctype="multipart/form-data" class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+  <form
+    method="post"
+    enctype="multipart/form-data"
+    data-warn-unsaved
+    class="grid gap-6 lg:grid-cols-[1fr_20rem]"
+  >
     <div class="admin-panel">
       <OrgFormFields values={values} errors={errors} logoKey={org?.logoKey} />
       {org?.logoKey && (

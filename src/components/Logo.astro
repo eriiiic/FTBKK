@@ -1,16 +1,19 @@
 ---
-// The rooster pin from the Wix logo (public/brand/pin.png, transparent) next to a text wordmark,
-// which stays readable at header size, unlike the text baked into the original 200px logo.
+// The official La French Tech Bangkok Community logo (public/brand/logo-lockup.png, cropped from
+// the supplied artwork). The usage charter forbids redrawing it, changing its layout or lettering,
+// or showing the rooster alone. Only the colour version (black text) exists in the repo, so on
+// dark backgrounds it sits on a white tile until the official white-text version is added.
 interface Props {
   tone?: 'dark' | 'light';
+  class?: string;
 }
-const { tone = 'dark' } = Astro.props;
+const { tone = 'dark', class: cls = 'h-14' } = Astro.props;
 ---
 
-<span class="inline-flex items-center gap-2 font-display leading-none font-extrabold">
-  <img src="/brand/pin.png" alt="" width="36" height="44" class="h-10 w-auto" />
-  <span class={tone === 'light' ? 'text-paper' : 'text-navy'}>
-    <span class="block text-[0.65rem] tracking-[0.2em] uppercase">La French Tech</span>
-    <span class="block text-lg">Bangkok</span>
+{tone === 'light' ? (
+  <span class="inline-block rounded-xl bg-paper p-2">
+    <img src="/brand/logo-lockup.png" alt="" width="146" height="183" class={`w-auto ${cls}`} />
   </span>
-</span>
+) : (
+  <img src="/brand/logo-lockup.png" alt="" width="146" height="183" class={`w-auto ${cls}`} />
+)}
