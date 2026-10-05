@@ -8,6 +8,7 @@ import { promoteFromWaitlist, sendPromotion } from './registrations';
 import { getSettings } from './settings';
 import { audit } from './orgs';
 import { fromLocalInput, toDateInput } from './admin';
+import { REGULAR_MIN_EVENTS } from './regulars';
 
 // Contacts: everyone who ever registered for an event (or walked in), one row per person, built
 // from registrations. No sign-up needed: a person is identified by their email, and walk-ins
@@ -130,7 +131,27 @@ export interface Contact {
   lastEvent: ContactRegistration['event'] | null;
   history: ContactRegistration[];
   organisations: (ContactOrg & { relation: 'owner' | 'contact' })[];
+  /** Their company has the same name as a member organisation in the ecosystem directory. */
+  memberCompany: boolean;
 }
+
+/** A company name for matching: lowercase, letters and digits only, without "Co., Ltd." etc. */
+export const companyKey = (name: string | null | undefined) =>
+  (name ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0e00-\u0e7f]+/g, ' ')
+    .replace(/\b(co|company|ltd|limited|plc|inc|sas|sarl|pte|thailand)\b/g, ' ')
+    .replace(/\s+/g, '')
+    .trim();
+
+/**
+ * For the board: regulars (came to REGULAR_MIN_EVENTS events or more) with no ecosystem listing
+ * of their own and not working for a member organisation.
+ */
+export const suggestForMembership = (c: Contact) =>
+  c.attended >= REGULAR_MIN_EVENTS && c.organisations.length === 0 && !c.memberCompany;
 
 /** The key that groups one person's registrations: their email, else their name (walk-ins). */
 export const contactKey = (r: { email: string | null; name: string }) =>
@@ -164,6 +185,11 @@ export function buildContacts(
     if (o.publicEmail) link(o.publicEmail, o, 'contact');
   }
 
+  const memberCompanies = new Set(
+    orgs.filter((o) => o.memberStatus === 'member').map((o) => companyKey(o.name)),
+  );
+  memberCompanies.delete('');
+
   const groups = new Map<string, ContactRegistration[]>();
   for (const r of regs) {
     const k = contactKey(r);
@@ -188,6 +214,7 @@ export function buildContacts(
       const attended = rs.filter((r) => r.status === 'attended');
       const lastAttended = history.find((r) => r.status === 'attended');
       const first = rs.length ? Math.min(...rs.map((r) => r.createdAt.getTime())) : Infinity;
+      const company = card ? card.company : pick('company');
       return {
         key,
         savedId: card?.id ?? null,
@@ -195,7 +222,7 @@ export function buildContacts(
         name: card?.name ?? latest[0]!.name,
         email: card ? card.email : latest[0]!.email ? latest[0]!.email.toLowerCase() : null,
         phone: card ? card.phone : pick('phone'),
-        company: card ? card.company : pick('company'),
+        company,
         role: card ? card.role : pick('role'),
         linkedin: card?.linkedin ?? null,
         notes: card?.notes ?? null,
@@ -216,6 +243,7 @@ export function buildContacts(
         lastEvent: (lastAttended ?? history.find((r) => r.status !== 'cancelled'))?.event ?? null,
         history,
         organisations: key.includes(':') ? [] : (byEmail.get(key) ?? []),
+        memberCompany: memberCompanies.has(companyKey(company)),
       };
     })
     .sort(
@@ -276,8 +304,14 @@ export const CONTACT_FILTERS = {
   never: 'Registered, never came',
   ecosystem: 'Linked to an ecosystem listing',
   newsletter: 'Agreed to the newsletter',
+  membership: 'Suggest for membership',
 } as const;
 export type ContactFilter = keyof typeof CONTACT_FILTERS;
+
+/** A line explaining a filter, shown above the list while it is active. */
+export const CONTACT_FILTER_HINTS: Partial<Record<ContactFilter, string>> = {
+  membership: `People who came to ${REGULAR_MIN_EVENTS} or more events and have no ecosystem listing yet.`,
+};
 
 /** The list filters shared by the Contacts page and its CSV export. */
 export function filterContacts(
@@ -308,6 +342,7 @@ export function filterContacts(
     if (show === 'never') return c.attended === 0 && c.registrations > 0;
     if (show === 'ecosystem') return c.organisations.length > 0;
     if (show === 'newsletter') return c.newsletter.agreed;
+    if (show === 'membership') return suggestForMembership(c);
     return true;
   });
 }

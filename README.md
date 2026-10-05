@@ -41,7 +41,9 @@ files and site settings. See [docs/admin.md](docs/admin.md).
 Check-in at the door works from a phone: volunteers bookmark `/checkin`, which opens a list of
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
 that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
-who didn't register.
+who didn't register. People coming for the first time get a "First time" badge (with "Say hello
+to the N newcomers" at the top) and people who came to 3 or more earlier events a "Regular"
+badge, so volunteers know whom to welcome.
 
 Organisers can **email an event's registrants** from the admin (venue change, slides after the
 talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not
@@ -53,7 +55,8 @@ backup); a second send of the same message within 10 minutes, even from another 
 per person (grouped by email), with no sign-up needed. For each person it shows how many events
 they attended, registered for and missed, which events those were, their company, and the
 ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
-came, linked to the ecosystem, by event, by tag) and exported to CSV, and "Copy emails" copies
+came, linked to the ecosystem, by event, by tag, and "Suggest for membership": people who came to
+3 or more events with no ecosystem listing and no member company, for the board) and exported to CSV, and "Copy emails" copies
 the filtered addresses for the Bcc field of an email. Contacts can carry tags (speaker, sponsor,
 volunteer, board, press), shown next to their name. Tick several contacts to copy their emails,
 export them to CSV, add or remove a tag, or delete them at once. Contacts can be added by hand,

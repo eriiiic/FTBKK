@@ -5,6 +5,7 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import { z } from 'zod';
 import {
+  CONTACT_FILTER_HINTS,
   CONTACT_FILTERS,
   CONTACT_TAGS,
   deleteContacts,
@@ -54,6 +55,7 @@ const tagParam = url.searchParams.get('tag') ?? '';
 const tag = isContactTag(tagParam) ? tagParam : '';
 const all = await loadContacts();
 const shown = filterContacts(all, { q, show, event, tag });
+const hint = CONTACT_FILTER_HINTS[show as keyof typeof CONTACT_FILTER_HINTS];
 
 // The result of an "Add tag" / "Remove tag" bulk action, shown once after the redirect.
 const tagged = Astro.request.method === 'GET' ? url.searchParams.get('tagged') : null;
@@ -201,6 +203,8 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
         Export CSV{filtered ? ` (${shown.length})` : ''}
       </Button>
     </form>
+
+    {hint && <p class="mb-3 text-sm text-muted">{hint}</p>}
 
     {shown.length ? (
       <form method="post" data-bulk>

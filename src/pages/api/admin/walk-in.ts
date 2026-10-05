@@ -5,6 +5,7 @@ import { getDb } from '../../../db';
 import { events, registrations } from '../../../db/schema';
 import { email, optionalText } from '../../../lib/forms';
 import { audit } from '../../../lib/orgs';
+import { earlierAttendance, earlierFor, greeting } from '../../../lib/regulars';
 import { normalizeCode, ticketCode } from '../../../lib/ticket';
 import { randomToken } from '../../../lib/tokens';
 
@@ -45,7 +46,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
   const { eventId, name, email: mail, phone, company, newsletter } = parsed.data;
   const db = getDb();
-  const [event] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId));
+  const [event] = await db
+    .select({ id: events.id, startsAt: events.startsAt })
+    .from(events)
+    .where(eq(events.id, eventId));
   if (!event) return Response.json({ error: 'Event not found.' }, { status: 404 });
 
   const now = new Date();
@@ -113,6 +117,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     phone: row.phone,
     company: row.company,
     code: normalizeCode(await ticketCode(row.token)),
+    // "First time" or "Regular" badge for the check-in list (none without an email).
+    greeting: greeting(
+      earlierFor(row.email ? await earlierAttendance(event, row.email) : new Map(), row.email),
+    ),
     // True when the person had registered: the screen already lists them.
     existing: Boolean(existing && existing.status !== 'cancelled'),
   });

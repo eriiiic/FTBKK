@@ -84,6 +84,12 @@ uses any more.
   check the person in. Tap again to undo. Door volunteers can bookmark
   `/checkin` on their phone: it opens a list of today's and upcoming events (after the admin
   login), and tapping one opens its check-in mode. They must be allowed in Cloudflare Access.
+- **First time and Regular badges** on the check-in screen help volunteers greet people. "First
+  time" (blue) means this email was never checked in at an earlier published event, and the
+  banner at the top says how many newcomers are expected ("Say hello to the 3 newcomers").
+  "Regular · N events" means they were checked in at 3 or more earlier events. Walk-ins added at
+  the door get their badge too. People without an email get no badge (we can't tell), and the
+  count only knows about events where check-in was used.
 - **Walk-ins**: on the check-in screen, **+ Walk-in** (or **Add as a walk-in** when a search
   finds nobody) adds someone who didn't register and checks them in. Only the name is required.
   If the email is already registered for the event, that registration is checked in instead.
@@ -94,9 +100,13 @@ uses any more.
   registered for and missed (registered for a past event where check-in was used, but not
   checked in), and the ecosystem listings their email manages or is the contact for. Filter by
   "came at least once", "came 2 times or more", "registered, never came", "linked to an
-  ecosystem listing", by tag or by event, then **Export CSV** (the export keeps the filters and has
+  ecosystem listing", "suggest for membership", by tag or by event, then **Export CSV** (the export keeps the filters and has
   a Tags column). Click a
   name to see their full event history. Details come from their latest registration.
+- **Suggest for membership** (in the Show filter) is for the board: people who came to 3 or more
+  events, have no ecosystem listing (their email doesn't manage and isn't the contact of any
+  listing) and whose company isn't a member organisation (matched by name, ignoring "Co., Ltd."
+  and the like). Copy their emails or export them to invite them to join.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
   **Call** buttons, and **Edit** for name, email, phone, company, role, tags, LinkedIn and team
   notes.
