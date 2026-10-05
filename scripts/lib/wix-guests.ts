@@ -59,13 +59,16 @@ export function parseDelimited(text: string): string[][] {
   return rows;
 }
 
-/** A LinkedIn profile URL, or null when the answer isn't one (people sometimes type their name). */
+/**
+ * A LinkedIn profile URL, or null when the answer isn't one (people sometimes type their name).
+ * Mistyped links ("https/LinkedIn.com/in/x", "linkedin/in/x", "/in/x") are rebuilt.
+ */
 export function linkedinUrl(v: string): string | null {
-  const s = v.replace(/\s+/g, '');
-  if (!/linkedin\.com\/(in|pub|company)\/[^/?#]/i.test(s)) return null;
-  const url = /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
-  // Drop share-link tracking (?utm_source=…, ?locale=fr).
-  return url.replace(/[?#].*$/, '');
+  const m = v
+    .replace(/\s+/g, '')
+    .match(/(?:^|([a-z]{2,3}\.)?linkedin(?:\.com)?)\/((?:in|pub|company)\/[^/?#][^?#]*)/i);
+  // Share-link tracking (?utm_source=…, ?locale=fr) is left out.
+  return m ? `https://${(m[1] ?? 'www.').toLowerCase()}linkedin.com/${m[2]}` : null;
 }
 
 /** "octave despointes" -> "Octave Despointes"; names typed with capitals are kept as typed. */
@@ -87,6 +90,8 @@ const answer = (v: string | undefined) => {
   const s = clean(v);
   return s && !/^['"]?(-+|\.+|n\/?a|none|no|nope|nothing|ok|not yet)['".!]*$/i.test(s) ? s : null;
 };
+/** Profile choices start with an emoji ("🚀 Startup Founder"). */
+const unEmoji = (v: string | null) => v?.replace(/^[^\p{L}\p{N}]+/u, '') || null;
 
 export function parseWixGuests(text: string): WixGuest[] {
   const [header, ...rows] = parseDelimited(text);
@@ -105,7 +110,9 @@ export function parseWixGuests(text: string): WixGuest[] {
     // RSVP forms ask for a profile ("Founder / Co-founder") instead of a job title.
     profile: col((c) => c.includes('best describes you')),
     linkedin: col((c) => c.includes('linkedin')),
-    notes: col((c) => c.startsWith('anything')),
+    notes: col((c) => c.startsWith('anything') || c.includes('additional information')),
+    // Bilingual forms repeat the question in French.
+    notesFr: col((c) => c.startsWith('souhaitez-vous partager')),
     comment: col((c) => c.includes('add a comment')),
   };
   if (idx.email < 0 || idx.first < 0) throw new Error('Not a Wix guest list: no Email column');
@@ -122,10 +129,14 @@ export function parseWixGuests(text: string): WixGuest[] {
       name: tidyName(name) || email,
       email,
       company: answer(get(idx.company)),
-      role: answer(get(idx.role)) ?? answer(get(idx.profile)),
+      role: answer(get(idx.role)) ?? unEmoji(answer(get(idx.profile))),
       linkedin: linkedinUrl(get(idx.linkedin) ?? ''),
-      notes: [answer(get(idx.notes)), answer(get(idx.comment))].filter(Boolean).join('\n') || null,
-      checkedIn: /^(yes|true|1|checked in)$/i.test(get(idx.checkedIn)?.trim() ?? ''),
+      notes:
+        [answer(get(idx.notes)), answer(get(idx.notesFr)), answer(get(idx.comment))]
+          .filter(Boolean)
+          .join('\n') || null,
+      // RSVP exports count the people checked in (2 = the guest and a +1).
+      checkedIn: /^(yes|true|checked in|[1-9]\d*)$/i.test(get(idx.checkedIn)?.trim() ?? ''),
       orderedAt: bangkokTimestamp(get(idx.date) ?? '') ?? Math.floor(Date.now() / 1000),
     };
     const prev = byEmail.get(email);
