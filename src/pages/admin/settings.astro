@@ -65,6 +65,7 @@ const Schema = z.object({
   communityText: longText(6000),
   joinPaths: z.array(card).max(6),
   codeOfConduct: longText(12000),
+  privacyNotice: longText(12000),
   membershipOpen: z.boolean().optional().default(false),
   memberPriority: z.boolean().optional().default(false),
   analyticsToken: z.string().max(100),
@@ -250,6 +251,19 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         error={errors.codeOfConduct}
         uploads={false}
         hint="The /code-of-conduct page, linked in the footer, on event pages and in the registration form. {contactEmail} is replaced by the contact email. Start a line with ## for a heading, - for a list. Empty = the default text."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Privacy notice</h2>
+      <MarkdownEditor
+        name="privacyNotice"
+        label="Privacy notice"
+        rows={16}
+        value={str('privacyNotice')}
+        error={errors.privacyNotice}
+        uploads={false}
+        hint="The /privacy page (Thailand's PDPA), linked in the footer and under every registration form. Keep it true to what the site does: what we collect, why, who sees it, how long we keep it, people's rights. {contactEmail} is replaced by the contact email. Empty = the default text."
       />
     </section>
 

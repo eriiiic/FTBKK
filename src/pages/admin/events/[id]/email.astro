@@ -34,7 +34,12 @@ if (!event) return Astro.redirect('/admin/events');
 
 const loadRows = () =>
   db
-    .select({ name: registrations.name, email: registrations.email, status: registrations.status })
+    .select({
+      name: registrations.name,
+      email: registrations.email,
+      status: registrations.status,
+      token: registrations.token,
+    })
     .from(registrations)
     .where(eq(registrations.eventId, event.id));
 let rows = await loadRows();

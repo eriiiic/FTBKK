@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { DEFAULT_CODE_OF_CONDUCT } from './code-of-conduct';
+import { DEFAULT_PRIVACY_NOTICE } from './privacy';
 
 /** Site-wide settings, editable in /admin/settings. Stored as key/JSON rows in the settings table. */
 export interface Settings {
@@ -27,6 +28,8 @@ export interface Settings {
   joinPaths: { title: string; text: string; link?: string }[];
   /** /code-of-conduct page (Markdown); {contactEmail} is replaced by the contact email. */
   codeOfConduct: string;
+  /** /privacy page (Markdown); {contactEmail} is replaced by the contact email. */
+  privacyNotice: string;
   membershipOpen: boolean;
   memberPriority: boolean;
   analyticsToken: string;
@@ -49,6 +52,7 @@ export const defaultSettings: Settings = {
   communityText: '',
   joinPaths: [],
   codeOfConduct: DEFAULT_CODE_OF_CONDUCT,
+  privacyNotice: DEFAULT_PRIVACY_NOTICE,
   membershipOpen: false,
   memberPriority: false,
   analyticsToken: '',

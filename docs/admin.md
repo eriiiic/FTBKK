@@ -114,7 +114,8 @@ uses any more.
   the email moves their registrations to the new one; if that email already registered, the two
   merge. Adding an email to a walk-in groups their future registrations with it. **New contact**
   adds someone who never registered. **Delete this contact** removes them and all their
-  registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
+  registrations (their seats on upcoming events go to the waitlist). People can do the same
+  themselves: see **Manage or delete my data** below. **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
 - **Tags**: Speaker, Sponsor, Volunteer, Board and Press. You set them by hand (nothing is tagged
   automatically) and only the admin team sees them. They show as small badges next to the name,
@@ -137,6 +138,16 @@ uses any more.
   not subscribed. To send a newsletter, filter on "Agreed to the newsletter" and **Export CSV**
   (columns "Newsletter" and "Newsletter consent date") into your newsletter tool. Only use **Copy
   emails** for event messages, not for the newsletter.
+- **Manage or delete my data** (PDPA): every email to registrants (confirmation, waitlist
+  promotion, reminder, feedback request, event cancelled and **Email registrants**) has this link
+  in its footer. It opens `/my-data` for that registration, which shows the person their name,
+  email, phone, company, events (registered, came, cancelled), newsletter choice and whether you
+  saved a contact card. They can **Unsubscribe from the newsletter** (recorded on their contact
+  card as "Not subscribed" with today's date) or **Delete my data** (asks to confirm, then does
+  exactly what **Delete this contact** does: their card, registrations and feedback go, and freed
+  seats go to the waitlist). Both show in Ecosystem > History with the actor
+  `self-service:<their email>`. After a deletion the link stops working. If someone asks by email
+  instead, use **Delete this contact** or edit their newsletter choice yourself.
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
   exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests
@@ -220,6 +231,12 @@ them in Settings > Directory moderators.
   report). Write `{contactEmail}` where the contact email should appear; it becomes a mail link.
   Emptying the field brings the default text back. The page is linked in the footer, on event
   pages and under the registration form ("By registering you agree to our code of conduct").
+- **Privacy notice**: the text of the public `/privacy` page (Thailand's PDPA), in Markdown, edited
+  the same way. The default says who we are, what we collect, why, who sees it, how long we keep
+  it, people's rights and how to use them. Keep it true to what the team actually does (for
+  example if you start sharing attendee lists with a sponsor, it must say so and ask first).
+  `{contactEmail}` becomes a mail link; emptying the field brings the default back. It is linked
+  in the footer and under every registration form.
 
 ## For developers
 

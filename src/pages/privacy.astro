@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getSettings } from '../lib/settings';
+import { renderMarkdown } from '../lib/markdown';
+import { fillPrivacyNotice } from '../lib/privacy';
+
+const settings = await getSettings();
+const html = renderMarkdown(fillPrivacyNotice(settings.privacyNotice, settings.contactEmail));
+---
+
+<BaseLayout
+  title="Privacy notice"
+  description="What La French Tech Bangkok keeps about you when you register for an event, why, who sees it, and how to see, correct or delete it (Thailand's PDPA)."
+>
+  <section class="bg-navy text-paper">
+    <div class="container-page py-14 md:py-20">
+      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">Your data</p>
+      <h1 class="text-4xl text-paper uppercase md:text-5xl">Privacy notice</h1>
+    </div>
+  </section>
+  <section class="container-page py-12 md:py-16">
+    <div class="prose max-w-3xl break-words prose-headings:font-display" set:html={html} />
+  </section>
+</BaseLayout>

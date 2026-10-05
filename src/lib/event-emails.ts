@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Event, Registration } from '../db/schema';
 import type { EmailMessage } from './email';
 import { optionalUrl } from './forms';
-import { eventDetails, siteUrl } from './registrations';
+import { eventDetails, myDataUrl, siteUrl } from './registrations';
 
 /** Who an admin message goes to, and which registration statuses that covers. */
 export const AUDIENCES = {
@@ -76,17 +76,22 @@ export function personalise(text: string, name: string) {
  * appears twice (case aside) gets one copy.
  */
 export function recipientsFor(
-  rows: { name: string; email: string | null; status: Registration['status'] }[],
+  rows: {
+    name: string;
+    email: string | null;
+    status: Registration['status'];
+    token?: string | null;
+  }[],
   audience: Audience,
 ) {
   const statuses: readonly string[] = AUDIENCES[audience].statuses;
   const seen = new Set<string>();
-  const out: { name: string; email: string }[] = [];
+  const out: { name: string; email: string; token?: string }[] = [];
   for (const r of rows) {
     const email = r.email?.trim().toLowerCase();
     if (!email || !statuses.includes(r.status) || seen.has(email)) continue;
     seen.add(email);
-    out.push({ name: r.name, email });
+    out.push({ name: r.name, email, ...(r.token ? { token: r.token } : {}) });
   }
   return out;
 }
@@ -104,7 +109,7 @@ export function audienceCounts(
 /** The email one person gets, in the site's usual layout with the event's date, venue and page. */
 export function eventBroadcast(
   e: Pick<Event, 'title' | 'slug' | 'startsAt' | 'endsAt' | 'venue' | 'address'>,
-  to: { name: string; email: string },
+  to: { name: string; email: string; token?: string },
   m: Pick<EventEmailInput, 'subject' | 'body' | 'actionLabel' | 'actionUrl'>,
   opts: { replyTo?: string } = {},
 ): EmailMessage {
@@ -117,5 +122,6 @@ export function eventBroadcast(
     links: [{ label: 'Event page', url: siteUrl(`/events/${e.slug}`) }],
     footer: `You get this email because you registered for ${e.title} on french-tech-bangkok.com.`,
     replyTo: opts.replyTo,
+    dataUrl: to.token ? myDataUrl(to.token) : undefined,
   };
 }

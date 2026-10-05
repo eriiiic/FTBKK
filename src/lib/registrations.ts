@@ -8,6 +8,7 @@ import { formatEventDate } from './format';
 import { eventIcs } from './ics';
 import { sendEmail, sendEmailBatch, type EmailMessage } from './email';
 import { randomToken } from './tokens';
+import { myDataPath } from './privacy';
 import { qrPng, ticketCode } from './ticket';
 import { sponsorsForEvent } from './queries';
 import { emailLogos, showSponsor, sponsorDetails } from './sponsors';
@@ -225,6 +226,9 @@ export function siteUrl(path: string) {
   return new URL(path, env.SITE_URL || 'https://www.french-tech-bangkok.com').href;
 }
 
+/** The "Manage or delete my data" page for a registration token (linked in every event email). */
+export const myDataUrl = (token: string) => siteUrl(myDataPath(token));
+
 function icsAttachment(e: Event) {
   const ics = eventIcs({ ...e, url: siteUrl(`/events/${e.slug}`) });
   return {
@@ -307,6 +311,7 @@ export async function sendConfirmation(
     ],
     ticket: t?.ticket,
     attachments: t ? [icsAttachment(e), t.attachment] : undefined,
+    dataUrl: myDataUrl(r.token),
   });
 }
 
@@ -328,6 +333,7 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
     ],
     ticket: t.ticket,
     attachments: [icsAttachment(e), t.attachment],
+    dataUrl: myDataUrl(r.token),
   });
 }
 
@@ -351,6 +357,7 @@ export function reminderEmail(
         url: siteUrl(`/events/${e.slug}/cancel?token=${r.token}`),
       },
     ],
+    dataUrl: myDataUrl(r.token),
   };
 }
 
@@ -363,7 +370,10 @@ export async function sendReminders(
   return sendEmailBatch(rows.map((r) => reminderEmail(e, r, sp)));
 }
 
-export async function sendEventCancelled(e: Event, rows: { name: string; email: string }[]) {
+export async function sendEventCancelled(
+  e: Event,
+  rows: { name: string; email: string; token?: string | null }[],
+) {
   return sendEmailBatch(
     rows.map((r) => ({
       to: r.email,
@@ -373,6 +383,7 @@ export async function sendEventCancelled(e: Event, rows: { name: string; email: 
         'Keep an eye on our events page for the next one.',
       ],
       action: { label: 'See upcoming events', url: siteUrl('/events') },
+      dataUrl: r.token ? myDataUrl(r.token) : undefined,
     })),
   );
 }

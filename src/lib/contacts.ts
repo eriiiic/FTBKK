@@ -254,33 +254,37 @@ export function buildContacts(
     );
 }
 
+/** Registrations with their event, as buildContacts wants them. */
+const contactRegistrations = () =>
+  getDb()
+    .select({
+      name: registrations.name,
+      email: registrations.email,
+      phone: registrations.phone,
+      company: registrations.company,
+      role: registrations.role,
+      status: registrations.status,
+      walkIn: registrations.walkIn,
+      createdAt: registrations.createdAt,
+      newsletterConsent: registrations.newsletterConsent,
+      newsletterConsentAt: registrations.newsletterConsentAt,
+      note: registrations.note,
+      event: {
+        id: events.id,
+        title: events.title,
+        slug: events.slug,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+      },
+    })
+    .from(registrations)
+    .innerJoin(events, eq(events.id, registrations.eventId));
+
 /** Loads every registration and listing and builds the contact list (admin only). */
 export async function loadContacts(now = new Date()) {
   const db = getDb();
   const [regs, orgs, saved] = await Promise.all([
-    db
-      .select({
-        name: registrations.name,
-        email: registrations.email,
-        phone: registrations.phone,
-        company: registrations.company,
-        role: registrations.role,
-        status: registrations.status,
-        walkIn: registrations.walkIn,
-        createdAt: registrations.createdAt,
-        newsletterConsent: registrations.newsletterConsent,
-        newsletterConsentAt: registrations.newsletterConsentAt,
-        note: registrations.note,
-        event: {
-          id: events.id,
-          title: events.title,
-          slug: events.slug,
-          startsAt: events.startsAt,
-          endsAt: events.endsAt,
-        },
-      })
-      .from(registrations)
-      .innerJoin(events, eq(events.id, registrations.eventId)),
+    contactRegistrations(),
     db
       .select({
         id: organisations.id,
@@ -662,6 +666,52 @@ export async function deleteContacts(keys: string[], actor: string, now = new Da
     }
   }
   return deleted;
+}
+
+/**
+ * One person's contact (their registrations and saved card, without ecosystem listings), for
+ * the self-service /my-data page. Null when nothing is left under this key.
+ */
+export async function loadContact(key: string, now = new Date()) {
+  const where = key.startsWith('name:')
+    ? inArray(registrations.id, await walkInIds(key))
+    : key.startsWith('id:')
+      ? undefined
+      : eq(registrations.email, key);
+  const [regs, card] = await Promise.all([
+    where ? contactRegistrations().where(where) : [],
+    cardFor(key),
+  ]);
+  return buildContacts(regs, [], now, card ? [card] : []).find((c) => c.key === key) ?? null;
+}
+
+/**
+ * Records "no" to the newsletter on the person's contact card (creating the card from their
+ * latest registration if they have none), dated now, so it wins over earlier registrations.
+ * Logged under `actor`. Needs an email: returns false for walk-ins without one.
+ */
+export async function unsubscribeNewsletter(c: Contact, actor: string, now = new Date()) {
+  if (!c.email || c.key.includes(':')) return false;
+  const db = getDb();
+  const set = { newsletter: 'no' as const, newsletterAt: now, updatedAt: now };
+  if (c.savedId) {
+    await db.update(contacts).set(set).where(eq(contacts.id, c.savedId));
+  } else {
+    const { name, email, phone, company, role } = c;
+    await db
+      .insert(contacts)
+      .values({ name, email, phone, company, role, newsletter: 'no', newsletterAt: now })
+      .onConflictDoUpdate({ target: contacts.email, set });
+  }
+  await audit(
+    actor,
+    'contact_newsletter',
+    'contact',
+    null,
+    { key: c.key, newsletter: c.newsletter.agreed ? 'yes' : 'no' },
+    { key: c.key, newsletter: 'no' },
+  );
+  return true;
 }
 
 /** A wa.me link from a phone number; Thai numbers starting with 0 get the +66 prefix. */

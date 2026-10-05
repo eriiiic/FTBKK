@@ -10,6 +10,7 @@ Disallow: /ecosystem/manage
 Disallow: /ecosystem/verify
 Disallow: /ecosystem/confirm
 Disallow: /ecosystem/claim/
+Disallow: /my-data
 
 Sitemap: ${new URL('/sitemap.xml', site).href}
 `,

@@ -31,6 +31,14 @@ Public pages:
 - **Code of conduct** at `/code-of-conduct`: how everyone is expected to behave at events, in our
   online groups (WhatsApp, LinkedIn) and on the website, and how to report a problem. Linked in
   the footer, on every event page and in the registration form. The text is edited in the admin.
+- **Privacy** (Thailand's PDPA): a privacy notice at `/privacy` (what we collect, why, who sees
+  it, how long we keep it, people's rights), linked in the footer and under the registration form,
+  editable in the admin. Every email sent to registrants (confirmation, waitlist promotion,
+  reminder, feedback request, event cancelled, "Email registrants") has a **Manage or delete my
+  data** link to `/my-data?token=…` (the registration's own token). That page shows what we hold
+  about the person, lets them unsubscribe from the newsletter, and lets them delete all their data
+  after a confirmation step (the same as "Delete this contact" in the admin: freed seats go to the
+  waitlist, the deletion is logged). Opening the link never deletes anything.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,

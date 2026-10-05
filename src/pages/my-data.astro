@@ -1,0 +1,175 @@
+---
+import { env } from 'cloudflare:workers';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Section from '../components/Section.astro';
+import Alert from '../components/Alert.astro';
+import Button from '../components/Button.astro';
+import { getSettings } from '../lib/settings';
+import { formatDate } from '../lib/format';
+import { contactKey, deleteContacts, loadContact, unsubscribeNewsletter } from '../lib/contacts';
+import { DataTokenSchema, MyDataActionSchema, describeMyData } from '../lib/privacy';
+
+// "Manage or delete my data", linked from every event email with the registration's token.
+// GET only shows what we hold (link scanners must never delete anything); buttons POST.
+const settings = await getSettings();
+const now = new Date();
+
+let token = '';
+let action: 'show' | 'ask-delete' | 'delete' | 'unsubscribe' = 'show';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = MyDataActionSchema.safeParse({
+    token: form.get('token'),
+    action: form.get('action'),
+  });
+  if (parsed.success) ({ token, action } = parsed.data);
+} else {
+  const parsed = DataTokenSchema.safeParse(Astro.url.searchParams.get('token') ?? '');
+  if (parsed.success) token = parsed.data;
+}
+
+const reg = token
+  ? await env.DB.prepare('SELECT name, email FROM registrations WHERE token = ?')
+      .bind(token)
+      .first<{ name: string; email: string | null }>()
+  : null;
+const key = reg ? contactKey(reg) : null;
+let contact = key ? await loadContact(key, now) : null;
+
+let state: 'show' | 'confirm' | 'deleted' | 'unsubscribed' | 'invalid' = contact
+  ? 'show'
+  : 'invalid';
+if (contact && key) {
+  const actor = `self-service:${contact.email ?? key}`;
+  if (action === 'ask-delete') state = 'confirm';
+  else if (action === 'delete') {
+    await deleteContacts([key], actor, now);
+    contact = null;
+    state = 'deleted';
+  } else if (action === 'unsubscribe') {
+    if (await unsubscribeNewsletter(contact, actor, now)) {
+      contact = await loadContact(key, now);
+      state = 'unsubscribed';
+    }
+  }
+}
+
+const rows = contact ? describeMyData(contact) : [];
+const STATUS = {
+  registered: 'Registered',
+  waitlist: 'On the waitlist',
+  attended: 'Came',
+  cancelled: 'Cancelled',
+} as const;
+---
+
+<BaseLayout title="Your data" noindex cache={false}>
+  <Section>
+    <div class="max-w-2xl">
+      <h1 class="text-3xl">Your data</h1>
+      {state === 'deleted' && (
+        <Alert tone="success" class="mt-6">
+          Your data has been deleted: your registrations, your answers and any contact card the team
+          saved. Any seat you had at an upcoming event goes to the next person on the waitlist. You
+          are welcome back any time: just register for an event again.
+        </Alert>
+      )}
+      {state === 'invalid' && (
+        <Alert tone="danger" class="mt-6">
+          This link doesn't work any more: your data may already be deleted, or the link is
+          incomplete. Use the "Manage or delete my data" link in one of our emails, or write to us
+          at <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>.
+        </Alert>
+      )}
+      {contact && (
+        <>
+          <p class="mt-2 text-muted">
+            This is what La French Tech Bangkok keeps about you. Read our{' '}
+            <a href="/privacy" class="text-accent underline">
+              privacy notice
+            </a>{' '}
+            to see why.
+          </p>
+          {state === 'unsubscribed' && (
+            <Alert tone="success" class="mt-6">
+              Done: you won't get the newsletter. Emails about events you register for still come.
+            </Alert>
+          )}
+          <dl class="mt-6 grid gap-x-6 gap-y-2 rounded-card border border-line p-6 sm:grid-cols-[auto_1fr]">
+            {rows.map(([k, v]) => (
+              <>
+                <dt class="font-semibold">{k}</dt>
+                <dd class="mb-2 break-words text-muted sm:mb-0">{v}</dd>
+              </>
+            ))}
+          </dl>
+          {contact.history.length > 0 && (
+            <details class="mt-4">
+              <summary class="cursor-pointer font-semibold">Your events</summary>
+              <ul class="mt-2 grid gap-1 text-sm">
+                {contact.history.map((r) => (
+                  <li>
+                    {r.event.title} · {formatDate(r.event.startsAt)} · {STATUS[r.status]}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <p class="mt-4 text-sm text-muted">
+            Something wrong? Write to us at{' '}
+            <a href={`mailto:${settings.contactEmail}`} class="text-accent underline">
+              {settings.contactEmail}
+            </a>{' '}
+            and we'll correct it.
+          </p>
+
+          {state === 'confirm' ? (
+            <form method="post" action="/my-data" class="mt-8 grid gap-4">
+              <Alert tone="warning">
+                Delete everything we hold about you? This removes your registrations (including
+                upcoming events, so you lose your seats), your answers, feedback and any contact
+                card. It can't be undone.
+              </Alert>
+              <input type="hidden" name="token" value={token} />
+              <div class="flex flex-wrap gap-3">
+                <Button type="submit" name="action" value="delete">
+                  Yes, delete my data
+                </Button>
+                <Button href={`/my-data?token=${encodeURIComponent(token)}`} variant="secondary">
+                  Keep my data
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div class="mt-8 grid gap-6">
+              {contact.newsletter.agreed && (
+                <form method="post" action="/my-data" class="grid gap-2">
+                  <h2 class="text-xl">Newsletter</h2>
+                  <p class="text-muted">Stop the newsletter and keep everything else.</p>
+                  <input type="hidden" name="token" value={token} />
+                  <div>
+                    <Button type="submit" name="action" value="unsubscribe" variant="secondary">
+                      Unsubscribe from the newsletter
+                    </Button>
+                  </div>
+                </form>
+              )}
+              <form method="post" action="/my-data" class="grid gap-2">
+                <h2 class="text-xl">Delete my data</h2>
+                <p class="text-muted">
+                  Removes your registrations and everything above. You'll be asked to confirm.
+                </p>
+                <input type="hidden" name="token" value={token} />
+                <div>
+                  <Button type="submit" name="action" value="ask-delete">
+                    Delete my data
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

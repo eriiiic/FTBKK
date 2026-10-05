@@ -170,10 +170,11 @@ if (bodyTooLarge) {
       .set({ status: 'cancelled', registrationOpen: false, updatedAt: new Date() })
       .where(eq(events.id, event.id));
     const { results: toNotify } = await env.DB.prepare(
-      `SELECT name, email FROM registrations WHERE event_id = ? AND status IN ('registered', 'waitlist')`,
+      `SELECT name, email, token FROM registrations
+       WHERE event_id = ? AND status IN ('registered', 'waitlist') AND email IS NOT NULL`,
     )
       .bind(event.id)
-      .all<{ name: string; email: string }>();
+      .all<{ name: string; email: string; token: string }>();
     await sendEventCancelled(event, toNotify);
     await audit(
       actor,
