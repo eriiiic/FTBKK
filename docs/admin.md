@@ -55,6 +55,14 @@ uses any more.
   "came at least once", "came 2 times or more", "registered, never came", "linked to an
   ecosystem listing" or by event, then **Export CSV** (the export keeps the filters). Click a
   name to see their full event history. Details come from their latest registration.
+- On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
+  **Call** buttons, and **Edit** for name, email, phone, company, role, LinkedIn and team notes.
+  Once edited, the saved details win over what the person types in later registrations. Changing
+  the email moves their registrations to the new one; if that email already registered, the two
+  merge. Adding an email to a walk-in groups their future registrations with it. **New contact**
+  adds someone who never registered. **Delete this contact** removes them and all their
+  registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
+  copies the filtered addresses for the Bcc field of an email.
 - Cancelling an event emails everyone registered or on the waitlist.
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.

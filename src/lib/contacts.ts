@@ -1,10 +1,14 @@
-import { eq } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+import { eq, inArray, isNull } from 'drizzle-orm';
+import { z } from 'zod';
 import { getDb } from '../db';
-import { events, organisations, registrations } from '../db/schema';
+import { contacts, events, organisations, registrations } from '../db/schema';
+import { email as emailField, optionalText, optionalUrl } from './forms';
 
 // Contacts: everyone who ever registered for an event (or walked in), one row per person, built
 // from registrations. No sign-up needed: a person is identified by their email, and walk-ins
-// without an email by their name.
+// without an email by their name. A saved contact card (contacts table) overrides the details
+// taken from registrations and adds notes; it can also be someone who never registered.
 
 export interface ContactRegistration {
   name: string;
@@ -28,13 +32,29 @@ export interface ContactOrg {
   ownerEmails: string[];
 }
 
+export interface SavedContact {
+  id: number;
+  email: string | null;
+  name: string;
+  phone: string | null;
+  company: string | null;
+  role: string | null;
+  linkedin: string | null;
+  notes: string | null;
+  createdAt: Date;
+}
+
 export interface Contact {
   key: string;
+  /** The saved contact card, if the admin created or edited one. */
+  savedId: number | null;
   name: string;
   email: string | null;
   phone: string | null;
   company: string | null;
   role: string | null;
+  linkedin: string | null;
+  notes: string | null;
   /** Registrations not cancelled (registered, waitlist or attended). */
   registrations: number;
   attended: number;
@@ -54,10 +74,15 @@ export const contactKey = (r: { email: string | null; name: string }) =>
     ? r.email.trim().toLowerCase()
     : `name:${r.name.trim().toLowerCase().replace(/\s+/g, ' ')}`;
 
+/** The key of a saved contact card: its email, or its id when it has none. */
+export const savedKey = (c: { id: number; email: string | null }) =>
+  c.email ? c.email.trim().toLowerCase() : `id:${c.id}`;
+
 export function buildContacts(
   regs: ContactRegistration[],
   orgs: ContactOrg[],
   now: Date,
+  saved: SavedContact[] = [],
 ): Contact[] {
   // Past events where at least one person was checked in: there, "registered" means no-show.
   const checkInUsed = new Set(regs.filter((r) => r.status === 'attended').map((r) => r.event.id));
@@ -80,9 +105,12 @@ export function buildContacts(
     const k = contactKey(r);
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
+  const cards = new Map(saved.map((c) => [savedKey(c), c]));
+  for (const k of cards.keys()) if (!groups.has(k)) groups.set(k, []);
 
   return [...groups.entries()]
-    .map(([key, rs]) => {
+    .map(([key, rs]): Contact => {
+      const card = cards.get(key);
       // Newest registration first: its details are the most up to date.
       const history = [...rs].sort(
         (a, b) =>
@@ -95,13 +123,18 @@ export function buildContacts(
       const live = rs.filter((r) => r.status !== 'cancelled');
       const attended = rs.filter((r) => r.status === 'attended');
       const lastAttended = history.find((r) => r.status === 'attended');
+      const first = rs.length ? Math.min(...rs.map((r) => r.createdAt.getTime())) : Infinity;
       return {
         key,
-        name: latest[0]!.name,
-        email: latest[0]!.email ? latest[0]!.email.toLowerCase() : null,
-        phone: pick('phone'),
-        company: pick('company'),
-        role: pick('role'),
+        savedId: card?.id ?? null,
+        // A saved card wins over what people typed when they registered.
+        name: card?.name ?? latest[0]!.name,
+        email: card ? card.email : latest[0]!.email ? latest[0]!.email.toLowerCase() : null,
+        phone: card ? card.phone : pick('phone'),
+        company: card ? card.company : pick('company'),
+        role: card ? card.role : pick('role'),
+        linkedin: card?.linkedin ?? null,
+        notes: card?.notes ?? null,
         registrations: live.length,
         attended: attended.length,
         noShows: rs.filter(
@@ -109,10 +142,10 @@ export function buildContacts(
         ).length,
         cancelled: rs.length - live.length,
         walkIns: rs.filter((r) => r.walkIn).length,
-        firstSeen: new Date(Math.min(...rs.map((r) => r.createdAt.getTime()))),
+        firstSeen: new Date(Math.min(first, card?.createdAt.getTime() ?? Infinity)),
         lastEvent: (lastAttended ?? history.find((r) => r.status !== 'cancelled'))?.event ?? null,
         history,
-        organisations: key.startsWith('name:') ? [] : (byEmail.get(key) ?? []),
+        organisations: key.includes(':') ? [] : (byEmail.get(key) ?? []),
       };
     })
     .sort(
@@ -126,7 +159,7 @@ export function buildContacts(
 /** Loads every registration and listing and builds the contact list (admin only). */
 export async function loadContacts(now = new Date()) {
   const db = getDb();
-  const [regs, orgs] = await Promise.all([
+  const [regs, orgs, saved] = await Promise.all([
     db
       .select({
         name: registrations.name,
@@ -158,8 +191,9 @@ export async function loadContacts(now = new Date()) {
         ownerEmails: organisations.ownerEmails,
       })
       .from(organisations),
+    db.select().from(contacts),
   ]);
-  return buildContacts(regs, orgs, now);
+  return buildContacts(regs, orgs, now, saved);
 }
 
 export const CONTACT_FILTERS = {
@@ -180,7 +214,7 @@ export function filterContacts(
   return list.filter((c) => {
     if (
       query &&
-      ![c.name, c.email, c.company, c.phone, ...c.organisations.map((o) => o.name)]
+      ![c.name, c.email, c.company, c.phone, c.notes, ...c.organisations.map((o) => o.name)]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -195,4 +229,177 @@ export function filterContacts(
     if (show === 'ecosystem') return c.organisations.length > 0;
     return true;
   });
+}
+
+// ---------- editing (admin only) ----------
+
+export interface ContactInput {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  role: string | null;
+  linkedin: string | null;
+  notes: string | null;
+}
+
+/** The contact form, as posted from /admin/contacts. */
+export const ContactSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a name.').max(120),
+  email: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    emailField.optional().transform((e) => e ?? null),
+  ),
+  phone: z
+    .string()
+    .trim()
+    .max(40)
+    .regex(/^[+\d\s().-]*$/, 'Enter a phone number (digits, spaces, +).')
+    .optional()
+    .transform((s) => (s ? s : null)),
+  company: optionalText(120),
+  role: optionalText(120),
+  linkedin: optionalUrl(),
+  notes: z
+    .string()
+    .max(4000)
+    .optional()
+    .transform((s) => (s?.trim() ? s.replace(/\r\n/g, '\n').trim() : null)),
+});
+
+type Result = { key: string } | { error: string; key?: string };
+
+const cardFor = async (key: string) => {
+  const db = getDb();
+  if (key.startsWith('name:')) return undefined;
+  const where = key.startsWith('id:')
+    ? eq(contacts.id, Number(key.slice(3)))
+    : eq(contacts.email, key);
+  return (await db.select().from(contacts).where(where))[0];
+};
+
+/** Registrations without an email whose name groups under this walk-in key. */
+const walkInIds = async (key: string) => {
+  const rows = await getDb()
+    .select({ id: registrations.id, name: registrations.name })
+    .from(registrations)
+    .where(isNull(registrations.email));
+  return rows.filter((r) => contactKey({ email: null, name: r.name }) === key).map((r) => r.id);
+};
+
+/** Is this email on a saved card other than `exceptId`? */
+const cardTaken = async (email: string, exceptId?: number) => {
+  const [row] = await getDb()
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(eq(contacts.email, email));
+  return row && row.id !== exceptId ? row : undefined;
+};
+
+/**
+ * Saves the details of the contact `key`. A new email moves their registrations to it (merging
+ * with anyone who already registered with that email); a registration for an event both emails
+ * signed up for stays under the old one.
+ */
+export async function saveContact(key: string, input: ContactInput): Promise<Result> {
+  const db = getDb();
+  const card = await cardFor(key);
+  const email = input.email;
+  if (email && (await cardTaken(email, card?.id))) {
+    return { error: 'Another contact already has this email.', key: email };
+  }
+  const now = new Date();
+
+  if (key.startsWith('name:')) {
+    // A walk-in who gave no email: their details live on their registrations.
+    const ids = await walkInIds(key);
+    if (ids.length) {
+      await db
+        .update(registrations)
+        .set({ name: input.name, phone: input.phone, company: input.company, role: input.role })
+        .where(inArray(registrations.id, ids));
+      if (email) {
+        await env.DB.batch(
+          ids.map((id) =>
+            env.DB.prepare('UPDATE OR IGNORE registrations SET email = ? WHERE id = ?').bind(
+              email,
+              id,
+            ),
+          ),
+        );
+      }
+    }
+    if (!email) return { key: contactKey({ email: null, name: input.name }) };
+  } else if (!key.startsWith('id:') && email !== key) {
+    if (!email) return { error: 'Keep an email: their registrations are filed under it.' };
+    await env.DB.prepare('UPDATE OR IGNORE registrations SET email = ? WHERE email = ?')
+      .bind(email, key)
+      .run();
+  }
+
+  if (card) {
+    await db
+      .update(contacts)
+      .set({ ...input, updatedAt: now })
+      .where(eq(contacts.id, card.id));
+    return { key: savedKey({ id: card.id, email }) };
+  }
+  const [row] = await db.insert(contacts).values(input).returning({ id: contacts.id });
+  return { key: savedKey({ id: row!.id, email }) };
+}
+
+/** Adds someone by hand. If the email is already known, points to that contact instead. */
+export async function createContact(input: ContactInput): Promise<Result> {
+  const db = getDb();
+  if (input.email) {
+    const known =
+      (await cardTaken(input.email)) ??
+      (
+        await db
+          .select({ id: registrations.id })
+          .from(registrations)
+          .where(eq(registrations.email, input.email))
+          .limit(1)
+      )[0];
+    if (known) return { error: 'This email is already in your contacts.', key: input.email };
+  }
+  const [row] = await db.insert(contacts).values(input).returning({ id: contacts.id });
+  return { key: savedKey({ id: row!.id, email: input.email }) };
+}
+
+/**
+ * Deletes a contact: their saved card and all their registrations. Returns the events where a
+ * seat was freed, so the caller can register the next person on the waitlist.
+ */
+export async function deleteContact(key: string) {
+  const db = getDb();
+  const where = key.startsWith('name:')
+    ? inArray(registrations.id, await walkInIds(key))
+    : key.startsWith('id:')
+      ? undefined
+      : eq(registrations.email, key);
+  const removed = where
+    ? await db
+        .delete(registrations)
+        .where(where)
+        .returning({ eventId: registrations.eventId, status: registrations.status })
+    : [];
+  const card = await cardFor(key);
+  if (card) await db.delete(contacts).where(eq(contacts.id, card.id));
+  return {
+    registrations: removed.length,
+    freedEvents: [
+      ...new Set(removed.filter((r) => r.status === 'registered').map((r) => r.eventId)),
+    ],
+  };
+}
+
+/** A wa.me link from a phone number; Thai numbers starting with 0 get the +66 prefix. */
+export function whatsappUrl(phone: string | null) {
+  let digits = (phone ?? '').replace(/[^\d+]/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('+')) digits = digits.slice(1);
+  else if (digits.startsWith('00')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = `66${digits.slice(1)}`;
+  return digits.length >= 8 ? `https://wa.me/${digits.replace(/\D/g, '')}` : null;
 }

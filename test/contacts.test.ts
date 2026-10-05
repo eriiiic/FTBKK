@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildContacts, filterContacts, type ContactRegistration } from '../src/lib/contacts';
+import {
+  buildContacts,
+  filterContacts,
+  whatsappUrl,
+  type ContactRegistration,
+  type SavedContact,
+} from '../src/lib/contacts';
 
 const now = new Date('2026-10-05T08:00:00Z');
 const ev = (id: number, start: string) => ({
@@ -95,5 +101,46 @@ describe('buildContacts', () => {
     expect(filterContacts(list, { q: 'acme' })).toHaveLength(2);
     expect(filterContacts(list, { event: 3 }).map((c) => c.name)).toEqual(['Alice Martin']);
     expect(filterContacts(list, { show: 'never' })).toHaveLength(0);
+  });
+});
+
+describe('saved contact cards', () => {
+  const card = (p: Partial<SavedContact>): SavedContact => ({
+    id: 1,
+    email: null,
+    name: 'Card',
+    phone: null,
+    company: null,
+    role: null,
+    linkedin: null,
+    notes: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    ...p,
+  });
+  const list = buildContacts(regs, orgs, now, [
+    card({ id: 1, email: 'bob@example.com', name: 'Robert Lee', company: null, notes: 'VIP' }),
+    card({ id: 2, name: 'Dana Manual', phone: '081 234 5678' }),
+  ]);
+
+  it('override the details from registrations, including emptied fields', () => {
+    const bob = list.find((c) => c.key === 'bob@example.com')!;
+    expect(bob).toMatchObject({ savedId: 1, name: 'Robert Lee', company: null, notes: 'VIP' });
+    expect(bob.attended).toBe(1);
+    expect(bob.firstSeen.toISOString()).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('add people who never registered', () => {
+    const dana = list.find((c) => c.key === 'id:2')!;
+    expect(dana).toMatchObject({ registrations: 0, lastEvent: null, organisations: [] });
+  });
+});
+
+describe('whatsappUrl', () => {
+  it('adds the Thai prefix to local numbers and keeps international ones', () => {
+    expect(whatsappUrl('081 234 5678')).toBe('https://wa.me/66812345678');
+    expect(whatsappUrl('+33 6 12 34 56 78')).toBe('https://wa.me/33612345678');
+    expect(whatsappUrl('0033 6 12 34 56 78')).toBe('https://wa.me/33612345678');
+    expect(whatsappUrl('12')).toBeNull();
+    expect(whatsappUrl(null)).toBeNull();
   });
 });

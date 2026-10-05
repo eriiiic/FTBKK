@@ -1,14 +1,76 @@
 ---
+import { eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
-import { loadContacts } from '../../../lib/contacts';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import ContactForm from '../../../components/admin/ContactForm.astro';
+import {
+  ContactSchema,
+  deleteContact,
+  loadContacts,
+  saveContact,
+  whatsappUrl,
+} from '../../../lib/contacts';
+import { promoteFromWaitlist, sendPromotion } from '../../../lib/registrations';
+import { getSettings } from '../../../lib/settings';
+import { audit } from '../../../lib/orgs';
+import { fieldErrors, formToObject } from '../../../lib/forms';
+import { getDb } from '../../../db';
+import { events } from '../../../db/schema';
 import { formatDate, formatEventDate } from '../../../lib/format';
 
 const key = Astro.url.searchParams.get('c') ?? '';
+const actor = Astro.locals.adminEmail ?? 'admin';
 const now = new Date();
+const view = (k: string, flash = 'saved=done') =>
+  `/admin/contacts/view?c=${encodeURIComponent(k)}&${flash}`;
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  if (action === 'delete') {
+    const { registrations, freedEvents } = await deleteContact(key);
+    await audit(actor, 'contact_delete', 'contact', null, { key, registrations }, null);
+    // Freed seats go to the next people on the waitlist, as when someone cancels.
+    const settings = await getSettings();
+    for (const id of freedEvents) {
+      const [event] = await getDb().select().from(events).where(eq(events.id, id));
+      if (!event || (event.endsAt ?? event.startsAt) < now) continue;
+      const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+      if (row) await sendPromotion(event, row);
+    }
+    return Astro.redirect('/admin/contacts?saved=deleted');
+  }
+  values = formToObject(form);
+  const parsed = ContactSchema.safeParse(values);
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  else {
+    const result = await saveContact(key, parsed.data);
+    if ('error' in result) errors = { email: result.error };
+    else {
+      await audit(actor, 'contact_update', 'contact', null, { key }, parsed.data);
+      return Astro.redirect(view(result.key));
+    }
+  }
+}
+
 const contact = (await loadContacts(now)).find((c) => c.key === key);
 if (!contact) return Astro.redirect('/admin/contacts');
 const c = contact;
+const walkIn = key.startsWith('name:');
+const whatsapp = whatsappUrl(c.phone);
+const actions = [
+  c.email && { label: 'Email', href: `mailto:${c.email}` },
+  whatsapp && { label: 'WhatsApp', href: whatsapp },
+  c.phone && { label: 'Call', href: `tel:${c.phone.replace(/[^\d+]/g, '')}` },
+  c.linkedin && { label: 'LinkedIn', href: c.linkedin },
+].filter(Boolean) as { label: string; href: string }[];
+const deleteWarning = c.history.length
+  ? `Delete ${c.name} and their ${c.history.length} registration${c.history.length > 1 ? 's' : ''}? Event counts and stats will no longer include them. This can't be undone.`
+  : `Delete ${c.name}? This can't be undone.`;
 const tone = (s: string) =>
   s === 'attended'
     ? 'success'
@@ -30,7 +92,7 @@ const details = [
   ['Phone', c.phone],
   ['Company', c.company],
   ['Role', c.role],
-  ['First registration', formatDate(c.firstSeen)],
+  ['First seen', formatDate(c.firstSeen)],
 ].filter(([, v]) => v) as [string, string][];
 const stats = [
   ['Attended', c.attended],
@@ -41,9 +103,23 @@ const stats = [
 ---
 
 <AdminLayout title={c.name}>
-  <p class="mb-4">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <a href="/admin/contacts">← All contacts</a>
-  </p>
+    {actions.length > 0 && (
+      <div class="flex flex-wrap gap-2">
+        {actions.map((a) => (
+          <Button
+            href={a.href}
+            size="sm"
+            variant="secondary"
+            {...(a.href.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}
+          >
+            {a.label}
+          </Button>
+        ))}
+      </div>
+    )}
+  </div>
   <div class="grid gap-4 lg:grid-cols-[2fr_3fr]">
     <div class="grid content-start gap-4">
       <section class="admin-panel">
@@ -58,10 +134,32 @@ const stats = [
             </div>
           ))}
         </dl>
+        {c.notes && (
+          <div class="mt-3 rounded-lg bg-surface p-3 text-sm whitespace-pre-line">{c.notes}</div>
+        )}
         <p class="mt-3 text-xs text-muted">
-          Taken from their latest registration. To change them, edit the registration.
+          {c.savedId
+            ? 'Saved contact card. Details typed in new registrations do not change it.'
+            : 'Taken from their latest registration until you edit them.'}
         </p>
       </section>
+
+      <details class="admin-panel" open={Object.keys(errors).length > 0}>
+        <summary class="cursor-pointer text-lg font-semibold">Edit</summary>
+        <div class="mt-4">
+          {errors.email && Object.keys(errors).length === 1 && (
+            <Alert tone="danger" class="mb-4">
+              {errors.email}
+            </Alert>
+          )}
+          <ContactForm
+            values={values ?? { ...c }}
+            errors={errors}
+            submit="Save contact"
+            walkIn={walkIn}
+          />
+        </div>
+      </details>
 
       <section class="admin-panel">
         <h2 class="mb-3 text-lg">Ecosystem</h2>
@@ -84,6 +182,13 @@ const stats = [
           </p>
         )}
       </section>
+
+      <form method="post" data-confirm={deleteWarning}>
+        <input type="hidden" name="action" value="delete" />
+        <button type="submit" class="text-sm font-semibold text-danger underline">
+          Delete this contact
+        </button>
+      </form>
     </div>
 
     <section class="admin-panel">
@@ -96,6 +201,9 @@ const stats = [
         ))}
       </dl>
       <h2 class="mb-3 text-lg">Events</h2>
+      {c.history.length === 0 && (
+        <p class="text-sm text-muted">Added by hand: no event registrations yet.</p>
+      )}
       <ul class="grid gap-2">
         {c.history.map((r) => (
           <li class="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
