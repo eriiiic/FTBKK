@@ -9,8 +9,10 @@ interface Props {
   submit: string;
   /** A walk-in without an email: notes and LinkedIn need an email to be saved. */
   walkIn?: boolean;
+  /** The newsletter answer that counts today, shown under the menu when editing. */
+  newsletterNow?: string;
 }
-const { values, errors, submit, walkIn = false } = Astro.props;
+const { values, errors, submit, walkIn = false, newsletterNow } = Astro.props;
 const v = (k: string) => (values[k] as string | null | undefined) ?? '';
 const newsletterOptions = [
   ['', 'As they chose when registering'],
@@ -107,6 +109,7 @@ const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
       </select>
       <p id="f-newsletter-hint" class="mt-1 text-sm text-muted">
         Only when someone tells you in person or by message. Their latest choice counts.
+        {newsletterNow && <span class="block">Now: {newsletterNow}.</span>}
       </p>
       {errors.newsletter && <p class="mt-1 text-sm text-danger">{errors.newsletter}</p>}
     </div>

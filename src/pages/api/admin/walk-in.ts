@@ -62,8 +62,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .where(and(eq(registrations.eventId, eventId), eq(registrations.email, mail)))
     : [];
   if (existing?.status === 'attended') {
+    // Still record a newsletter yes given at the door (e.g. at the bar, after check-in).
+    if (newsletter) {
+      await db.update(registrations).set(consent).where(eq(registrations.id, existing.id));
+      await audit(
+        locals.adminEmail ?? 'admin',
+        'registration_newsletter',
+        'registration',
+        existing.id,
+        { newsletter: existing.newsletterConsent },
+        { newsletter: true },
+      );
+    }
     return Response.json(
-      { error: `${existing.name} is already checked in.`, id: existing.id },
+      {
+        error: `${existing.name} is already checked in${newsletter ? '. Newsletter yes recorded.' : '.'}`,
+        id: existing.id,
+      },
       { status: 409 },
     );
   }

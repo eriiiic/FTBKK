@@ -6,7 +6,13 @@ import Alert from '../components/Alert.astro';
 import Button from '../components/Button.astro';
 import { getSettings } from '../lib/settings';
 import { formatDate } from '../lib/format';
-import { contactKey, deleteContacts, loadContact, unsubscribeNewsletter } from '../lib/contacts';
+import {
+  CONTACT_TAGS,
+  contactKey,
+  deleteContacts,
+  loadContact,
+  unsubscribeNewsletter,
+} from '../lib/contacts';
 import { DataTokenSchema, MyDataActionSchema, describeMyData } from '../lib/privacy';
 
 // "Manage or delete my data", linked from every event email with the registration's token.
@@ -55,6 +61,8 @@ if (contact && key) {
 }
 
 const rows = contact ? describeMyData(contact) : [];
+if (contact?.tags.length)
+  rows.push(['Tags the team added', contact.tags.map((t) => CONTACT_TAGS[t]).join(', ')]);
 const STATUS = {
   registered: 'Registered',
   waitlist: 'On the waitlist',
@@ -69,16 +77,17 @@ const STATUS = {
       <h1 class="text-3xl">Your data</h1>
       {state === 'deleted' && (
         <Alert tone="success" class="mt-6">
-          Your data has been deleted: your registrations, your answers and any contact card the team
-          saved. Any seat you had at an upcoming event goes to the next person on the waitlist. You
-          are welcome back any time: just register for an event again.
+          Your data has been deleted: your registrations, your answers and feedback, any contact
+          card the team saved, and your details in our admin change history. Any seat you had at an
+          upcoming event goes to the next person on the waitlist. You are welcome back any time:
+          just register for an event again.
         </Alert>
       )}
       {state === 'invalid' && (
         <Alert tone="danger" class="mt-6">
-          This link doesn't work any more: your data may already be deleted, or the link is
-          incomplete. Use the "Manage or delete my data" link in one of our emails, or write to us
-          at <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>.
+          We couldn't open your data with this link: it may be incomplete or out of date. Use the
+          "Manage or delete my data" link in our most recent email to you, or write to us at{' '}
+          <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a> and we'll help.
         </Alert>
       )}
       {contact && (
@@ -89,6 +98,8 @@ const STATUS = {
               privacy notice
             </a>{' '}
             to see why.
+            {contact.notes &&
+              ' The team also wrote some notes on your contact card: ask us and we will send you a copy.'}
           </p>
           {state === 'unsubscribed' && (
             <Alert tone="success" class="mt-6">
@@ -105,11 +116,25 @@ const STATUS = {
           </dl>
           {contact.history.length > 0 && (
             <details class="mt-4">
-              <summary class="cursor-pointer font-semibold">Your events</summary>
+              <summary class="cursor-pointer font-semibold">
+                Your events, answers and feedback
+              </summary>
               <ul class="mt-2 grid gap-1 text-sm">
                 {contact.history.map((r) => (
                   <li>
                     {r.event.title} · {formatDate(r.event.startsAt)} · {STATUS[r.status]}
+                    {r.howHeard && (
+                      <span class="block text-muted">How you heard about us: {r.howHeard}</span>
+                    )}
+                    {r.note && (
+                      <span class="block whitespace-pre-line text-muted">Your note: {r.note}</span>
+                    )}
+                    {r.feedbackRating && (
+                      <span class="block whitespace-pre-line text-muted">
+                        Your feedback: {r.feedbackRating}/5
+                        {r.feedbackComment ? `, “${r.feedbackComment}”` : ''}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

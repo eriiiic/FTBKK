@@ -122,7 +122,12 @@ export function registrationState(
   return { ...base, open: true };
 }
 
-/** Atomic insert: decides registered vs waitlist in the same statement, so capacity holds. */
+/**
+ * Atomic insert: decides registered vs waitlist in the same statement, so capacity holds. Only a
+ * ticked newsletter box is recorded (dated): an unticked box is not a withdrawal, since the form
+ * never shows that someone is already subscribed. Registering again after a cancellation keeps
+ * the registration's token, so links in earlier emails ("Manage or delete my data") still work.
+ */
 export async function insertRegistration(
   eventId: number,
   data: z.infer<typeof RegisterSchema>,
@@ -138,13 +143,15 @@ export async function insertRegistration(
          CASE WHEN ?7 IS NULL OR (SELECT count(*) FROM registrations
            WHERE event_id = ?1 AND status IN ('registered', 'attended')) < ?7
          THEN 'registered' ELSE 'waitlist' END,
-         ?8, ?9, ?10, unixepoch(), ?11
+         ?8, ?9, ?10, CASE WHEN ?10 THEN unixepoch() END, ?11
        WHERE true
        ON CONFLICT (event_id, email) DO UPDATE SET
          name = excluded.name, company = excluded.company, role = excluded.role, phone = excluded.phone,
-         how_heard = excluded.how_heard, status = excluded.status, token = excluded.token,
-         newsletter_consent = excluded.newsletter_consent,
-         newsletter_consent_at = excluded.newsletter_consent_at, note = excluded.note,
+         how_heard = excluded.how_heard, status = excluded.status,
+         newsletter_consent = CASE WHEN excluded.newsletter_consent
+           THEN 1 ELSE registrations.newsletter_consent END,
+         newsletter_consent_at = coalesce(excluded.newsletter_consent_at, registrations.newsletter_consent_at),
+         note = excluded.note,
          created_at = unixepoch(), checked_in_at = NULL, reminder_sent_at = NULL
        WHERE registrations.status = 'cancelled'
        RETURNING id, status, token`,

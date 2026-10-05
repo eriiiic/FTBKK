@@ -35,10 +35,13 @@ Public pages:
   it, how long we keep it, people's rights), linked in the footer and under the registration form,
   editable in the admin. Every email sent to registrants (confirmation, waitlist promotion,
   reminder, feedback request, event cancelled, "Email registrants") has a **Manage or delete my
-  data** link to `/my-data?token=…` (the registration's own token). That page shows what we hold
-  about the person, lets them unsubscribe from the newsletter, and lets them delete all their data
-  after a confirmation step (the same as "Delete this contact" in the admin: freed seats go to the
-  waitlist, the deletion is logged). Opening the link never deletes anything.
+  data** link to `/my-data?token=…` (the registration's own token, kept when someone registers
+  again after cancelling, so older links keep working). That page shows what we hold about the
+  person (details, events with their own answers and feedback, tags), lets them unsubscribe from
+  the newsletter, and lets them delete all their data after a confirmation step (the same as
+  "Delete this contact" in the admin: freed seats go to the waitlist). Deleting a contact also
+  strips their details from the admin change history (the deletion itself is logged under a short
+  hash, not their email). Opening the link never deletes anything.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,
@@ -50,7 +53,7 @@ Check-in at the door works from a phone: volunteers bookmark `/checkin`, which o
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
 that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
 who didn't register. People coming for the first time get a "First time" badge (with "Say hello
-to the N newcomers" at the top) and people who came to 3 or more earlier events a "Regular"
+to the N newcomers" above the list) and people who came to 3 or more earlier events a "Regular"
 badge, so volunteers know whom to welcome.
 
 Organisers can **email an event's registrants** from the admin (venue change, slides after the
@@ -72,8 +75,9 @@ edited (with tags, team notes and LinkedIn), contacted by email, WhatsApp or pho
 the total number of contacts.
 
 **Newsletter consent** (Thailand's PDPA: explicit, opt-in, dated). The registration form has an
-unticked box "Send me the La French Tech Bangkok newsletter"; each registration stores the answer
-and when it was given (`newsletter_consent`, `newsletter_consent_at`). The walk-in dialog has the
+unticked box "Send me the La French Tech Bangkok newsletter"; a tick is stored with its date
+(`newsletter_consent`, `newsletter_consent_at`). An unticked box is not recorded, so it never
+withdraws an earlier yes (people withdraw on `/my-data` or by telling the team). The walk-in dialog has the
 same optional box (only a tick is recorded, and it needs an email). When someone tells the team
 in person, an admin sets "Subscribed" or "Not subscribed" with the date on their contact card
 (`contacts.newsletter`, `newsletter_at`). A person's consent is their most recent explicit choice;

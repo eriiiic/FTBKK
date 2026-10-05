@@ -2,13 +2,14 @@ import { env } from 'cloudflare:workers';
 import { eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db';
-import { contacts, events, organisations, registrations } from '../db/schema';
+import { contacts, eventFeedback, events, organisations, registrations } from '../db/schema';
 import { email as emailField, optionalText, optionalUrl } from './forms';
 import { promoteFromWaitlist, sendPromotion } from './registrations';
 import { getSettings } from './settings';
 import { audit } from './orgs';
 import { fromLocalInput, toDateInput } from './admin';
 import { REGULAR_MIN_EVENTS } from './regulars';
+import { formatDate } from './format';
 
 // Contacts: everyone who ever registered for an event (or walked in), one row per person, built
 // from registrations. No sign-up needed: a person is identified by their email, and walk-ins
@@ -50,6 +51,11 @@ export interface ContactRegistration {
   newsletterConsentAt?: Date | null;
   /** What they wrote in "Anything we should know?" when registering. */
   note?: string | null;
+  /** Their answer to "How did you hear about us?". */
+  howHeard?: string | null;
+  /** The feedback they gave after the event (1-5 stars and a comment), if any. */
+  feedbackRating?: number | null;
+  feedbackComment?: string | null;
   event: { id: number; title: string; slug: string; startsAt: Date; endsAt: Date | null };
 }
 
@@ -88,8 +94,9 @@ export interface NewsletterConsent {
 }
 
 /**
- * The most recent explicit newsletter choice: the latest registration that asked (ticked or
- * not), unless the team recorded a later answer on the contact card. Never asked = no consent.
+ * The most recent explicit newsletter choice: the latest registration where they ticked the box
+ * (an unticked box is not recorded), unless the team recorded a later answer on the contact card.
+ * Never asked = no consent.
  */
 export function newsletterConsent(
   regs: Pick<ContactRegistration, 'newsletterConsent' | 'newsletterConsentAt'>[],
@@ -269,6 +276,9 @@ const contactRegistrations = () =>
       newsletterConsent: registrations.newsletterConsent,
       newsletterConsentAt: registrations.newsletterConsentAt,
       note: registrations.note,
+      howHeard: registrations.howHeard,
+      feedbackRating: eventFeedback.rating,
+      feedbackComment: eventFeedback.comment,
       event: {
         id: events.id,
         title: events.title,
@@ -278,7 +288,8 @@ const contactRegistrations = () =>
       },
     })
     .from(registrations)
-    .innerJoin(events, eq(events.id, registrations.eventId));
+    .innerJoin(events, eq(events.id, registrations.eventId))
+    .leftJoin(eventFeedback, eq(eventFeedback.registrationId, registrations.id));
 
 /** Loads every registration and listing and builds the contact list (admin only). */
 export async function loadContacts(now = new Date()) {
@@ -411,27 +422,45 @@ export const ContactSchema = z.object({
     .optional(),
 });
 
+/** When they last answered on a registration form (only a tick is recorded), or null. */
+export const latestRegistrationAnswer = (
+  regs: Pick<ContactRegistration, 'newsletterConsentAt'>[],
+) =>
+  regs.reduce<Date | null>(
+    (best, r) =>
+      r.newsletterConsentAt && (!best || r.newsletterConsentAt > best)
+        ? r.newsletterConsentAt
+        : best,
+    null,
+  );
+
 /**
- * The contact form's fields, ready to save: the newsletter date is kept as it was when neither
- * the choice nor the day changed (so saving other details doesn't move it), else today if left
- * empty. A date in the future is refused.
+ * The contact form's fields, ready to save. The newsletter date is kept as it was only when the
+ * card is still the answer that counts and neither the choice nor the day changed (so saving
+ * other details doesn't move it). A new choice is dated today when the date is left empty or
+ * still shows the old card date. A date in the future, or one older than their latest answer on a
+ * registration form (so the choice would change nothing), is refused.
  */
 export function contactInput(
   data: z.infer<typeof ContactSchema>,
   card: { newsletter?: 'yes' | 'no' | null; newsletterAt?: Date | null } | null,
   now = new Date(),
+  latestRegAt: Date | null = null,
 ): ContactInput | { error: string } {
   const { newsletterAt: day, ...rest } = data;
   if (!rest.newsletter) return { ...rest, newsletterAt: null };
   if (day && day > toDateInput(now)) return { error: 'The date can’t be in the future.' };
-  const keep =
-    card?.newsletter === rest.newsletter &&
-    card.newsletterAt &&
-    (!day || day === toDateInput(card.newsletterAt));
-  return {
-    ...rest,
-    newsletterAt: keep ? card.newsletterAt! : newsletterDate(day || toDateInput(now), now),
-  };
+  const old = card?.newsletter && card.newsletterAt ? card.newsletterAt : null;
+  const oldDay = old ? toDateInput(old) : null;
+  const counts = !!old && (!latestRegAt || old >= latestRegAt);
+  if (old && counts && card?.newsletter === rest.newsletter && (!day || day === oldDay))
+    return { ...rest, newsletterAt: old };
+  const at = !day || day === oldDay ? now : newsletterDate(day, now);
+  if (latestRegAt && at < latestRegAt)
+    return {
+      error: `They ticked the newsletter box on a registration form on ${formatDate(latestRegAt)}, which is later. Pick a later date, or leave it empty for today.`,
+    };
+  return { ...rest, newsletterAt: at };
 }
 
 type Result = { key: string } | { error: string; key?: string };
@@ -640,6 +669,47 @@ export async function deleteContact(key: string) {
 }
 
 /**
+ * A deleted contact's key for the history log: a short SHA-256, so the log shows that someone
+ * was deleted (and the same key twice reads the same) without keeping their email or name.
+ */
+export async function hashedKey(key: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `deleted:${hex.slice(0, 12)}`;
+}
+
+/**
+ * Removes a deleted contact's details from the history log: their contact entries (create,
+ * update, tags, newsletter) keep the action and date but lose the before/after values, and
+ * "self-service:<email>" becomes "self-service".
+ */
+async function redactContactAudit(
+  key: string,
+  card: { email: string | null; name: string } | null | undefined,
+) {
+  const emails = [...new Set([key.includes(':') ? null : key, card?.email?.toLowerCase()])].filter(
+    (e): e is string => !!e,
+  );
+  const redacted = JSON.stringify({ redacted: true });
+  const match = `entity = 'contact' AND (
+      json_extract(before, '$.key') = ?1 OR json_extract(after, '$.key') = ?1
+      OR lower(json_extract(after, '$.email')) IN (SELECT value FROM json_each(?2))
+      OR (?3 IS NOT NULL AND json_extract(after, '$.email') IS NULL AND json_extract(after, '$.name') = ?3))`;
+  const name = key.includes(':') ? (card?.name ?? null) : null;
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE audit_log SET before = ?4, after = ?4 WHERE ${match}`).bind(
+      key,
+      JSON.stringify(emails),
+      name,
+      redacted,
+    ),
+    env.DB.prepare(
+      `UPDATE audit_log SET actor = 'self-service' WHERE actor IN (SELECT 'self-service:' || value FROM json_each(?1))`,
+    ).bind(JSON.stringify([key, ...emails])),
+  ]);
+}
+
+/**
  * Deletes several contacts (see deleteContact), logs each one, then gives the seats freed on
  * upcoming events to the next people on the waitlist, as when someone cancels.
  */
@@ -648,8 +718,18 @@ export async function deleteContacts(keys: string[], actor: string, now = new Da
   let deleted = 0;
   for (const key of new Set(keys)) {
     if (!(await contactExists(key))) continue;
+    const card = await cardFor(key);
     const { registrations: n, freedEvents } = await deleteContact(key);
-    await audit(actor, 'contact_delete', 'contact', null, { key, registrations: n }, null);
+    await redactContactAudit(key, card);
+    const ref = await hashedKey(key);
+    await audit(
+      actor.startsWith('self-service:') ? 'self-service' : actor,
+      'contact_delete',
+      'contact',
+      null,
+      { key: ref, registrations: n },
+      null,
+    );
     freedEvents.forEach((id) => freed.add(id));
     deleted++;
   }

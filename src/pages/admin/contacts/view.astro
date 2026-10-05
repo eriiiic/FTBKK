@@ -10,6 +10,7 @@ import {
   cardFor,
   contactExists,
   contactInput,
+  latestRegistrationAnswer,
   deleteContacts,
   loadContacts,
   saveContact,
@@ -18,7 +19,6 @@ import {
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { formatDate, formatEventDate } from '../../../lib/format';
-import { toDateInput } from '../../../lib/admin';
 
 const key = Astro.url.searchParams.get('c') ?? '';
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -39,8 +39,14 @@ if (Astro.request.method === 'POST') {
   }
   values = formToObject(form, ['tags']);
   const parsed = ContactSchema.safeParse(values);
+  const before = parsed.success ? (await loadContacts(now)).find((x) => x.key === key) : null;
   const input = parsed.success
-    ? contactInput(parsed.data, (await cardFor(key)) ?? null, now)
+    ? contactInput(
+        parsed.data,
+        (await cardFor(key)) ?? null,
+        now,
+        latestRegistrationAnswer(before?.history ?? []),
+      )
     : null;
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
@@ -91,6 +97,7 @@ const details = [
   ['Role', c.role],
   ['First seen', formatDate(c.firstSeen)],
   ['Newsletter', newsletterText(c.newsletter)],
+  ['Tags', c.tags.length ? 'tags' : null],
 ].filter(([, v]) => v) as [string, string][];
 function newsletterText(n: typeof c.newsletter) {
   if (!n.at) return 'Never asked';
@@ -132,18 +139,21 @@ const stats = [
             <div class="grid grid-cols-[9rem_1fr] gap-2">
               <dt class="text-muted">{k}</dt>
               <dd class="break-words">
-                {k === 'Email' && c.email ? <a href={`mailto:${c.email}`}>{v}</a> : v}
+                {k === 'Email' && c.email ? (
+                  <a href={`mailto:${c.email}`}>{v}</a>
+                ) : k === 'Tags' ? (
+                  <span class="flex flex-wrap gap-1">
+                    {c.tags.map((t) => (
+                      <Badge tone="brand">{CONTACT_TAGS[t]}</Badge>
+                    ))}
+                  </span>
+                ) : (
+                  v
+                )}
               </dd>
             </div>
           ))}
         </dl>
-        {c.tags.length > 0 && (
-          <p class="mt-3 flex flex-wrap gap-1" aria-label="Tags">
-            {c.tags.map((t) => (
-              <Badge tone="brand">{CONTACT_TAGS[t]}</Badge>
-            ))}
-          </p>
-        )}
         {c.notes && (
           <div class="mt-3 rounded-lg bg-surface p-3 text-sm whitespace-pre-line">{c.notes}</div>
         )}
@@ -166,10 +176,12 @@ const stats = [
             values={
               values ?? {
                 ...c,
-                newsletter: c.newsletterCard?.choice ?? '',
-                newsletterAt: toDateInput(c.newsletterCard?.at),
+                // The menu shows the card only while it is the answer that counts.
+                newsletter: c.newsletter.source === 'card' ? (c.newsletterCard?.choice ?? '') : '',
+                newsletterAt: '',
               }
             }
+            newsletterNow={newsletterText(c.newsletter)}
             errors={errors}
             submit="Save contact"
             walkIn={walkIn}

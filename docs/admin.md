@@ -86,7 +86,7 @@ uses any more.
   login), and tapping one opens its check-in mode. They must be allowed in Cloudflare Access.
 - **First time and Regular badges** on the check-in screen help volunteers greet people. "First
   time" (blue) means this email was never checked in at an earlier published event, and the
-  banner at the top says how many newcomers are expected ("Say hello to the 3 newcomers").
+  banner above the list says how many newcomers are expected ("Say hello to the 3 newcomers").
   "Regular · N events" means they were checked in at 3 or more earlier events. Walk-ins added at
   the door get their badge too. People without an email get no badge (we can't tell), and the
   count only knows about events where check-in was used.
@@ -94,7 +94,8 @@ uses any more.
   finds nobody) adds someone who didn't register and checks them in. Only the name is required.
   If the email is already registered for the event, that registration is checked in instead.
   Walk-ins are marked in Registrations and in the CSV export. Tick **They want the newsletter**
-  only if the person said yes (it needs their email).
+  only if the person said yes (it needs their email). This also works for someone already
+  checked in: the screen says "already checked in" and records the yes.
 - **Contacts** lists everyone who ever registered or walked in, one line per person (by email;
   walk-ins without an email are grouped by name). It shows how many events each person attended,
   registered for and missed (registered for a past event where check-in was used, but not
@@ -128,25 +129,31 @@ uses any more.
   are skipped, and the message says how many) and **Delete** (asks first; removes those contacts and their registrations, and freed
   seats on upcoming events go to the waitlist).
 - **Newsletter consent**: the law (Thailand's PDPA) wants a clear yes, given by the person, with
-  a date. The registration form asks with an unticked box; each answer is kept with its date. The
+  a date. The registration form asks with an unticked box; a tick is kept with its date (leaving
+  the box unticked records nothing, so it never cancels an earlier yes). The
   contacts list has a **Newsletter** column ("Agreed") and an "Agreed to the newsletter" filter;
   the contact page shows their current choice, where it came from and when. If someone tells you
   in person or by message, open their contact, **Edit**, set **Newsletter** to "Subscribed" or
-  "Not subscribed" and the date they told you (empty = today). Their latest choice always wins: a
-  later registration replaces what you set, and the other way round. "As they chose when
-  registering" removes your entry. People imported from Wix were never asked, so they count as
+  "Not subscribed" and the date they told you (empty = today). The line under the menu shows the
+  answer that counts now. Their latest choice always wins: a later tick on a registration form
+  replaces what you set, and the other way round. The menu only shows your entry while it is the
+  one that counts; a date older than their latest tick is refused, since it would change nothing.
+  "As they chose when registering" removes your entry. People imported from Wix were never asked, so they count as
   not subscribed. To send a newsletter, filter on "Agreed to the newsletter" and **Export CSV**
   (columns "Newsletter" and "Newsletter consent date") into your newsletter tool. Only use **Copy
   emails** for event messages, not for the newsletter.
 - **Manage or delete my data** (PDPA): every email to registrants (confirmation, waitlist
   promotion, reminder, feedback request, event cancelled and **Email registrants**) has this link
   in its footer. It opens `/my-data` for that registration, which shows the person their name,
-  email, phone, company, events (registered, came, cancelled), newsletter choice and whether you
-  saved a contact card. They can **Unsubscribe from the newsletter** (recorded on their contact
+  email, phone, company, events (registered, came, cancelled) with their own answers ("Anything
+  we should know?", how they heard about us) and feedback, newsletter choice, tags, and whether
+  you saved a contact card (your notes are not shown; the page tells them to ask for a copy). They can **Unsubscribe from the newsletter** (recorded on their contact
   card as "Not subscribed" with today's date) or **Delete my data** (asks to confirm, then does
   exactly what **Delete this contact** does: their card, registrations and feedback go, and freed
-  seats go to the waitlist). Both show in Ecosystem > History with the actor
-  `self-service:<their email>`. After a deletion the link stops working. If someone asks by email
+  seats go to the waitlist). An unsubscribe shows in Ecosystem > History with the actor
+  `self-service:<their email>`. Deleting a contact (here or with **Delete this contact**) also
+  wipes the old values of their contact entries in the history and logs the deletion under
+  `deleted:<short code>` instead of their email. After a deletion the link stops working. If someone asks by email
   instead, use **Delete this contact** or edit their newsletter choice yourself.
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already

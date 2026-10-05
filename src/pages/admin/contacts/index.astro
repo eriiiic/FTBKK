@@ -61,21 +61,26 @@ const hint = CONTACT_FILTER_HINTS[show as keyof typeof CONTACT_FILTER_HINTS];
 const tagged = Astro.request.method === 'GET' ? url.searchParams.get('tagged') : null;
 const which = url.searchParams.get('which') ?? '';
 let taggedText = '';
+let taggedTone: 'success' | 'warning' = 'success';
 if ((tagged === 'added' || tagged === 'removed') && isContactTag(which)) {
   const n = Number(url.searchParams.get('n')) || 0;
   const skipped = Number(url.searchParams.get('skipped')) || 0;
   const people = (k: number) => `${k} contact${k === 1 ? '' : 's'}`;
   const label = CONTACT_TAGS[which];
-  taggedText =
-    tagged === 'added'
-      ? n
-        ? `Tag “${label}” added to ${people(n)}.`
-        : `Everyone selected already had the tag “${label}”.`
-      : n
-        ? `Tag “${label}” removed from ${people(n)}.`
-        : `Nobody selected had the tag “${label}”.`;
-  if (skipped) {
-    taggedText += ` ${skipped === 1 ? '1 walk-in' : `${skipped} walk-ins`} without an email ${skipped === 1 ? 'was' : 'were'} skipped: add an email on their page to tag them.`;
+  const walkIns = `${skipped === 1 ? '1 walk-in' : `${skipped} walk-ins`} without an email ${skipped === 1 ? 'was' : 'were'} skipped: add an email on their page to tag them.`;
+  if (n === 0 && skipped) {
+    taggedTone = 'warning';
+    taggedText = `Nothing changed. ${walkIns}`;
+  } else {
+    taggedText =
+      tagged === 'added'
+        ? n
+          ? `Tag “${label}” added to ${people(n)}.`
+          : `Everyone selected already had the tag “${label}”.`
+        : n
+          ? `Tag “${label}” removed from ${people(n)}.`
+          : `Nobody selected had the tag “${label}”.`;
+    if (skipped) taggedText += ` ${walkIns}`;
   }
 }
 
@@ -115,7 +120,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
   </dl>
 
   {taggedText && (
-    <Alert tone="success" class="mb-4">
+    <Alert tone={taggedTone} class="mb-4">
       {taggedText}
     </Alert>
   )}

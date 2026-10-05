@@ -3,6 +3,8 @@ import {
   ContactSchema,
   buildContacts,
   contactInput,
+  hashedKey,
+  latestRegistrationAnswer,
   newsletterConsent,
   newsletterDate,
   filterContacts,
@@ -223,13 +225,15 @@ describe('newsletter consent', () => {
     expect(newsletterConsent([])).toMatchObject({ agreed: false, source: null });
   });
 
-  it('follows the latest registration that asked, ticked or not', () => {
-    const yesThenNo = [asked(true, '2026-08-01T00:00:00Z'), asked(false, '2026-09-01T00:00:00Z')];
-    expect(newsletterConsent(yesThenNo)).toMatchObject({ agreed: false, source: 'registration' });
-    const later = [...yesThenNo, { newsletterConsent: false, newsletterConsentAt: null }];
-    expect(newsletterConsent([asked(true, '2026-09-02T00:00:00Z'), ...later])).toEqual({
+  it('follows the latest dated registration answer', () => {
+    // Only ticks are dated now; an older undated "no" (unticked box) never withdraws a yes.
+    const regs = [
+      asked(true, '2026-08-01T00:00:00Z'),
+      { newsletterConsent: false, newsletterConsentAt: null },
+    ];
+    expect(newsletterConsent(regs)).toEqual({
       agreed: true,
-      at: d('2026-09-02T00:00:00Z'),
+      at: d('2026-08-01T00:00:00Z'),
       source: 'registration',
     });
   });
@@ -281,5 +285,59 @@ describe('newsletter consent', () => {
       newsletter: null,
       newsletterAt: null,
     });
+  });
+
+  it('dates a changed choice today when the old card date was left in the form', () => {
+    // Card yes on 1 Sept, they ticked the box on 10 Sept, then asked to stop on 5 Oct.
+    const card = { newsletter: 'yes' as const, newsletterAt: d('2026-08-31T17:00:00Z') };
+    const regAt = d('2026-09-10T05:00:00Z');
+    const form = ContactSchema.parse({
+      name: 'Alice',
+      newsletter: 'no',
+      newsletterAt: '2026-09-01',
+    });
+    const input = contactInput(form, card, now, regAt);
+    expect(input).toMatchObject({ newsletter: 'no', newsletterAt: now });
+    const saved = input as { newsletter: 'no'; newsletterAt: Date };
+    expect(newsletterConsent([asked(true, '2026-09-10T05:00:00Z')], saved).agreed).toBe(false);
+  });
+
+  it('dates the same choice today when a later registration overrode the card', () => {
+    const card = { newsletter: 'yes' as const, newsletterAt: d('2026-08-31T17:00:00Z') };
+    const form = ContactSchema.parse({ name: 'Alice', newsletter: 'yes', newsletterAt: '' });
+    expect(contactInput(form, card, now, d('2026-09-20T05:00:00Z'))).toMatchObject({
+      newsletterAt: now,
+    });
+  });
+
+  it('refuses a card date older than their latest registration answer', () => {
+    const form = ContactSchema.parse({
+      name: 'Alice',
+      newsletter: 'no',
+      newsletterAt: '2026-09-05',
+    });
+    const r = contactInput(form, null, now, d('2026-09-10T05:00:00Z'));
+    expect(r).toHaveProperty('error');
+    expect((r as { error: string }).error).toContain('10 September 2026');
+  });
+
+  it('finds the latest registration answer', () => {
+    expect(latestRegistrationAnswer([])).toBeNull();
+    expect(
+      latestRegistrationAnswer([
+        asked(true, '2026-08-01T00:00:00Z'),
+        { newsletterConsentAt: null },
+        asked(true, '2026-09-01T00:00:00Z'),
+      ]),
+    ).toEqual(d('2026-09-01T00:00:00Z'));
+  });
+});
+
+describe('hashedKey', () => {
+  it('is short, stable and hides the email', async () => {
+    const a = await hashedKey('pat@example.com');
+    expect(a).toMatch(/^deleted:[0-9a-f]{12}$/);
+    expect(await hashedKey('pat@example.com')).toBe(a);
+    expect(await hashedKey('sam@example.com')).not.toBe(a);
   });
 });

@@ -112,13 +112,6 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           + Walk-in
         </button>
       </div>
-      <p
-        data-newcomers={newcomers}
-        hidden={newcomers === 0}
-        class="mt-2 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-paper"
-      >
-        {newcomersHint(newcomers)}: they have a “First time” badge.
-      </p>
     </header>
 
     <dialog
@@ -222,6 +215,15 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         </button>
       </div>
     </div>
+
+    <!-- Outside the sticky header, so it scrolls away and leaves room for results. -->
+    <p
+      data-newcomers={newcomers}
+      hidden={newcomers === 0}
+      class="mx-3 mt-3 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-paper"
+    >
+      {newcomersHint(newcomers)}: they have a “First time” badge.
+    </p>
 
     <ul class="grid gap-2 p-3" data-list data-event={event.id}>
       {rows.map((r) => (
