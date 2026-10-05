@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { registrationState } from '../src/lib/registrations';
+import { NOTE_MAX, RegisterSchema, cleanNote, registrationState } from '../src/lib/registrations';
 
 const DAY = 86400_000;
 const now = new Date('2026-11-01T03:00:00Z');
@@ -82,5 +82,49 @@ describe('registrationState', () => {
       const s = registrationState(e, 0, now, { memberPriority: false, isMember: true });
       expect(s).toMatchObject({ open: false, capacity: 50 });
     });
+  });
+});
+
+describe('RegisterSchema newsletter consent', () => {
+  const form = { name: 'Alice', email: 'Alice@Example.com', photoConsent: true };
+  it('is opt-in: an unticked box (absent) is a no, a ticked one a yes', () => {
+    expect(RegisterSchema.parse(form).newsletter).toBe(false);
+    expect(RegisterSchema.parse({ ...form, newsletter: true }).newsletter).toBe(true);
+    expect(RegisterSchema.safeParse({ ...form, newsletter: 'yes' }).success).toBe(false);
+  });
+});
+
+describe('registration note', () => {
+  const form = { name: 'Alice', email: 'alice@example.com', photoConsent: true };
+  it('is optional and empty by default', () => {
+    expect(RegisterSchema.parse(form).note).toBe('');
+    expect(RegisterSchema.parse({ ...form, note: '   ' }).note).toBe('');
+  });
+  it('keeps plain text, line breaks included, and tidies the edges', () => {
+    expect(
+      RegisterSchema.parse({ ...form, note: '  Vegetarian\r\nLooking for a CTO  ' }).note,
+    ).toBe('Vegetarian\nLooking for a CTO');
+    expect(RegisterSchema.parse({ ...form, note: '<b>hi</b>' }).note).toBe('<b>hi</b>');
+  });
+  it('keeps a note that says exactly "on" (formToObject turns it into true)', () => {
+    expect(RegisterSchema.parse({ ...form, note: true }).note).toBe('on');
+  });
+  it(`refuses more than ${NOTE_MAX} characters, counted after cleaning`, () => {
+    expect(RegisterSchema.safeParse({ ...form, note: 'a'.repeat(NOTE_MAX) }).success).toBe(true);
+    expect(
+      RegisterSchema.safeParse({ ...form, note: ` ${'a'.repeat(NOTE_MAX)}\n\n` }).success,
+    ).toBe(true);
+    const r = RegisterSchema.safeParse({ ...form, note: 'a'.repeat(NOTE_MAX + 1) });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0].path).toEqual(['note']);
+  });
+});
+
+describe('cleanNote', () => {
+  it('drops control characters but keeps tabs and newlines', () => {
+    expect(cleanNote('a\u0000b\u0007c\td\ne\u007f')).toBe('abc\td\ne');
+  });
+  it('keeps at most one blank line in a row and trims trailing spaces per line', () => {
+    expect(cleanNote('one   \n\n\n\ntwo\t\nthree')).toBe('one\n\ntwo\nthree');
   });
 });

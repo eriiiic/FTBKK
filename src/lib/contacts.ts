@@ -2,16 +2,40 @@ import { env } from 'cloudflare:workers';
 import { eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db';
-import { contacts, events, organisations, registrations } from '../db/schema';
+import { contacts, eventFeedback, events, organisations, registrations } from '../db/schema';
 import { email as emailField, optionalText, optionalUrl } from './forms';
 import { promoteFromWaitlist, sendPromotion } from './registrations';
 import { getSettings } from './settings';
 import { audit } from './orgs';
+import { fromLocalInput, toDateInput } from './admin';
+import { REGULAR_MIN_EVENTS } from './regulars';
+import { formatDate } from './format';
 
 // Contacts: everyone who ever registered for an event (or walked in), one row per person, built
 // from registrations. No sign-up needed: a person is identified by their email, and walk-ins
 // without an email by their name. A saved contact card (contacts table) overrides the details
 // taken from registrations and adds notes; it can also be someone who never registered.
+
+/** Tags the team puts on contacts by hand. The order here is the order they are shown in. */
+export const CONTACT_TAGS = {
+  speaker: 'Speaker',
+  sponsor: 'Sponsor',
+  volunteer: 'Volunteer',
+  board: 'Board',
+  press: 'Press',
+} as const;
+export type ContactTag = keyof typeof CONTACT_TAGS;
+const TAG_KEYS = Object.keys(CONTACT_TAGS) as ContactTag[];
+export const isContactTag = (t: unknown): t is ContactTag =>
+  typeof t === 'string' && Object.hasOwn(CONTACT_TAGS, t);
+
+/** Known tags only, without duplicates, in CONTACT_TAGS order (whatever is stored in D1). */
+export const normalizeTags = (tags: readonly unknown[] | null | undefined): ContactTag[] =>
+  TAG_KEYS.filter((k) => (tags ?? []).includes(k));
+
+/** The tags after adding or removing one. */
+export const withTag = (tags: readonly unknown[], tag: ContactTag, add: boolean) =>
+  normalizeTags(add ? [...tags, tag] : tags.filter((t) => t !== tag));
 
 export interface ContactRegistration {
   name: string;
@@ -22,6 +46,16 @@ export interface ContactRegistration {
   status: 'registered' | 'waitlist' | 'cancelled' | 'attended';
   walkIn: boolean;
   createdAt: Date;
+  /** Ticked the newsletter box; newsletterConsentAt is null when they were never asked. */
+  newsletterConsent?: boolean;
+  newsletterConsentAt?: Date | null;
+  /** What they wrote in "Anything we should know?" when registering. */
+  note?: string | null;
+  /** Their answer to "How did you hear about us?". */
+  howHeard?: string | null;
+  /** The feedback they gave after the event (1-5 stars and a comment), if any. */
+  feedbackRating?: number | null;
+  feedbackComment?: string | null;
   event: { id: number; title: string; slug: string; startsAt: Date; endsAt: Date | null };
 }
 
@@ -44,7 +78,38 @@ export interface SavedContact {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
+  tags?: string[] | null;
+  newsletter?: 'yes' | 'no' | null;
+  newsletterAt?: Date | null;
   createdAt: Date;
+}
+
+/** Someone's newsletter consent: their most recent explicit choice, and where it comes from. */
+export interface NewsletterConsent {
+  agreed: boolean;
+  /** When they made that choice; null when they were never asked. */
+  at: Date | null;
+  /** 'card': they told the team (set on the contact card); 'registration': the form's box. */
+  source: 'card' | 'registration' | null;
+}
+
+/**
+ * The most recent explicit newsletter choice: the latest registration where they ticked the box
+ * (an unticked box is not recorded), unless the team recorded a later answer on the contact card.
+ * Never asked = no consent.
+ */
+export function newsletterConsent(
+  regs: Pick<ContactRegistration, 'newsletterConsent' | 'newsletterConsentAt'>[],
+  card?: Pick<SavedContact, 'newsletter' | 'newsletterAt'> | null,
+): NewsletterConsent {
+  let best: NewsletterConsent = { agreed: false, at: null, source: null };
+  for (const r of regs) {
+    if (r.newsletterConsentAt && (!best.at || r.newsletterConsentAt > best.at))
+      best = { agreed: !!r.newsletterConsent, at: r.newsletterConsentAt, source: 'registration' };
+  }
+  if (card?.newsletter && card.newsletterAt && (!best.at || card.newsletterAt >= best.at))
+    best = { agreed: card.newsletter === 'yes', at: card.newsletterAt, source: 'card' };
+  return best;
 }
 
 export interface Contact {
@@ -58,6 +123,10 @@ export interface Contact {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
+  tags: ContactTag[];
+  newsletter: NewsletterConsent;
+  /** What the team recorded on the contact card, for the edit form. */
+  newsletterCard: { choice: 'yes' | 'no'; at: Date } | null;
   /** Registrations not cancelled (registered, waitlist or attended). */
   registrations: number;
   attended: number;
@@ -69,7 +138,27 @@ export interface Contact {
   lastEvent: ContactRegistration['event'] | null;
   history: ContactRegistration[];
   organisations: (ContactOrg & { relation: 'owner' | 'contact' })[];
+  /** Their company has the same name as a member organisation in the ecosystem directory. */
+  memberCompany: boolean;
 }
+
+/** A company name for matching: lowercase, letters and digits only, without "Co., Ltd." etc. */
+export const companyKey = (name: string | null | undefined) =>
+  (name ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0e00-\u0e7f]+/g, ' ')
+    .replace(/\b(co|company|ltd|limited|plc|inc|sas|sarl|pte|thailand)\b/g, ' ')
+    .replace(/\s+/g, '')
+    .trim();
+
+/**
+ * For the board: regulars (came to REGULAR_MIN_EVENTS events or more) with no ecosystem listing
+ * of their own and not working for a member organisation.
+ */
+export const suggestForMembership = (c: Contact) =>
+  c.attended >= REGULAR_MIN_EVENTS && c.organisations.length === 0 && !c.memberCompany;
 
 /** The key that groups one person's registrations: their email, else their name (walk-ins). */
 export const contactKey = (r: { email: string | null; name: string }) =>
@@ -103,6 +192,11 @@ export function buildContacts(
     if (o.publicEmail) link(o.publicEmail, o, 'contact');
   }
 
+  const memberCompanies = new Set(
+    orgs.filter((o) => o.memberStatus === 'member').map((o) => companyKey(o.name)),
+  );
+  memberCompanies.delete('');
+
   const groups = new Map<string, ContactRegistration[]>();
   for (const r of regs) {
     const k = contactKey(r);
@@ -127,6 +221,7 @@ export function buildContacts(
       const attended = rs.filter((r) => r.status === 'attended');
       const lastAttended = history.find((r) => r.status === 'attended');
       const first = rs.length ? Math.min(...rs.map((r) => r.createdAt.getTime())) : Infinity;
+      const company = card ? card.company : pick('company');
       return {
         key,
         savedId: card?.id ?? null,
@@ -134,10 +229,16 @@ export function buildContacts(
         name: card?.name ?? latest[0]!.name,
         email: card ? card.email : latest[0]!.email ? latest[0]!.email.toLowerCase() : null,
         phone: card ? card.phone : pick('phone'),
-        company: card ? card.company : pick('company'),
+        company,
         role: card ? card.role : pick('role'),
         linkedin: card?.linkedin ?? null,
         notes: card?.notes ?? null,
+        tags: normalizeTags(card?.tags),
+        newsletter: newsletterConsent(rs, card),
+        newsletterCard:
+          card?.newsletter && card.newsletterAt
+            ? { choice: card.newsletter, at: card.newsletterAt }
+            : null,
         registrations: live.length,
         attended: attended.length,
         noShows: rs.filter(
@@ -149,6 +250,7 @@ export function buildContacts(
         lastEvent: (lastAttended ?? history.find((r) => r.status !== 'cancelled'))?.event ?? null,
         history,
         organisations: key.includes(':') ? [] : (byEmail.get(key) ?? []),
+        memberCompany: memberCompanies.has(companyKey(company)),
       };
     })
     .sort(
@@ -159,30 +261,41 @@ export function buildContacts(
     );
 }
 
+/** Registrations with their event, as buildContacts wants them. */
+const contactRegistrations = () =>
+  getDb()
+    .select({
+      name: registrations.name,
+      email: registrations.email,
+      phone: registrations.phone,
+      company: registrations.company,
+      role: registrations.role,
+      status: registrations.status,
+      walkIn: registrations.walkIn,
+      createdAt: registrations.createdAt,
+      newsletterConsent: registrations.newsletterConsent,
+      newsletterConsentAt: registrations.newsletterConsentAt,
+      note: registrations.note,
+      howHeard: registrations.howHeard,
+      feedbackRating: eventFeedback.rating,
+      feedbackComment: eventFeedback.comment,
+      event: {
+        id: events.id,
+        title: events.title,
+        slug: events.slug,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+      },
+    })
+    .from(registrations)
+    .innerJoin(events, eq(events.id, registrations.eventId))
+    .leftJoin(eventFeedback, eq(eventFeedback.registrationId, registrations.id));
+
 /** Loads every registration and listing and builds the contact list (admin only). */
 export async function loadContacts(now = new Date()) {
   const db = getDb();
   const [regs, orgs, saved] = await Promise.all([
-    db
-      .select({
-        name: registrations.name,
-        email: registrations.email,
-        phone: registrations.phone,
-        company: registrations.company,
-        role: registrations.role,
-        status: registrations.status,
-        walkIn: registrations.walkIn,
-        createdAt: registrations.createdAt,
-        event: {
-          id: events.id,
-          title: events.title,
-          slug: events.slug,
-          startsAt: events.startsAt,
-          endsAt: events.endsAt,
-        },
-      })
-      .from(registrations)
-      .innerJoin(events, eq(events.id, registrations.eventId)),
+    contactRegistrations(),
     db
       .select({
         id: organisations.id,
@@ -205,13 +318,25 @@ export const CONTACT_FILTERS = {
   regulars: 'Came 2 times or more',
   never: 'Registered, never came',
   ecosystem: 'Linked to an ecosystem listing',
+  newsletter: 'Agreed to the newsletter',
+  membership: 'Suggest for membership',
 } as const;
 export type ContactFilter = keyof typeof CONTACT_FILTERS;
+
+/** A line explaining a filter, shown above the list while it is active. */
+export const CONTACT_FILTER_HINTS: Partial<Record<ContactFilter, string>> = {
+  membership: `People who came to ${REGULAR_MIN_EVENTS} or more events and have no ecosystem listing yet.`,
+};
 
 /** The list filters shared by the Contacts page and its CSV export. */
 export function filterContacts(
   list: Contact[],
-  { q = '', show = 'all', event = 0 }: { q?: string; show?: string; event?: number },
+  {
+    q = '',
+    show = 'all',
+    event = 0,
+    tag = '',
+  }: { q?: string; show?: string; event?: number; tag?: string },
 ) {
   const query = q.trim().toLowerCase();
   return list.filter((c) => {
@@ -224,12 +349,15 @@ export function filterContacts(
         .includes(query)
     )
       return false;
+    if (isContactTag(tag) && !c.tags.includes(tag)) return false;
     if (event && !c.history.some((r) => r.event.id === event && r.status !== 'cancelled'))
       return false;
     if (show === 'attended') return c.attended > 0;
     if (show === 'regulars') return c.attended > 1;
     if (show === 'never') return c.attended === 0 && c.registrations > 0;
     if (show === 'ecosystem') return c.organisations.length > 0;
+    if (show === 'newsletter') return c.newsletter.agreed;
+    if (show === 'membership') return suggestForMembership(c);
     return true;
   });
 }
@@ -244,6 +372,18 @@ export interface ContactInput {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
+  tags: ContactTag[];
+  /** Set by the team when someone tells them in person; null = go by their registrations. */
+  newsletter: 'yes' | 'no' | null;
+  newsletterAt: Date | null;
+}
+
+/**
+ * The date typed for a newsletter choice on the contact card -> a timestamp. Today means now, so
+ * the choice beats a registration made earlier today; an earlier day is that day in Bangkok.
+ */
+export function newsletterDate(day: string, now: Date) {
+  return day === toDateInput(now) ? now : fromLocalInput(day);
 }
 
 /** The contact form, as posted from /admin/contacts. */
@@ -268,11 +408,65 @@ export const ContactSchema = z.object({
     .max(4000)
     .optional()
     .transform((s) => (s?.trim() ? s.replace(/\r\n/g, '\n').trim() : null)),
+  tags: z
+    .array(z.enum(TAG_KEYS as [ContactTag, ...ContactTag[]]))
+    .max(20)
+    .default([])
+    .transform(normalizeTags),
+  newsletter: z
+    .enum(['', 'yes', 'no'])
+    .optional()
+    .transform((v) => (v ? v : null)),
+  newsletterAt: z
+    .union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a date.')])
+    .optional(),
 });
+
+/** When they last answered on a registration form (only a tick is recorded), or null. */
+export const latestRegistrationAnswer = (
+  regs: Pick<ContactRegistration, 'newsletterConsentAt'>[],
+) =>
+  regs.reduce<Date | null>(
+    (best, r) =>
+      r.newsletterConsentAt && (!best || r.newsletterConsentAt > best)
+        ? r.newsletterConsentAt
+        : best,
+    null,
+  );
+
+/**
+ * The contact form's fields, ready to save. The newsletter date is kept as it was only when the
+ * card is still the answer that counts and neither the choice nor the day changed (so saving
+ * other details doesn't move it). A new choice is dated today when the date is left empty or
+ * still shows the old card date. A date in the future, or one older than their latest answer on a
+ * registration form (so the choice would change nothing), is refused.
+ */
+export function contactInput(
+  data: z.infer<typeof ContactSchema>,
+  card: { newsletter?: 'yes' | 'no' | null; newsletterAt?: Date | null } | null,
+  now = new Date(),
+  latestRegAt: Date | null = null,
+): ContactInput | { error: string } {
+  const { newsletterAt: day, ...rest } = data;
+  if (!rest.newsletter) return { ...rest, newsletterAt: null };
+  if (day && day > toDateInput(now)) return { error: 'The date can’t be in the future.' };
+  const old = card?.newsletter && card.newsletterAt ? card.newsletterAt : null;
+  const oldDay = old ? toDateInput(old) : null;
+  const counts = !!old && (!latestRegAt || old >= latestRegAt);
+  if (old && counts && card?.newsletter === rest.newsletter && (!day || day === oldDay))
+    return { ...rest, newsletterAt: old };
+  const at = !day || day === oldDay ? now : newsletterDate(day, now);
+  if (latestRegAt && at < latestRegAt)
+    return {
+      error: `They ticked the newsletter box on a registration form on ${formatDate(latestRegAt)}, which is later. Pick a later date, or leave it empty for today.`,
+    };
+  return { ...rest, newsletterAt: at };
+}
 
 type Result = { key: string } | { error: string; key?: string };
 
-const cardFor = async (key: string) => {
+/** The saved contact card for this key, if any. */
+export const cardFor = async (key: string) => {
   const db = getDb();
   if (key.startsWith('name:')) return undefined;
   if (key.startsWith('id:')) {
@@ -330,8 +524,12 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
   if (email && (await cardTaken(email, card?.id))) {
     return { error: 'Another contact already has this email.', key: email };
   }
-  if (!email && (input.notes || input.linkedin) && key.startsWith('name:')) {
-    return { error: 'Add an email to save notes or LinkedIn for a walk-in.' };
+  if (
+    !email &&
+    (input.notes || input.linkedin || input.tags.length || input.newsletter) &&
+    key.startsWith('name:')
+  ) {
+    return { error: 'Add an email to save notes, tags, newsletter or LinkedIn for a walk-in.' };
   }
   const now = new Date();
 
@@ -398,6 +596,52 @@ export async function createContact(input: ContactInput): Promise<Result> {
 }
 
 /**
+ * Adds or removes a tag on several contacts, logging each change. Someone without a saved card
+ * gets one (with the details from their latest registration), as when editing them. Walk-ins
+ * without an email can't hold a card: they are skipped and counted.
+ */
+export async function tagContacts(
+  keys: string[],
+  tag: ContactTag,
+  add: boolean,
+  actor: string,
+  now = new Date(),
+) {
+  const db = getDb();
+  const wanted = new Set(keys);
+  let changed = 0;
+  let skipped = 0;
+  for (const c of await loadContacts(now)) {
+    if (!wanted.has(c.key)) continue;
+    if (c.key.startsWith('name:')) {
+      skipped++;
+      continue;
+    }
+    const tags = withTag(c.tags, tag, add);
+    if (tags.length === c.tags.length) continue; // already there, or already gone
+    if (c.savedId) {
+      await db.update(contacts).set({ tags, updatedAt: now }).where(eq(contacts.id, c.savedId));
+    } else {
+      const { name, email, phone, company, role } = c;
+      await db
+        .insert(contacts)
+        .values({ name, email, phone, company, role, tags })
+        .onConflictDoUpdate({ target: contacts.email, set: { tags, updatedAt: now } });
+    }
+    await audit(
+      actor,
+      add ? 'contact_tag_add' : 'contact_tag_remove',
+      'contact',
+      null,
+      { key: c.key, tags: c.tags },
+      { key: c.key, tags },
+    );
+    changed++;
+  }
+  return { changed, skipped };
+}
+
+/**
  * Deletes a contact: their saved card and all their registrations. Returns the events where a
  * seat was freed, so the caller can register the next person on the waitlist.
  */
@@ -425,6 +669,47 @@ export async function deleteContact(key: string) {
 }
 
 /**
+ * A deleted contact's key for the history log: a short SHA-256, so the log shows that someone
+ * was deleted (and the same key twice reads the same) without keeping their email or name.
+ */
+export async function hashedKey(key: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `deleted:${hex.slice(0, 12)}`;
+}
+
+/**
+ * Removes a deleted contact's details from the history log: their contact entries (create,
+ * update, tags, newsletter) keep the action and date but lose the before/after values, and
+ * "self-service:<email>" becomes "self-service".
+ */
+async function redactContactAudit(
+  key: string,
+  card: { email: string | null; name: string } | null | undefined,
+) {
+  const emails = [...new Set([key.includes(':') ? null : key, card?.email?.toLowerCase()])].filter(
+    (e): e is string => !!e,
+  );
+  const redacted = JSON.stringify({ redacted: true });
+  const match = `entity = 'contact' AND (
+      json_extract(before, '$.key') = ?1 OR json_extract(after, '$.key') = ?1
+      OR lower(json_extract(after, '$.email')) IN (SELECT value FROM json_each(?2))
+      OR (?3 IS NOT NULL AND json_extract(after, '$.email') IS NULL AND json_extract(after, '$.name') = ?3))`;
+  const name = key.includes(':') ? (card?.name ?? null) : null;
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE audit_log SET before = ?4, after = ?4 WHERE ${match}`).bind(
+      key,
+      JSON.stringify(emails),
+      name,
+      redacted,
+    ),
+    env.DB.prepare(
+      `UPDATE audit_log SET actor = 'self-service' WHERE actor IN (SELECT 'self-service:' || value FROM json_each(?1))`,
+    ).bind(JSON.stringify([key, ...emails])),
+  ]);
+}
+
+/**
  * Deletes several contacts (see deleteContact), logs each one, then gives the seats freed on
  * upcoming events to the next people on the waitlist, as when someone cancels.
  */
@@ -433,8 +718,18 @@ export async function deleteContacts(keys: string[], actor: string, now = new Da
   let deleted = 0;
   for (const key of new Set(keys)) {
     if (!(await contactExists(key))) continue;
+    const card = await cardFor(key);
     const { registrations: n, freedEvents } = await deleteContact(key);
-    await audit(actor, 'contact_delete', 'contact', null, { key, registrations: n }, null);
+    await redactContactAudit(key, card);
+    const ref = await hashedKey(key);
+    await audit(
+      actor.startsWith('self-service:') ? 'self-service' : actor,
+      'contact_delete',
+      'contact',
+      null,
+      { key: ref, registrations: n },
+      null,
+    );
     freedEvents.forEach((id) => freed.add(id));
     deleted++;
   }
@@ -451,6 +746,52 @@ export async function deleteContacts(keys: string[], actor: string, now = new Da
     }
   }
   return deleted;
+}
+
+/**
+ * One person's contact (their registrations and saved card, without ecosystem listings), for
+ * the self-service /my-data page. Null when nothing is left under this key.
+ */
+export async function loadContact(key: string, now = new Date()) {
+  const where = key.startsWith('name:')
+    ? inArray(registrations.id, await walkInIds(key))
+    : key.startsWith('id:')
+      ? undefined
+      : eq(registrations.email, key);
+  const [regs, card] = await Promise.all([
+    where ? contactRegistrations().where(where) : [],
+    cardFor(key),
+  ]);
+  return buildContacts(regs, [], now, card ? [card] : []).find((c) => c.key === key) ?? null;
+}
+
+/**
+ * Records "no" to the newsletter on the person's contact card (creating the card from their
+ * latest registration if they have none), dated now, so it wins over earlier registrations.
+ * Logged under `actor`. Needs an email: returns false for walk-ins without one.
+ */
+export async function unsubscribeNewsletter(c: Contact, actor: string, now = new Date()) {
+  if (!c.email || c.key.includes(':')) return false;
+  const db = getDb();
+  const set = { newsletter: 'no' as const, newsletterAt: now, updatedAt: now };
+  if (c.savedId) {
+    await db.update(contacts).set(set).where(eq(contacts.id, c.savedId));
+  } else {
+    const { name, email, phone, company, role } = c;
+    await db
+      .insert(contacts)
+      .values({ name, email, phone, company, role, newsletter: 'no', newsletterAt: now })
+      .onConflictDoUpdate({ target: contacts.email, set });
+  }
+  await audit(
+    actor,
+    'contact_newsletter',
+    'contact',
+    null,
+    { key: c.key, newsletter: c.newsletter.agreed ? 'yes' : 'no' },
+    { key: c.key, newsletter: 'no' },
+  );
+  return true;
 }
 
 /** A wa.me link from a phone number; Thai numbers starting with 0 get the +66 prefix. */

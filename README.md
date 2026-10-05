@@ -16,7 +16,9 @@ Public pages:
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
   a Member badge, validated by the board.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
-  automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
+  automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
+  accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
+  check-in screen and the contact's event history), confirmation email with a calendar invite, reminder the day before, QR
   ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
   People and reused across events), **hosts, sponsors and partners** with their logo (linked to
   their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and
@@ -29,6 +31,17 @@ Public pages:
 - **Code of conduct** at `/code-of-conduct`: how everyone is expected to behave at events, in our
   online groups (WhatsApp, LinkedIn) and on the website, and how to report a problem. Linked in
   the footer, on every event page and in the registration form. The text is edited in the admin.
+- **Privacy** (Thailand's PDPA): a privacy notice at `/privacy` (what we collect, why, who sees
+  it, how long we keep it, people's rights), linked in the footer and under the registration form,
+  editable in the admin. Every email sent to registrants (confirmation, waitlist promotion,
+  reminder, feedback request, event cancelled, "Email registrants") has a **Manage or delete my
+  data** link to `/my-data?token=…` (the registration's own token, kept when someone registers
+  again after cancelling, so older links keep working). That page shows what we hold about the
+  person (details, events with their own answers and feedback, tags), lets them unsubscribe from
+  the newsletter, and lets them delete all their data after a confirmation step (the same as
+  "Delete this contact" in the admin: freed seats go to the waitlist). Deleting a contact also
+  strips their details from the admin change history (the deletion itself is logged under a short
+  hash, not their email). Opening the link never deletes anything.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,
@@ -39,7 +52,9 @@ files and site settings. See [docs/admin.md](docs/admin.md).
 Check-in at the door works from a phone: volunteers bookmark `/checkin`, which opens a list of
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
 that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
-who didn't register.
+who didn't register. People coming for the first time get a "First time" badge (with "Say hello
+to the N newcomers" above the list) and people who came to 3 or more earlier events a "Regular"
+badge, so volunteers know whom to welcome.
 
 Organisers can **email an event's registrants** from the admin (venue change, slides after the
 talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not
@@ -51,11 +66,24 @@ backup); a second send of the same message within 10 minutes, even from another 
 per person (grouped by email), with no sign-up needed. For each person it shows how many events
 they attended, registered for and missed, which events those were, their company, and the
 ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
-came, linked to the ecosystem, by event) and exported to CSV, and "Copy emails" copies the
-filtered addresses for the Bcc field of an email. Tick several contacts to copy their emails,
-export them to CSV or delete them at once. Contacts can be added by hand, edited (with
-team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
+came, linked to the ecosystem, by event, by tag, and "Suggest for membership": people who came to
+3 or more events with no ecosystem listing and no member company, for the board) and exported to CSV, and "Copy emails" copies
+the filtered addresses for the Bcc field of an email. Contacts can carry tags (speaker, sponsor,
+volunteer, board, press), shown next to their name. Tick several contacts to copy their emails,
+export them to CSV, add or remove a tag, or delete them at once. Contacts can be added by hand,
+edited (with tags, team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
 the total number of contacts.
+
+**Newsletter consent** (Thailand's PDPA: explicit, opt-in, dated). The registration form has an
+unticked box "Send me the La French Tech Bangkok newsletter"; a tick is stored with its date
+(`newsletter_consent`, `newsletter_consent_at`). An unticked box is not recorded, so it never
+withdraws an earlier yes (people withdraw on `/my-data` or by telling the team). The walk-in dialog has the
+same optional box (only a tick is recorded, and it needs an email). When someone tells the team
+in person, an admin sets "Subscribed" or "Not subscribed" with the date on their contact card
+(`contacts.newsletter`, `newsletter_at`). A person's consent is their most recent explicit choice;
+people never asked (Wix imports) have none. Contacts can be filtered on "Agreed to the newsletter"
+and the CSV has "Newsletter" and "Newsletter consent date" columns, to import into a newsletter
+tool. The site doesn't send newsletters itself.
 
 The design follows the French Tech usage charter: its palette, the official La French Tech
 Bangkok logo and the full name "La French Tech Bangkok".

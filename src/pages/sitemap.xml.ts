@@ -27,6 +27,7 @@ export const GET: APIRoute = async ({ site }) => {
     { loc: 'blog' },
     { loc: 'about' },
     { loc: 'code-of-conduct' },
+    { loc: 'privacy' },
     ...[...up, ...past].map((e) => ({ loc: `events/${e.slug}`, lastmod: e.updatedAt })),
     ...posts.map((p) => ({ loc: `blog/${p.slug}`, lastmod: p.updatedAt })),
     ...cats.filter((c) => c.count > 0).map((c) => ({ loc: `blog/category/${c.slug}` })),

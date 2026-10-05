@@ -5,24 +5,32 @@ import { getDb } from '../../../db';
 import { events, registrations } from '../../../db/schema';
 import { email, optionalText } from '../../../lib/forms';
 import { audit } from '../../../lib/orgs';
+import { earlierAttendance, earlierFor, greeting } from '../../../lib/regulars';
 import { normalizeCode, ticketCode } from '../../../lib/ticket';
 import { randomToken } from '../../../lib/tokens';
 
-const WalkInSchema = z.object({
-  eventId: z.number().int(),
-  name: z.string().trim().min(2, 'Enter their name.').max(120),
-  email: z.preprocess(
-    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
-    email.optional(),
-  ),
-  phone: z
-    .string()
-    .max(40)
-    .regex(/^[+\d\s().-]*$/, 'Enter a phone number (digits, spaces, +).')
-    .optional()
-    .transform((s) => (s?.trim() ? s.trim() : null)),
-  company: optionalText(120),
-});
+const WalkInSchema = z
+  .object({
+    eventId: z.number().int(),
+    name: z.string().trim().min(2, 'Enter their name.').max(120),
+    email: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+      email.optional(),
+    ),
+    phone: z
+      .string()
+      .max(40)
+      .regex(/^[+\d\s().-]*$/, 'Enter a phone number (digits, spaces, +).')
+      .optional()
+      .transform((s) => (s?.trim() ? s.trim() : null)),
+    company: optionalText(120),
+    /** They said yes to the newsletter at the door (opt-in: unticked means not asked). */
+    newsletter: z.boolean().optional().default(false),
+  })
+  .refine((d) => !d.newsletter || d.email, {
+    message: 'Add their email to sign them up for the newsletter.',
+    path: ['newsletter'],
+  });
 
 // Admin only (guarded in middleware). Adds someone who turns up without registering and checks
 // them in at once. Capacity is not checked: they are already in the room. If the email is already
@@ -36,12 +44,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       { status: 400 },
     );
   }
-  const { eventId, name, email: mail, phone, company } = parsed.data;
+  const { eventId, name, email: mail, phone, company, newsletter } = parsed.data;
   const db = getDb();
-  const [event] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId));
+  const [event] = await db
+    .select({ id: events.id, startsAt: events.startsAt })
+    .from(events)
+    .where(eq(events.id, eventId));
   if (!event) return Response.json({ error: 'Event not found.' }, { status: 404 });
 
   const now = new Date();
+  // Only a tick is recorded: an unticked box may just mean nobody asked.
+  const consent = newsletter ? { newsletterConsent: true, newsletterConsentAt: now } : {};
   const [existing] = mail
     ? await db
         .select()
@@ -49,8 +62,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .where(and(eq(registrations.eventId, eventId), eq(registrations.email, mail)))
     : [];
   if (existing?.status === 'attended') {
+    // Still record a newsletter yes given at the door (e.g. at the bar, after check-in).
+    if (newsletter) {
+      await db.update(registrations).set(consent).where(eq(registrations.id, existing.id));
+      await audit(
+        locals.adminEmail ?? 'admin',
+        'registration_newsletter',
+        'registration',
+        existing.id,
+        { newsletter: existing.newsletterConsent },
+        { newsletter: true },
+      );
+    }
     return Response.json(
-      { error: `${existing.name} is already checked in.`, id: existing.id },
+      {
+        error: `${existing.name} is already checked in${newsletter ? '. Newsletter yes recorded.' : '.'}`,
+        id: existing.id,
+      },
       { status: 409 },
     );
   }
@@ -61,6 +89,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .set({
           status: 'attended',
           checkedInAt: now,
+          ...consent,
           // A cancelled registration is reused as a walk-in with what was typed at the door.
           ...(existing.status === 'cancelled'
             ? { name, phone, company, walkIn: true, reminderSentAt: null }
@@ -80,6 +109,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           status: 'attended',
           token: randomToken(24),
           checkedInAt: now,
+          ...consent,
         })
         .onConflictDoNothing()
         .returning();
@@ -102,6 +132,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     phone: row.phone,
     company: row.company,
     code: normalizeCode(await ticketCode(row.token)),
+    // "First time" or "Regular" badge for the check-in list (none without an email).
+    greeting: greeting(
+      earlierFor(row.email ? await earlierAttendance(event, row.email) : new Map(), row.email),
+    ),
     // True when the person had registered: the screen already lists them.
     existing: Boolean(existing && existing.status !== 'cancelled'),
   });

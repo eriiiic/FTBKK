@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ContactSchema,
   buildContacts,
+  contactInput,
+  hashedKey,
+  latestRegistrationAnswer,
+  newsletterConsent,
+  newsletterDate,
   filterContacts,
+  normalizeTags,
+  withTag,
   whatsappUrl,
   type ContactRegistration,
   type SavedContact,
@@ -135,6 +143,60 @@ describe('saved contact cards', () => {
   });
 });
 
+describe('contact tags', () => {
+  const card = (p: Partial<SavedContact>): SavedContact => ({
+    id: 1,
+    email: null,
+    name: 'Card',
+    phone: null,
+    company: null,
+    role: null,
+    linkedin: null,
+    notes: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    ...p,
+  });
+
+  it('keeps known tags only, once each, in the fixed order', () => {
+    expect(normalizeTags(['press', 'speaker', 'press', 'vip', 3])).toEqual(['speaker', 'press']);
+    expect(normalizeTags(null)).toEqual([]);
+  });
+
+  it('adds and removes one tag', () => {
+    expect(withTag(['press'], 'board', true)).toEqual(['board', 'press']);
+    expect(withTag(['board', 'press'], 'board', true)).toEqual(['board', 'press']);
+    expect(withTag(['board', 'press'], 'press', false)).toEqual(['board']);
+    expect(withTag([], 'press', false)).toEqual([]);
+  });
+
+  it('come from the saved card and filter the list, with the other filters', () => {
+    const list = buildContacts(regs, orgs, now, [
+      card({ id: 1, email: 'bob@example.com', name: 'Bob', tags: ['speaker', 'bogus'] }),
+      card({ id: 2, name: 'Dana Manual', tags: ['speaker', 'board'] }),
+    ]);
+    expect(list.find((c) => c.key === 'bob@example.com')!.tags).toEqual(['speaker']);
+    expect(list.find((c) => c.key === 'alice@example.com')!.tags).toEqual([]);
+    expect(filterContacts(list, { tag: 'speaker' }).map((c) => c.key)).toEqual([
+      'bob@example.com',
+      'id:2',
+    ]);
+    expect(filterContacts(list, { tag: 'board' }).map((c) => c.key)).toEqual(['id:2']);
+    expect(filterContacts(list, { tag: 'speaker', show: 'attended' }).map((c) => c.key)).toEqual([
+      'bob@example.com',
+    ]);
+    expect(filterContacts(list, { tag: 'speaker', q: 'dana' }).map((c) => c.key)).toEqual(['id:2']);
+    // An unknown tag in the URL filters nothing out.
+    expect(filterContacts(list, { tag: 'vip' })).toHaveLength(list.length);
+  });
+
+  it('are validated on the contact form', () => {
+    const ok = ContactSchema.parse({ name: 'Bob', tags: ['press', 'speaker', 'press'] });
+    expect(ok.tags).toEqual(['speaker', 'press']);
+    expect(ContactSchema.parse({ name: 'Bob' }).tags).toEqual([]);
+    expect(ContactSchema.safeParse({ name: 'Bob', tags: ['vip'] }).success).toBe(false);
+  });
+});
+
 describe('whatsappUrl', () => {
   it('adds the Thai prefix to local numbers and keeps international ones', () => {
     expect(whatsappUrl('081 234 5678')).toBe('https://wa.me/66812345678');
@@ -144,5 +206,138 @@ describe('whatsappUrl', () => {
     expect(whatsappUrl('+66 (0)81 234 5678')).toBe('https://wa.me/66812345678');
     expect(whatsappUrl('12')).toBeNull();
     expect(whatsappUrl(null)).toBeNull();
+  });
+});
+
+describe('newsletter consent', () => {
+  const d = (s: string) => new Date(s);
+  const asked = (yes: boolean, at: string) => ({
+    newsletterConsent: yes,
+    newsletterConsentAt: d(at),
+  });
+
+  it('is no when they were never asked (Wix imports, walk-ins)', () => {
+    expect(newsletterConsent([{ newsletterConsent: false, newsletterConsentAt: null }])).toEqual({
+      agreed: false,
+      at: null,
+      source: null,
+    });
+    expect(newsletterConsent([])).toMatchObject({ agreed: false, source: null });
+  });
+
+  it('follows the latest dated registration answer', () => {
+    // Only ticks are dated now; an older undated "no" (unticked box) never withdraws a yes.
+    const regs = [
+      asked(true, '2026-08-01T00:00:00Z'),
+      { newsletterConsent: false, newsletterConsentAt: null },
+    ];
+    expect(newsletterConsent(regs)).toEqual({
+      agreed: true,
+      at: d('2026-08-01T00:00:00Z'),
+      source: 'registration',
+    });
+  });
+
+  it('takes the contact card when it is the more recent choice', () => {
+    const regs = [asked(true, '2026-08-01T00:00:00Z')];
+    const card = { newsletter: 'no' as const, newsletterAt: d('2026-09-01T00:00:00Z') };
+    expect(newsletterConsent(regs, card)).toMatchObject({ agreed: false, source: 'card' });
+    expect(newsletterConsent([asked(true, '2026-09-15T00:00:00Z')], card)).toMatchObject({
+      agreed: true,
+      source: 'registration',
+    });
+    expect(newsletterConsent(regs, { newsletter: null, newsletterAt: null })).toMatchObject({
+      agreed: true,
+    });
+  });
+
+  it('feeds the contact list filter', () => {
+    const list = buildContacts(
+      [
+        reg({ ...asked(true, '2026-08-01T00:00:00Z') }),
+        reg({ email: 'bob@example.com', name: 'Bob', ...asked(false, '2026-08-01T00:00:00Z') }),
+      ],
+      [],
+      now,
+    );
+    expect(filterContacts(list, { show: 'newsletter' }).map((c) => c.email)).toEqual([
+      'alice@example.com',
+    ]);
+  });
+
+  it('dates a card choice: today is now, another day is that day in Bangkok', () => {
+    expect(newsletterDate('2026-10-05', now)).toBe(now);
+    expect(newsletterDate('2026-09-30', now)).toEqual(d('2026-09-29T17:00:00Z'));
+  });
+
+  it('keeps the card date when the choice did not change, and refuses future dates', () => {
+    const base = ContactSchema.parse({ name: 'Alice', newsletter: 'yes', newsletterAt: '' });
+    const card = { newsletter: 'yes' as const, newsletterAt: d('2026-09-01T03:00:00Z') };
+    expect(contactInput(base, card, now)).toMatchObject({ newsletterAt: card.newsletterAt });
+    expect(contactInput({ ...base, newsletter: 'no' }, card, now)).toMatchObject({
+      newsletter: 'no',
+      newsletterAt: now,
+    });
+    expect(contactInput({ ...base, newsletterAt: '2026-10-06' }, card, now)).toHaveProperty(
+      'error',
+    );
+    expect(contactInput({ ...base, newsletter: null }, card, now)).toMatchObject({
+      newsletter: null,
+      newsletterAt: null,
+    });
+  });
+
+  it('dates a changed choice today when the old card date was left in the form', () => {
+    // Card yes on 1 Sept, they ticked the box on 10 Sept, then asked to stop on 5 Oct.
+    const card = { newsletter: 'yes' as const, newsletterAt: d('2026-08-31T17:00:00Z') };
+    const regAt = d('2026-09-10T05:00:00Z');
+    const form = ContactSchema.parse({
+      name: 'Alice',
+      newsletter: 'no',
+      newsletterAt: '2026-09-01',
+    });
+    const input = contactInput(form, card, now, regAt);
+    expect(input).toMatchObject({ newsletter: 'no', newsletterAt: now });
+    const saved = input as { newsletter: 'no'; newsletterAt: Date };
+    expect(newsletterConsent([asked(true, '2026-09-10T05:00:00Z')], saved).agreed).toBe(false);
+  });
+
+  it('dates the same choice today when a later registration overrode the card', () => {
+    const card = { newsletter: 'yes' as const, newsletterAt: d('2026-08-31T17:00:00Z') };
+    const form = ContactSchema.parse({ name: 'Alice', newsletter: 'yes', newsletterAt: '' });
+    expect(contactInput(form, card, now, d('2026-09-20T05:00:00Z'))).toMatchObject({
+      newsletterAt: now,
+    });
+  });
+
+  it('refuses a card date older than their latest registration answer', () => {
+    const form = ContactSchema.parse({
+      name: 'Alice',
+      newsletter: 'no',
+      newsletterAt: '2026-09-05',
+    });
+    const r = contactInput(form, null, now, d('2026-09-10T05:00:00Z'));
+    expect(r).toHaveProperty('error');
+    expect((r as { error: string }).error).toContain('10 September 2026');
+  });
+
+  it('finds the latest registration answer', () => {
+    expect(latestRegistrationAnswer([])).toBeNull();
+    expect(
+      latestRegistrationAnswer([
+        asked(true, '2026-08-01T00:00:00Z'),
+        { newsletterConsentAt: null },
+        asked(true, '2026-09-01T00:00:00Z'),
+      ]),
+    ).toEqual(d('2026-09-01T00:00:00Z'));
+  });
+});
+
+describe('hashedKey', () => {
+  it('is short, stable and hides the email', async () => {
+    const a = await hashedKey('pat@example.com');
+    expect(a).toMatch(/^deleted:[0-9a-f]{12}$/);
+    expect(await hashedKey('pat@example.com')).toBe(a);
+    expect(await hashedKey('sam@example.com')).not.toBe(a);
   });
 });

@@ -3,7 +3,7 @@ import Alert from './Alert.astro';
 import Button from './Button.astro';
 import FormField from './FormField.astro';
 import Turnstile from './Turnstile.astro';
-import { HOW_HEARD, type RegistrationState } from '../lib/registrations';
+import { HOW_HEARD, NOTE_MAX, type RegistrationState } from '../lib/registrations';
 import { formatDate, formatTime } from '../lib/format';
 
 interface Props {
@@ -91,6 +91,15 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
       />
       <FormField
+        name="note"
+        label="Anything we should know, or something you're looking for?"
+        rows={3}
+        maxlength={NOTE_MAX}
+        value={str('note')}
+        error={errors.note}
+        hint="Optional. For example dietary needs, accessibility, or who you'd like to meet. Only the organisers see it."
+      />
+      <FormField
         name="photoConsent"
         type="checkbox"
         required
@@ -98,13 +107,23 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         error={errors.photoConsent}
         label="I understand photos and videos may be taken and shared by La French Tech Bangkok."
       />
+      <FormField
+        name="newsletter"
+        type="checkbox"
+        checked={values.newsletter === true}
+        label="Send me the La French Tech Bangkok newsletter (about once a month). You can unsubscribe at any time."
+      />
       <Turnstile />
       <div>
         <Button type="submit">{state.full ? 'Join the waitlist' : 'Register'}</Button>
       </div>
       <p class="text-xs text-muted">
-        Free. We only use your details for this event and send a reminder the day before. By
-        registering you agree to our{' '}
+        Free. We use your details to run this event (and send the newsletter only if you tick the
+        box). See our{' '}
+        <a href="/privacy" class="underline">
+          privacy notice
+        </a>
+        . By registering you agree to our{' '}
         <a href="/code-of-conduct" class="underline">
           code of conduct
         </a>

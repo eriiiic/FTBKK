@@ -28,6 +28,8 @@ export interface EmailMessage {
   /** Optional secondary links under the button. */
   links?: { label: string; url: string }[];
   footer?: string;
+  /** The person's "Manage or delete my data" page (/my-data?token=…), linked in the footer. */
+  dataUrl?: string;
   /** Event ticket: QR code (an inline attachment with this content id) and its code. */
   ticket?: { code: string; qrCid: string; url: string };
   replyTo?: string;
@@ -39,6 +41,9 @@ const esc = (s: string) =>
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   );
+
+/** Label of the footer link to the person's /my-data page. */
+export const DATA_LINK_LABEL = 'Manage or delete my data';
 
 /** One branded template for every email on the site (HTML + plain text). */
 export function renderEmail(m: EmailMessage) {
@@ -98,7 +103,11 @@ export function renderEmail(m: EmailMessage) {
 ${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}
 ${details}${logos}${ticket}${choices}${button}${links}
 </td></tr>
-<tr><td style="padding:16px 28px;background:#f5f5f5;color:#5c5a73;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>
+<tr><td style="padding:16px 28px;background:#f5f5f5;color:#5c5a73;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}${
+    m.dataUrl
+      ? `<br><a href="${esc(m.dataUrl)}" style="color:#5c5a73;text-decoration:underline">${DATA_LINK_LABEL}</a>`
+      : ''
+  }</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [
     ...m.paragraphs,
@@ -119,6 +128,7 @@ ${details}${logos}${ticket}${choices}${button}${links}
     '',
     '--',
     m.footer ?? 'La French Tech Bangkok',
+    ...(m.dataUrl ? [`${DATA_LINK_LABEL}: ${m.dataUrl}`] : []),
   ].join('\n\n');
   return { html, text };
 }

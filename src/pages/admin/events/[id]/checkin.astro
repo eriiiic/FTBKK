@@ -4,6 +4,7 @@ import '../../../../styles/global.css';
 import { getDb } from '../../../../db';
 import { events, registrations } from '../../../../db/schema';
 import { normalizeCode, ticketCode } from '../../../../lib/ticket';
+import { earlierAttendance, earlierFor, greeting, newcomersHint } from '../../../../lib/regulars';
 
 // Full-screen, phone-first check-in for the door: search by name, email, phone or ticket code, or
 // scan the QR code from the confirmation email. Admin only (guarded in middleware).
@@ -13,6 +14,8 @@ const [event] = await db
   .from(events)
   .where(eq(events.id, Number(Astro.params.id)));
 if (!event) return Astro.redirect('/admin/events');
+// How many earlier events each person came to, for the "First time" and "Regular" badges.
+const counts = await earlierAttendance(event);
 const rows = await Promise.all(
   (
     await db
@@ -24,6 +27,7 @@ const rows = await Promise.all(
         company: registrations.company,
         status: registrations.status,
         walkIn: registrations.walkIn,
+        note: registrations.note,
         token: registrations.token,
       })
       .from(registrations)
@@ -34,8 +38,16 @@ const rows = await Promise.all(
         ),
       )
       .orderBy(asc(registrations.name))
-  ).map(async ({ token, ...r }) => ({ ...r, code: normalizeCode(await ticketCode(token)) })),
+  ).map(async ({ token, ...r }) => ({
+    ...r,
+    code: normalizeCode(await ticketCode(token)),
+    greeting: greeting(earlierFor(counts, r.email)),
+  })),
 );
+// Newcomers expected (or already in), not counting the waitlist.
+const newcomers = rows.filter(
+  (r) => r.greeting?.kind === 'first' && r.status !== 'waitlist',
+).length;
 const search = (r: (typeof rows)[number]) =>
   [r.name, r.email, r.company, r.phone, r.phone?.replace(/\D/g, ''), r.code]
     .filter(Boolean)
@@ -157,6 +169,13 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
             />
           </label>
         </div>
+        <label class="flex items-start gap-3 text-sm">
+          <input type="checkbox" name="newsletter" class="mt-1 size-4 accent-brand" />
+          <span>
+            They want the La French Tech Bangkok newsletter
+            <span class="block text-muted">Only tick if they said yes. Needs an email.</span>
+          </span>
+        </label>
         <p data-walkin-error hidden role="alert" class="text-sm font-semibold text-danger"></p>
         <div class="mt-2 flex justify-end gap-2">
           <button
@@ -197,6 +216,15 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       </div>
     </div>
 
+    <!-- Outside the sticky header, so it scrolls away and leaves room for results. -->
+    <p
+      data-newcomers={newcomers}
+      hidden={newcomers === 0}
+      class="mx-3 mt-3 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-paper"
+    >
+      {newcomersHint(newcomers)}: they have a “First time” badge.
+    </p>
+
     <ul class="grid gap-2 p-3" data-list data-event={event.id}>
       {rows.map((r) => (
         <li>
@@ -210,11 +238,27 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
             class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4 text-left data-[status=attended]:border-success data-[status=attended]:bg-success/5"
           >
             <span class="min-w-0">
-              <span class="block text-lg font-semibold">{r.name}</span>
+              <span class="block text-lg font-semibold">
+                {r.name}
+                {r.greeting && (
+                  <span
+                    data-greeting={r.greeting.kind}
+                    class="ml-1 inline-block rounded-full px-2.5 py-0.5 align-middle text-xs font-semibold data-[greeting=first]:bg-accent data-[greeting=first]:text-paper data-[greeting=regular]:bg-navy/10 data-[greeting=regular]:text-navy"
+                  >
+                    {r.greeting.label}
+                  </span>
+                )}
+              </span>
               <span class="block truncate text-sm text-muted">
                 {[r.company, r.email, r.phone].filter(Boolean).join(' · ') ||
                   (r.walkIn ? 'Walk-in' : '')}
               </span>
+              {r.note && (
+                <span class="mt-1 line-clamp-2 block text-sm whitespace-pre-line text-muted italic">
+                  <span class="sr-only">Their note: </span>
+                  {r.note}
+                </span>
+              )}
             </span>
             <span data-label class="shrink-0 text-sm font-semibold">
               {r.status === 'attended'
@@ -235,7 +279,14 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4 text-left data-[status=attended]:border-success data-[status=attended]:bg-success/5"
         >
           <span class="min-w-0">
-            <span data-row-name class="block text-lg font-semibold"></span>
+            <span class="block text-lg font-semibold">
+              <span data-row-name></span>
+              <span
+                data-greeting
+                hidden
+                class="ml-1 inline-block rounded-full px-2.5 py-0.5 align-middle text-xs font-semibold data-[greeting=first]:bg-accent data-[greeting=first]:text-paper data-[greeting=regular]:bg-navy/10 data-[greeting=regular]:text-navy"
+              ></span>
+            </span>
             <span data-row-details class="block truncate text-sm text-muted"></span>
           </span>
           <span data-label class="shrink-0 text-sm font-semibold">
@@ -387,6 +438,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         phone: string | null;
         company: string | null;
         code: string;
+        greeting: { kind: 'first' | 'regular'; label: string } | null;
       }) => {
         const li = rowTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
         const b = li.querySelector('button')!;
@@ -407,6 +459,19 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           .toLowerCase();
         li.querySelector('[data-row-name]')!.textContent = r.name;
         li.querySelector('[data-row-details]')!.textContent = details || 'Walk-in';
+        const badge = li.querySelector('[data-greeting]') as unknown as HTMLElement;
+        if (r.greeting) {
+          badge.dataset.greeting = r.greeting.kind;
+          badge.textContent = r.greeting.label;
+          badge.hidden = false;
+        }
+        if (r.greeting?.kind === 'first') {
+          const hint = document.querySelector('[data-newcomers]') as unknown as HTMLElement;
+          const n = Number(hint.dataset.newcomers) + 1;
+          hint.dataset.newcomers = String(n);
+          hint.textContent = `${n === 1 ? 'Say hello to the 1 newcomer' : `Say hello to the ${n} newcomers`}: they have a “First time” badge.`;
+          hint.hidden = false;
+        }
         list.insertBefore(li, list.firstChild);
         buttons.unshift(b);
         document.querySelector('[data-empty]')?.remove();
@@ -426,6 +491,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
             email: field('email').value,
             phone: field('phone').value,
             company: field('company').value,
+            newsletter: field('newsletter').checked,
           }),
         }).catch(() => null);
         submit.disabled = false;

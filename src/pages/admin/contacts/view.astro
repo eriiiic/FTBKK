@@ -5,8 +5,12 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import ContactForm from '../../../components/admin/ContactForm.astro';
 import {
+  CONTACT_TAGS,
   ContactSchema,
+  cardFor,
   contactExists,
+  contactInput,
+  latestRegistrationAnswer,
   deleteContacts,
   loadContacts,
   saveContact,
@@ -33,14 +37,24 @@ if (Astro.request.method === 'POST') {
     await deleteContacts([key], actor, now);
     return Astro.redirect('/admin/contacts?saved=deleted');
   }
-  values = formToObject(form);
+  values = formToObject(form, ['tags']);
   const parsed = ContactSchema.safeParse(values);
+  const before = parsed.success ? (await loadContacts(now)).find((x) => x.key === key) : null;
+  const input = parsed.success
+    ? contactInput(
+        parsed.data,
+        (await cardFor(key)) ?? null,
+        now,
+        latestRegistrationAnswer(before?.history ?? []),
+      )
+    : null;
   if (!parsed.success) errors = fieldErrors(parsed.error);
+  else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
   else {
-    const result = await saveContact(key, parsed.data);
+    const result = await saveContact(key, input);
     if ('error' in result) errors = { email: result.error };
     else {
-      await audit(actor, 'contact_update', 'contact', null, { key }, parsed.data);
+      await audit(actor, 'contact_update', 'contact', null, { key }, input);
       return Astro.redirect(view(result.key));
     }
   }
@@ -82,7 +96,14 @@ const details = [
   ['Company', c.company],
   ['Role', c.role],
   ['First seen', formatDate(c.firstSeen)],
+  ['Newsletter', newsletterText(c.newsletter)],
+  ['Tags', c.tags.length ? 'tags' : null],
 ].filter(([, v]) => v) as [string, string][];
+function newsletterText(n: typeof c.newsletter) {
+  if (!n.at) return 'Never asked';
+  const how = n.source === 'card' ? 'told the team' : 'registration form';
+  return `${n.agreed ? 'Agreed' : 'Not subscribed'} (${how}, ${formatDate(n.at)})`;
+}
 const stats = [
   ['Attended', c.attended],
   ['Registered', c.registrations],
@@ -118,7 +139,17 @@ const stats = [
             <div class="grid grid-cols-[9rem_1fr] gap-2">
               <dt class="text-muted">{k}</dt>
               <dd class="break-words">
-                {k === 'Email' && c.email ? <a href={`mailto:${c.email}`}>{v}</a> : v}
+                {k === 'Email' && c.email ? (
+                  <a href={`mailto:${c.email}`}>{v}</a>
+                ) : k === 'Tags' ? (
+                  <span class="flex flex-wrap gap-1">
+                    {c.tags.map((t) => (
+                      <Badge tone="brand">{CONTACT_TAGS[t]}</Badge>
+                    ))}
+                  </span>
+                ) : (
+                  v
+                )}
               </dd>
             </div>
           ))}
@@ -142,7 +173,15 @@ const stats = [
             </Alert>
           )}
           <ContactForm
-            values={values ?? { ...c }}
+            values={
+              values ?? {
+                ...c,
+                // The menu shows the card only while it is the answer that counts.
+                newsletter: c.newsletter.source === 'card' ? (c.newsletterCard?.choice ?? '') : '',
+                newsletterAt: '',
+              }
+            }
+            newsletterNow={newsletterText(c.newsletter)}
             errors={errors}
             submit="Save contact"
             walkIn={walkIn}
@@ -203,6 +242,11 @@ const stats = [
               </span>
             </span>
             <Badge tone={tone(r.status)}>{statusLabel(r)}</Badge>
+            {r.note && (
+              <p class="w-full text-sm whitespace-pre-line text-muted">
+                <span class="font-semibold">Their note:</span> {r.note}
+              </p>
+            )}
           </li>
         ))}
       </ul>

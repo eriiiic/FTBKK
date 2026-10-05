@@ -8,9 +8,26 @@ import { formatEventDate } from './format';
 import { eventIcs } from './ics';
 import { sendEmail, sendEmailBatch, type EmailMessage } from './email';
 import { randomToken } from './tokens';
+import { myDataPath } from './privacy';
 import { qrPng, ticketCode } from './ticket';
 import { sponsorsForEvent } from './queries';
 import { emailLogos, showSponsor, sponsorDetails } from './sponsors';
+
+/** Longest note a registrant can leave (the textarea's maxlength too). */
+export const NOTE_MAX = 500;
+
+/**
+ * A registrant's free-text note, as plain text: control characters dropped (tabs and newlines
+ * kept), trailing spaces trimmed per line, at most one blank line in a row, no blank edges.
+ */
+export function cleanNote(raw: string) {
+  return raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 export const RegisterSchema = z.object({
   name: z.string().min(2, 'Enter your name.').max(120),
@@ -24,7 +41,20 @@ export const RegisterSchema = z.object({
     .default(''),
   role: z.string().max(120).optional().default(''),
   howHeard: z.string().max(120).optional().default(''),
+  /** "Anything we should know, or something you're looking for?" Plain text, shown to admins only. */
+  note: z.preprocess(
+    // formToObject turns a field that says exactly "on" into true; keep it as text.
+    (v) => (v === true ? 'on' : v),
+    z
+      .string()
+      .transform(cleanNote)
+      .pipe(z.string().max(NOTE_MAX, `Keep it to ${NOTE_MAX} characters or fewer.`))
+      .optional()
+      .default(''),
+  ),
   photoConsent: z.literal(true, { error: 'Please accept the photo notice to register.' }),
+  /** Opt-in only: an unticked box (absent from the form) is a "no", recorded with the date. */
+  newsletter: z.boolean().optional().default(false),
 });
 
 export const HOW_HEARD = [
@@ -92,7 +122,12 @@ export function registrationState(
   return { ...base, open: true };
 }
 
-/** Atomic insert: decides registered vs waitlist in the same statement, so capacity holds. */
+/**
+ * Atomic insert: decides registered vs waitlist in the same statement, so capacity holds. Only a
+ * ticked newsletter box is recorded (dated): an unticked box is not a withdrawal, since the form
+ * never shows that someone is already subscribed. Registering again after a cancellation keeps
+ * the registration's token, so links in earlier emails ("Manage or delete my data") still work.
+ */
 export async function insertRegistration(
   eventId: number,
   data: z.infer<typeof RegisterSchema>,
@@ -102,16 +137,21 @@ export async function insertRegistration(
   const token = randomToken(24);
   const row = await db
     .prepare(
-      `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token, phone)
+      `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token, phone,
+         newsletter_consent, newsletter_consent_at, note)
        SELECT ?1, ?2, ?3, ?4, ?5, ?6, 1,
          CASE WHEN ?7 IS NULL OR (SELECT count(*) FROM registrations
            WHERE event_id = ?1 AND status IN ('registered', 'attended')) < ?7
          THEN 'registered' ELSE 'waitlist' END,
-         ?8, ?9
+         ?8, ?9, ?10, CASE WHEN ?10 THEN unixepoch() END, ?11
        WHERE true
        ON CONFLICT (event_id, email) DO UPDATE SET
          name = excluded.name, company = excluded.company, role = excluded.role, phone = excluded.phone,
-         how_heard = excluded.how_heard, status = excluded.status, token = excluded.token,
+         how_heard = excluded.how_heard, status = excluded.status,
+         newsletter_consent = CASE WHEN excluded.newsletter_consent
+           THEN 1 ELSE registrations.newsletter_consent END,
+         newsletter_consent_at = coalesce(excluded.newsletter_consent_at, registrations.newsletter_consent_at),
+         note = excluded.note,
          created_at = unixepoch(), checked_in_at = NULL, reminder_sent_at = NULL
        WHERE registrations.status = 'cancelled'
        RETURNING id, status, token`,
@@ -126,6 +166,8 @@ export async function insertRegistration(
       capacity,
       token,
       data.phone || null,
+      data.newsletter ? 1 : 0,
+      data.note || null,
     )
     .first<{ id: number; status: 'registered' | 'waitlist'; token: string }>();
   return row; // null = already registered
@@ -190,6 +232,9 @@ export interface RegistrationRow {
 export function siteUrl(path: string) {
   return new URL(path, env.SITE_URL || 'https://www.french-tech-bangkok.com').href;
 }
+
+/** The "Manage or delete my data" page for a registration token (linked in every event email). */
+export const myDataUrl = (token: string) => siteUrl(myDataPath(token));
 
 function icsAttachment(e: Event) {
   const ics = eventIcs({ ...e, url: siteUrl(`/events/${e.slug}`) });
@@ -273,6 +318,7 @@ export async function sendConfirmation(
     ],
     ticket: t?.ticket,
     attachments: t ? [icsAttachment(e), t.attachment] : undefined,
+    dataUrl: myDataUrl(r.token),
   });
 }
 
@@ -294,6 +340,7 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
     ],
     ticket: t.ticket,
     attachments: [icsAttachment(e), t.attachment],
+    dataUrl: myDataUrl(r.token),
   });
 }
 
@@ -317,6 +364,7 @@ export function reminderEmail(
         url: siteUrl(`/events/${e.slug}/cancel?token=${r.token}`),
       },
     ],
+    dataUrl: myDataUrl(r.token),
   };
 }
 
@@ -329,7 +377,10 @@ export async function sendReminders(
   return sendEmailBatch(rows.map((r) => reminderEmail(e, r, sp)));
 }
 
-export async function sendEventCancelled(e: Event, rows: { name: string; email: string }[]) {
+export async function sendEventCancelled(
+  e: Event,
+  rows: { name: string; email: string; token?: string | null }[],
+) {
   return sendEmailBatch(
     rows.map((r) => ({
       to: r.email,
@@ -339,6 +390,7 @@ export async function sendEventCancelled(e: Event, rows: { name: string; email: 
         'Keep an eye on our events page for the next one.',
       ],
       action: { label: 'See upcoming events', url: siteUrl('/events') },
+      dataUrl: r.token ? myDataUrl(r.token) : undefined,
     })),
   );
 }

@@ -68,8 +68,14 @@ uses any more.
 
 ## Registrations
 
-- People register on the event page (name, email, company, role, photo notice). They get a
+- People register on the event page (name, email, company, role, photo notice, and an optional
+  newsletter box, unticked by default). They get a
   confirmation with a calendar invite and a cancel link, and a reminder the day before.
+- The form also asks, optionally, **"Anything we should know, or something you're looking for?"**
+  (up to 500 characters: dietary needs, accessibility, "looking for a CTO"...). Only the team sees
+  the answer: under the person's name in **Registrations** (the search finds words in it too), in
+  the **Note** column of the CSV, in small grey text on the check-in screen so door volunteers can
+  spot it, and next to each event in the contact's event history. It is never repeated in emails.
 - When the event is full, new people join the **waitlist**. If someone cancels, the first person
   on the waitlist is registered automatically and emailed.
 - **Registrations** (or the count on the Events page): counts, search, check in, register someone
@@ -78,29 +84,77 @@ uses any more.
   check the person in. Tap again to undo. Door volunteers can bookmark
   `/checkin` on their phone: it opens a list of today's and upcoming events (after the admin
   login), and tapping one opens its check-in mode. They must be allowed in Cloudflare Access.
+- **First time and Regular badges** on the check-in screen help volunteers greet people. "First
+  time" (blue) means this email was never checked in at an earlier published event, and the
+  banner above the list says how many newcomers are expected ("Say hello to the 3 newcomers").
+  "Regular · N events" means they were checked in at 3 or more earlier events. Walk-ins added at
+  the door get their badge too. People without an email get no badge (we can't tell), and the
+  count only knows about events where check-in was used.
 - **Walk-ins**: on the check-in screen, **+ Walk-in** (or **Add as a walk-in** when a search
   finds nobody) adds someone who didn't register and checks them in. Only the name is required.
   If the email is already registered for the event, that registration is checked in instead.
-  Walk-ins are marked in Registrations and in the CSV export.
+  Walk-ins are marked in Registrations and in the CSV export. Tick **They want the newsletter**
+  only if the person said yes (it needs their email). This also works for someone already
+  checked in: the screen says "already checked in" and records the yes.
 - **Contacts** lists everyone who ever registered or walked in, one line per person (by email;
   walk-ins without an email are grouped by name). It shows how many events each person attended,
   registered for and missed (registered for a past event where check-in was used, but not
   checked in), and the ecosystem listings their email manages or is the contact for. Filter by
   "came at least once", "came 2 times or more", "registered, never came", "linked to an
-  ecosystem listing" or by event, then **Export CSV** (the export keeps the filters). Click a
+  ecosystem listing", "suggest for membership", by tag or by event, then **Export CSV** (the export keeps the filters and has
+  a Tags column). Click a
   name to see their full event history. Details come from their latest registration.
+- **Suggest for membership** (in the Show filter) is for the board: people who came to 3 or more
+  events, have no ecosystem listing (their email doesn't manage and isn't the contact of any
+  listing) and whose company isn't a member organisation (matched by name, ignoring "Co., Ltd."
+  and the like). Copy their emails or export them to invite them to join.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
-  **Call** buttons, and **Edit** for name, email, phone, company, role, LinkedIn and team notes.
+  **Call** buttons, and **Edit** for name, email, phone, company, role, tags, LinkedIn and team
+  notes.
   Once edited, the saved details win over what the person types in later registrations. Changing
   the email moves their registrations to the new one; if that email already registered, the two
   merge. Adding an email to a walk-in groups their future registrations with it. **New contact**
   adds someone who never registered. **Delete this contact** removes them and all their
-  registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
+  registrations (their seats on upcoming events go to the waitlist). People can do the same
+  themselves: see **Manage or delete my data** below. **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
+- **Tags**: Speaker, Sponsor, Volunteer, Board and Press. You set them by hand (nothing is tagged
+  automatically) and only the admin team sees them. They show as small badges next to the name,
+  and the **Any tag** menu on the list shows only the people with one tag (it combines with the
+  other filters and the search). Tagging someone saves a contact card for them, as editing does.
+  A walk-in without an email can't be tagged until you add an email on their page.
 - **Bulk actions on Contacts**: tick the boxes in front of the names (or the box in the header to
   tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
-  rows) and **Delete** (asks first; removes those contacts and their registrations, and freed
+  rows), **Add tag** / **Remove tag** (choose the tag in the menu first; walk-ins without an email
+  are skipped, and the message says how many) and **Delete** (asks first; removes those contacts and their registrations, and freed
   seats on upcoming events go to the waitlist).
+- **Newsletter consent**: the law (Thailand's PDPA) wants a clear yes, given by the person, with
+  a date. The registration form asks with an unticked box; a tick is kept with its date (leaving
+  the box unticked records nothing, so it never cancels an earlier yes). The
+  contacts list has a **Newsletter** column ("Agreed") and an "Agreed to the newsletter" filter;
+  the contact page shows their current choice, where it came from and when. If someone tells you
+  in person or by message, open their contact, **Edit**, set **Newsletter** to "Subscribed" or
+  "Not subscribed" and the date they told you (empty = today). The line under the menu shows the
+  answer that counts now. Their latest choice always wins: a later tick on a registration form
+  replaces what you set, and the other way round. The menu only shows your entry while it is the
+  one that counts; a date older than their latest tick is refused, since it would change nothing.
+  "As they chose when registering" removes your entry. People imported from Wix were never asked, so they count as
+  not subscribed. To send a newsletter, filter on "Agreed to the newsletter" and **Export CSV**
+  (columns "Newsletter" and "Newsletter consent date") into your newsletter tool. Only use **Copy
+  emails** for event messages, not for the newsletter.
+- **Manage or delete my data** (PDPA): every email to registrants (confirmation, waitlist
+  promotion, reminder, feedback request, event cancelled and **Email registrants**) has this link
+  in its footer. It opens `/my-data` for that registration, which shows the person their name,
+  email, phone, company, events (registered, came, cancelled) with their own answers ("Anything
+  we should know?", how they heard about us) and feedback, newsletter choice, tags, and whether
+  you saved a contact card (your notes are not shown; the page tells them to ask for a copy). They can **Unsubscribe from the newsletter** (recorded on their contact
+  card as "Not subscribed" with today's date) or **Delete my data** (asks to confirm, then does
+  exactly what **Delete this contact** does: their card, registrations and feedback go, and freed
+  seats go to the waitlist). An unsubscribe shows in Ecosystem > History with the actor
+  `self-service:<their email>`. Deleting a contact (here or with **Delete this contact**) also
+  wipes the old values of their contact entries in the history and logs the deletion under
+  `deleted:<short code>` instead of their email. After a deletion the link stops working. If someone asks by email
+  instead, use **Delete this contact** or edit their newsletter choice yourself.
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
   exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests
@@ -184,6 +238,12 @@ them in Settings > Directory moderators.
   report). Write `{contactEmail}` where the contact email should appear; it becomes a mail link.
   Emptying the field brings the default text back. The page is linked in the footer, on event
   pages and under the registration form ("By registering you agree to our code of conduct").
+- **Privacy notice**: the text of the public `/privacy` page (Thailand's PDPA), in Markdown, edited
+  the same way. The default says who we are, what we collect, why, who sees it, how long we keep
+  it, people's rights and how to use them. Keep it true to what the team actually does (for
+  example if you start sharing attendee lists with a sponsor, it must say so and ask first).
+  `{contactEmail}` becomes a mail link; emptying the field brings the default back. It is linked
+  in the footer and under every registration form.
 
 ## For developers
 

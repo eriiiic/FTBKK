@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import type { Event } from '../db/schema';
 import type { EmailMessage } from './email';
-import { siteUrl } from './registrations';
+import { myDataUrl, siteUrl } from './registrations';
 
 export const RATINGS = [1, 2, 3, 4, 5] as const;
 export const RATING_LABELS: Record<number, string> = {
@@ -57,6 +57,7 @@ export function feedbackEmail(
       })),
       hint: '1 = poor · 5 = excellent',
     },
+    dataUrl: myDataUrl(r.token),
   };
 }
 
