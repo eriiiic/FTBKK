@@ -85,6 +85,13 @@
       "when": 1791180207205,
       "tag": "0014_event_speakers",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1791180670437,
+      "tag": "0015_event_sponsors",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,15 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import MarkdownEditor from '../../../components/admin/MarkdownEditor.astro';
 import { getDb } from '../../../db';
-import { eventSpeakers, events, people, posts, type Event } from '../../../db/schema';
+import {
+  eventSpeakers,
+  eventSponsors,
+  events,
+  organisations,
+  people,
+  posts,
+  type Event,
+} from '../../../db/schema';
 import { EventSchema, toLocalInput, uniqueContentSlug } from '../../../lib/admin';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
@@ -31,7 +39,17 @@ import {
   personLine,
   planSpeakers,
 } from '../../../lib/speakers';
-import { speakersForEvent } from '../../../lib/queries';
+import {
+  MAX_SPONSORS,
+  ROLE_NAMES,
+  SPONSOR_ARRAYS,
+  SPONSOR_ROLES,
+  SponsorsFormSchema,
+  planSponsors,
+  showSponsor,
+  type NewSponsor,
+} from '../../../lib/sponsors';
+import { speakersForEvent, sponsorsForEvent } from '../../../lib/queries';
 import { env } from 'cloudflare:workers';
 
 const db = getDb();
@@ -97,6 +115,22 @@ const everyone = event
 let speakerErrors: Record<string, string> = {};
 let speakerValues: Record<string, unknown> = {};
 
+// Hosts, sponsors and partners: an organisation of the ecosystem directory, or entered by hand.
+const sponsors = event ? await sponsorsForEvent(event.id) : [];
+const directory = event
+  ? await db
+      .select({
+        id: organisations.id,
+        name: organisations.name,
+        website: organisations.website,
+        status: organisations.status,
+      })
+      .from(organisations)
+      .orderBy(asc(organisations.name))
+  : [];
+let sponsorErrors: Record<string, string> = {};
+let sponsorValues: Record<string, unknown> = {};
+
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = event
   ? asValues(event)
@@ -142,7 +176,76 @@ if (Astro.request.method === 'POST') {
     );
     return Astro.redirect(`/admin/events/${event.id}?saved=1`);
   }
-  if (event && action === 'speakers') {
+  if (event && action === 'sponsors') {
+    sponsorValues = formToObject(form, SPONSOR_ARRAYS);
+    const parsed = SponsorsFormSchema.safeParse(sponsorValues);
+    if (!parsed.success) sponsorErrors = fieldErrors(parsed.error);
+    const picked = form.get('addLogo');
+    const hasLogo = picked instanceof File && picked.size > 0;
+    const org = parsed.success ? directory.find((o) => o.id === parsed.data.addOrgId) : undefined;
+    if (parsed.success) {
+      const d = parsed.data;
+      if (d.addOrgId && !org) sponsorErrors.addOrgId = 'Pick an organisation from the list.';
+      if (hasLogo && !d.addName) sponsorErrors.addName = 'Enter the name that goes with the logo.';
+      const kept = sponsors.filter((s) => !d.sponsorRemove.includes(String(s.id))).length;
+      if (kept + (d.addOrgId || d.addName ? 1 : 0) > MAX_SPONSORS)
+        sponsorErrors.addOrgId = `An event has at most ${MAX_SPONSORS} hosts, sponsors and partners.`;
+    }
+    // Upload only once the rest is valid, so a rejected form leaves no orphan file in R2.
+    const logo =
+      parsed.success && !Object.keys(sponsorErrors).length
+        ? await storeUpload(picked, {
+            prefix: 'sponsors',
+            maxBytes: 2 * 1024 * 1024,
+            types: IMAGE_TYPES,
+          })
+        : { key: null, error: null };
+    if (logo.error) sponsorErrors.addLogo = logo.error;
+    if (parsed.success && !Object.keys(sponsorErrors).length) {
+      const d = parsed.data;
+      // A linked organisation's name and website are kept as a fallback if it is ever deleted.
+      const added: NewSponsor | null = org
+        ? {
+            role: d.addRole,
+            organisationId: org.id,
+            name: org.name,
+            url: org.website,
+            logoKey: null,
+          }
+        : d.addName
+          ? {
+              role: d.addRole,
+              organisationId: null,
+              name: d.addName,
+              url: d.addUrl,
+              logoKey: logo.key,
+            }
+          : null;
+      const plan = planSponsors(sponsors, d, added);
+      await db.batch([
+        db.delete(eventSponsors).where(eq(eventSponsors.eventId, event.id)),
+        ...plan.map(({ id, ...s }) =>
+          db.insert(eventSponsors).values({ ...s, ...(id ? { id } : {}), eventId: event!.id }),
+        ),
+      ]);
+      const names = new Map(directory.map((o) => [o.id, o.name]));
+      const summary = (list: typeof plan) =>
+        list.map((s) => ({
+          role: s.role,
+          name: (s.organisationId && names.get(s.organisationId)) || s.name,
+          ...(s.organisationId ? { organisationId: s.organisationId } : { url: s.url }),
+        }));
+      await audit(
+        actor,
+        'sponsors',
+        'event',
+        event.id,
+        summary(sponsors.map((s, sortOrder) => ({ ...s, sortOrder }))),
+        summary(plan),
+      );
+      return Astro.redirect(`/admin/events/${event.id}?saved=1#sponsors`);
+    }
+  } else if (event && action === 'speakers') {
     speakerValues = formToObject(form, SPEAKER_ARRAYS);
     const parsed = SpeakersFormSchema.safeParse(speakerValues);
     if (!parsed.success) speakerErrors = fieldErrors(parsed.error);
@@ -328,6 +431,16 @@ if (Astro.request.method === 'POST') {
     }
   }
 }
+const spstr = (k: string) =>
+  sponsorValues[k] === null || sponsorValues[k] === undefined ? '' : String(sponsorValues[k]);
+const ORG_STATUS_NOTE: Record<string, string> = {
+  published: '',
+  unverified: ' (not published yet)',
+  pending: ' (pending review)',
+  rejected: ' (rejected)',
+  expired: ' (expired)',
+  hidden: ' (hidden)',
+};
 const sstr = (k: string) =>
   speakerValues[k] === null || speakerValues[k] === undefined ? '' : String(speakerValues[k]);
 const linked = new Set(speakers.map((s) => s.id));
@@ -556,6 +669,175 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
       </div>
     </div>
   </form>
+
+  {event && (
+    <section id="sponsors" aria-labelledby="sponsors-title" class="admin-panel mt-8 grid gap-6">
+      <div>
+        <h2 id="sponsors-title" class="text-lg">
+          Sponsors and hosts
+        </h2>
+        <p class="mt-1 text-sm text-muted">
+          Shown with their logo on the event page ("Hosted by", "Sponsored by", "Partners") and
+          named in the confirmation and reminder emails. The host is usually the venue.
+          Organisations from the ecosystem directory use their current name, logo and website; edit
+          those in <a href="/admin/ecosystem">Ecosystem</a>.
+        </p>
+      </div>
+      {Object.keys(sponsorErrors).length > 0 && (
+        <Alert tone="danger">
+          The sponsors were not saved. {Object.values(sponsorErrors).join(' ')}
+        </Alert>
+      )}
+      <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid gap-6">
+        <input type="hidden" name="action" value="sponsors" />
+        {sponsors.length > 0 ? (
+          <ol class="grid gap-3" data-sponsors>
+            {sponsors.map((row) => {
+              const s = showSponsor(row);
+              const linkedOrg = row.organisationId !== null && row.orgName !== null;
+              return (
+                <li class="grid gap-3 rounded-lg border border-line p-3 sm:grid-cols-[5rem_1fr_10rem_auto] sm:items-center">
+                  <input type="hidden" name="sponsorId" value={row.id} />
+                  {s.logoKey ? (
+                    <img
+                      src={mediaUrl(s.logoKey)}
+                      alt=""
+                      class="h-10 w-20 rounded bg-paper object-contain"
+                    />
+                  ) : (
+                    <span class="hidden h-10 w-20 rounded bg-surface sm:block" />
+                  )}
+                  {linkedOrg ? (
+                    <div class="min-w-0">
+                      <input type="hidden" name="sponsorName" value="" />
+                      <input type="hidden" name="sponsorUrl" value="" />
+                      <p class="font-semibold text-navy">{s.name}</p>
+                      <p class="text-sm text-muted">
+                        From the{' '}
+                        <a href={`/admin/ecosystem/${row.organisationId}`}>ecosystem directory</a>
+                        {ORG_STATUS_NOTE[row.orgStatus ?? ''] ?? ''}
+                      </p>
+                    </div>
+                  ) : (
+                    <div class="grid min-w-0 gap-2 sm:grid-cols-2">
+                      <label class="text-sm">
+                        Name<span class="sr-only"> of {row.name}</span>
+                        <input
+                          name="sponsorName"
+                          value={row.name}
+                          maxlength={120}
+                          required
+                          class="admin-input mt-1"
+                        />
+                      </label>
+                      <label class="text-sm">
+                        Website<span class="sr-only"> of {row.name}</span>
+                        <input
+                          name="sponsorUrl"
+                          value={row.url ?? ''}
+                          maxlength={300}
+                          placeholder="https://…"
+                          class="admin-input mt-1"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <label class="text-sm">
+                    Role<span class="sr-only"> of {s.name}</span>
+                    <select name="sponsorRole" class="admin-input mt-1">
+                      {SPONSOR_ROLES.map((r) => (
+                        <option value={r} selected={row.role === r}>
+                          {ROLE_NAMES[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <button type="button" data-move="-1" class="rounded border border-line px-2">
+                      ↑<span class="sr-only"> Move {s.name} earlier</span>
+                    </button>
+                    <button type="button" data-move="1" class="rounded border border-line px-2">
+                      ↓<span class="sr-only"> Move {s.name} later</span>
+                    </button>
+                    <label class="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        name="sponsorRemove"
+                        value={row.id}
+                        class="size-4 accent-brand"
+                      />
+                      Remove<span class="sr-only"> {s.name}</span>
+                    </label>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p class="text-sm text-muted">No hosts or sponsors yet.</p>
+        )}
+
+        <fieldset class="grid gap-4">
+          <legend class="font-semibold text-navy">Add a host, sponsor or partner</legend>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="text-sm font-semibold text-ink">
+              Role
+              <select name="addRole" class="admin-input mt-1 font-normal">
+                {SPONSOR_ROLES.map((r) => (
+                  <option value={r} selected={(spstr('addRole') || 'sponsor') === r}>
+                    {ROLE_NAMES[r]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label class="text-sm font-semibold text-ink">
+              From the ecosystem directory
+              <select name="addOrgId" class="admin-input mt-1 font-normal">
+                <option value="">Choose…</option>
+                {directory.map((o) => (
+                  <option value={o.id} selected={spstr('addOrgId') === String(o.id)}>
+                    {o.name}
+                    {ORG_STATUS_NOTE[o.status] ?? ''}
+                  </option>
+                ))}
+              </select>
+              {sponsorErrors.addOrgId && (
+                <span class="mt-1 block font-normal text-danger">{sponsorErrors.addOrgId}</span>
+              )}
+            </label>
+          </div>
+          <p class="text-sm text-muted">Or someone not in the directory:</p>
+          <div class="grid gap-4 sm:grid-cols-3">
+            <FormField
+              name="addName"
+              label="Name"
+              maxlength={120}
+              value={spstr('addName')}
+              error={sponsorErrors.addName}
+            />
+            <FormField
+              name="addUrl"
+              label="Website"
+              value={spstr('addUrl')}
+              error={sponsorErrors.addUrl}
+              placeholder="https://…"
+            />
+            <FormField
+              name="addLogo"
+              label="Logo"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              error={sponsorErrors.addLogo}
+              hint="PNG or JPG shows in emails too (SVG only on the site). 2 MB max."
+            />
+          </div>
+        </fieldset>
+        <div>
+          <Button type="submit">Save the sponsors</Button>
+        </div>
+      </form>
+    </section>
+  )}
 
   {event && (
     <section id="speakers" aria-labelledby="speakers-title" class="admin-panel mt-8 grid gap-6">
@@ -884,19 +1166,21 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
 
 <script>
   // Recap photos: the arrows move a photo; the order of the hidden fields is the saved order.
-  // Speakers use the same arrows.
-  document.querySelectorAll<HTMLElement>('[data-recap-photos], [data-speakers]').forEach((list) => {
-    list.addEventListener('click', (e) => {
-      const b = (e.target as Element | null)?.closest<HTMLButtonElement>('button[data-move]');
-      const item = b?.closest('li');
-      if (!b || !item) return;
-      const sibling =
-        b.dataset.move === '-1' ? item.previousElementSibling : item.nextElementSibling;
-      if (!sibling) return;
-      if (b.dataset.move === '-1') list.insertBefore(item, sibling);
-      else list.insertBefore(sibling, item);
-      b.focus();
-      list.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
+  // Speakers and sponsors use the same arrows.
+  document
+    .querySelectorAll<HTMLElement>('[data-recap-photos], [data-speakers], [data-sponsors]')
+    .forEach((list) => {
+      list.addEventListener('click', (e) => {
+        const b = (e.target as Element | null)?.closest<HTMLButtonElement>('button[data-move]');
+        const item = b?.closest('li');
+        if (!b || !item) return;
+        const sibling =
+          b.dataset.move === '-1' ? item.previousElementSibling : item.nextElementSibling;
+        if (!sibling) return;
+        if (b.dataset.move === '-1') list.insertBefore(item, sibling);
+        else list.insertBefore(sibling, item);
+        b.focus();
+        list.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
+      });
     });
-  });
 </script>

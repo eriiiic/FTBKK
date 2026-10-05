@@ -3,6 +3,7 @@ import { getDb } from '../db';
 import {
   categories,
   eventSpeakers,
+  eventSponsors,
   events,
   organisations,
   people,
@@ -10,6 +11,7 @@ import {
   posts,
   type PostAuthor,
 } from '../db/schema';
+import { type SponsorWithOrg } from './sponsors';
 
 const nowDate = () => new Date();
 
@@ -219,6 +221,28 @@ export async function speakersForEvent(eventId: number) {
     .innerJoin(people, eq(people.id, eventSpeakers.personId))
     .where(eq(eventSpeakers.eventId, eventId))
     .orderBy(asc(eventSpeakers.sortOrder), asc(people.name));
+}
+
+/** Hosts, sponsors and partners of an event, in page order, with their linked organisation. */
+export async function sponsorsForEvent(eventId: number): Promise<SponsorWithOrg[]> {
+  return getDb()
+    .select({
+      id: eventSponsors.id,
+      role: eventSponsors.role,
+      organisationId: eventSponsors.organisationId,
+      name: eventSponsors.name,
+      logoKey: eventSponsors.logoKey,
+      url: eventSponsors.url,
+      orgName: organisations.name,
+      orgSlug: organisations.slug,
+      orgLogoKey: organisations.logoKey,
+      orgWebsite: organisations.website,
+      orgStatus: organisations.status,
+    })
+    .from(eventSponsors)
+    .leftJoin(organisations, eq(organisations.id, eventSponsors.organisationId))
+    .where(eq(eventSponsors.eventId, eventId))
+    .orderBy(asc(eventSponsors.sortOrder), asc(eventSponsors.id));
 }
 
 /**

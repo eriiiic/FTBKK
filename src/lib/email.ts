@@ -23,6 +23,8 @@ export interface EmailMessage {
   action?: { label: string; url: string };
   /** Extra rows rendered as "Label: value" (event date, venue…). */
   details?: [string, string][];
+  /** A row of logos (hosts, sponsors) under the details: absolute image URLs, alt = name. */
+  logos?: { src: string; alt: string; url?: string }[];
   /** Optional secondary links under the button. */
   links?: { label: string; url: string }[];
   footer?: string;
@@ -50,6 +52,14 @@ export function renderEmail(m: EmailMessage) {
             `<tr><td style="padding:4px 12px 4px 0;color:#5c5a73;vertical-align:top">${esc(k)}</td><td style="padding:4px 0;color:#1a1530">${esc(v)}</td></tr>`,
         )
         .join('')}</table>`
+    : '';
+  const logos = m.logos?.length
+    ? `<p style="margin:0 0 16px">${m.logos
+        .map((l) => {
+          const img = `<img src="${esc(l.src)}" alt="${esc(l.alt)}" height="40" style="height:40px;width:auto;max-width:140px;vertical-align:middle;border:0;margin:0 16px 8px 0">`;
+          return l.url ? `<a href="${esc(l.url)}">${img}</a>` : img;
+        })
+        .join('')}</p>`
     : '';
   const choices = m.choices
     ? `<p style="margin:20px 0 8px;font-weight:600;color:${navy}">${esc(m.choices.question)}</p>
@@ -86,7 +96,7 @@ export function renderEmail(m: EmailMessage) {
 <tr><td style="background:${navy};padding:20px 28px;color:#fff;font-weight:700;font-size:18px">La French Tech Bangkok</td></tr>
 <tr><td style="padding:28px;color:#1a1530;font-size:16px;line-height:1.6">
 ${m.paragraphs.map((p) => `<p style="margin:0 0 12px">${esc(p)}</p>`).join('')}
-${details}${ticket}${choices}${button}${links}
+${details}${logos}${ticket}${choices}${button}${links}
 </td></tr>
 <tr><td style="padding:16px 28px;background:#f5f5f5;color:#5c5a73;font-size:12px">${esc(m.footer ?? 'La French Tech Bangkok · a volunteer-run community · french-tech-bangkok.com')}</td></tr>
 </table></td></tr></table></body></html>`;

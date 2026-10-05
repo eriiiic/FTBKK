@@ -426,6 +426,33 @@ export const eventSpeakers = sqliteTable(
   ],
 );
 
+/**
+ * Who hosts, sponsors or partners an event, in the order shown on its page. Linked to an
+ * organisation of the ecosystem directory (its name, logo and website are used while it exists)
+ * or entered by hand. `name` is kept as a fallback when the organisation is deleted.
+ */
+export const eventSponsors = sqliteTable(
+  'event_sponsors',
+  {
+    id: id(),
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ['host', 'sponsor', 'partner'] }).notNull(),
+    organisationId: integer('organisation_id').references(() => organisations.id, {
+      onDelete: 'set null',
+    }),
+    name: text('name').notNull(),
+    logoKey: text('logo_key'),
+    url: text('url'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [
+    index('event_sponsors_event').on(t.eventId),
+    index('event_sponsors_org').on(t.organisationId),
+  ],
+);
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
@@ -480,5 +507,6 @@ export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
 export type Person = typeof people.$inferSelect;
 export type EventSpeaker = typeof eventSpeakers.$inferSelect;
+export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;

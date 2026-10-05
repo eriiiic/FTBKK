@@ -9,6 +9,8 @@ import { eventIcs } from './ics';
 import { sendEmail, sendEmailBatch, type EmailMessage } from './email';
 import { randomToken } from './tokens';
 import { qrPng, ticketCode } from './ticket';
+import { sponsorsForEvent } from './queries';
+import { emailLogos, showSponsor, sponsorDetails } from './sponsors';
 
 export const RegisterSchema = z.object({
   name: z.string().min(2, 'Enter your name.').max(120),
@@ -209,6 +211,18 @@ export function eventDetails(
   ];
 }
 
+/** Hosts, sponsors and partners in an event email: detail rows after "Where", and their logos. */
+export interface EmailSponsors {
+  details: [string, string][];
+  logos: NonNullable<EmailMessage['logos']>;
+}
+const NO_SPONSORS: EmailSponsors = { details: [], logos: [] };
+
+export async function emailSponsors(eventId: number): Promise<EmailSponsors> {
+  const shown = (await sponsorsForEvent(eventId)).map(showSponsor);
+  return { details: sponsorDetails(shown), logos: emailLogos(shown, siteUrl) };
+}
+
 function mapLink(e: Event) {
   if (e.mapUrl) return e.mapUrl;
   if (!e.address) return null;
@@ -240,6 +254,7 @@ export async function sendConfirmation(
   const map = mapLink(e);
   const waitlist = r.status === 'waitlist';
   const t = waitlist ? null : await ticket(e, r.token);
+  const sp = await emailSponsors(e.id);
   await sendEmail({
     to: r.email,
     subject: waitlist ? `You're on the waitlist: ${e.title}` : `You're registered: ${e.title}`,
@@ -249,7 +264,8 @@ export async function sendConfirmation(
           'If a seat frees up we will register you automatically and email you.',
         ]
       : [`Hi ${r.name}, see you at ${e.title}! The calendar invite is attached.`],
-    details: eventDetails(e),
+    details: [...eventDetails(e), ...sp.details],
+    logos: sp.logos,
     action: map && !waitlist ? { label: 'Open the map', url: map } : undefined,
     links: [
       { label: 'Event page', url: siteUrl(`/events/${e.slug}`) },
@@ -262,6 +278,7 @@ export async function sendConfirmation(
 
 export async function sendPromotion(e: Event, r: RegistrationRow) {
   const t = await ticket(e, r.token);
+  const sp = await emailSponsors(e.id);
   await sendEmail({
     to: r.email,
     subject: `A seat opened up: you're registered for ${e.title}`,
@@ -269,7 +286,8 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
       `Good news ${r.name}: a seat freed up and you are now registered for ${e.title}. The calendar invite is attached.`,
       "If you can't come any more, please cancel so the next person can take your seat.",
     ],
-    details: eventDetails(e),
+    details: [...eventDetails(e), ...sp.details],
+    logos: sp.logos,
     links: [
       { label: 'Event page', url: siteUrl(`/events/${e.slug}`) },
       { label: 'Cancel', url: siteUrl(`/events/${e.slug}/cancel?token=${r.token}`) },
@@ -282,13 +300,15 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
 export function reminderEmail(
   e: Event,
   r: { name: string; email: string; token: string },
+  sp: EmailSponsors = NO_SPONSORS,
 ): EmailMessage {
   const map = mapLink(e);
   return {
     to: r.email,
     subject: `Tomorrow: ${e.title}`,
     paragraphs: [`Hi ${r.name}, a reminder that ${e.title} is tomorrow. See you there!`],
-    details: eventDetails(e),
+    details: [...eventDetails(e), ...sp.details],
+    logos: sp.logos,
     action: map ? { label: 'Open the map', url: map } : undefined,
     links: [
       { label: 'Show my ticket', url: ticketUrl(e, r.token) },
@@ -304,7 +324,9 @@ export async function sendReminders(
   e: Event,
   rows: { name: string; email: string; token: string }[],
 ) {
-  return sendEmailBatch(rows.map((r) => reminderEmail(e, r)));
+  if (!rows.length) return { ok: true, sent: 0 };
+  const sp = await emailSponsors(e.id);
+  return sendEmailBatch(rows.map((r) => reminderEmail(e, r, sp)));
 }
 
 export async function sendEventCancelled(e: Event, rows: { name: string; email: string }[]) {

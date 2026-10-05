@@ -18,7 +18,9 @@ Public pages:
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
   ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
-  People and reused across events), and a **feedback email** the day after (one-click 1 to 5 rating, then
+  People and reused across events), **hosts, sponsors and partners** with their logo (linked to
+  their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and
+  named in the confirmation and reminder emails), and a **feedback email** the day after (one-click 1 to 5 rating, then
   an optional comment; results on the admin's event stats). Past events can show a **recap**: a
   photo gallery (with a lightbox), slides to download, the video (YouTube and Vimeo play on the
   page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a

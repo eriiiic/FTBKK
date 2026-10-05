@@ -39,6 +39,17 @@ uses any more.
   event page with their photo, title, company, talk title and LinkedIn. Speakers are reused
   across events: next time, just pick them from the list. Everyone who spoke at a past
   published event appears in **Speakers we've hosted** on About (the 24 most recent).
+- **Sponsors and hosts** (below the event form, once the event is saved): choose the role
+  (**Host (venue)**, **Sponsor** or **Partner**), then pick an organisation from the ecosystem
+  directory (its current name, logo and website are used, and the event page links to its
+  listing when it is published) or enter a name, website and logo (PNG, JPG, WebP or SVG, 2 MB
+  max) for someone not in the directory. Reorder with the arrows, change a role, edit the name or
+  website of hand-entered ones, tick "Remove", then **Save the sponsors**. The event page shows
+  "Hosted by" next to the venue and a logo wall ("Hosted by", "Sponsored by", "Partners"); the
+  confirmation, waitlist promotion and reminder emails list them under the date and venue, with
+  their logos (PNG and JPG only: most email clients don't show SVG). To change the logo of a
+  hand-entered one, remove it and add it again; to change a directory organisation's logo, edit it
+  in Ecosystem. Something to show sponsors: their logo on the page and in every attendee's inbox.
 - **Recap** (at the bottom of an event's page, about 10 minutes after the event): add photos
   (select several at once, up to 20 per save, 5 MB each), reorder them with the arrows, give them
   an optional alt text or caption, or tick "Remove" (the file is deleted). Upload the speakers'

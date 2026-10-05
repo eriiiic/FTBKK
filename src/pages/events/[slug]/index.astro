@@ -12,9 +12,11 @@ import {
   isUpcoming,
   publishedPostById,
   speakersForEvent,
+  sponsorsForEvent,
   upcomingEvents,
 } from '../../../lib/queries';
 import { hasRecap, videoEmbed, videoSite } from '../../../lib/recap';
+import { groupSponsors, joinNames, showSponsor } from '../../../lib/sponsors';
 import { formatEventDate, mediaUrl } from '../../../lib/format';
 import { plainText, renderMarkdown } from '../../../lib/markdown';
 import { clientIp, fieldErrors, formToObject } from '../../../lib/forms';
@@ -35,6 +37,16 @@ if (!event) return Astro.rewrite('/404');
 
 const upcoming = isUpcoming(event);
 const speakers = await speakersForEvent(event.id);
+// Hosts, sponsors and partners: logos below the speakers, and the hosts named next to the venue.
+const sponsorGroups = groupSponsors((await sponsorsForEvent(event.id)).map(showSponsor));
+const hosts = sponsorGroups.find((g) => g.role === 'host')?.items ?? [];
+const SPONSOR_NOUNS = { host: 'hosts', sponsor: 'sponsors', partner: 'partners' };
+const sponsorsTitle =
+  sponsorGroups.length === 1
+    ? sponsorGroups[0]!.label
+    : joinNames(sponsorGroups.map((g) => SPONSOR_NOUNS[g.role])).replace(/^./, (c) =>
+        c.toUpperCase(),
+      );
 // A past event points to the next one instead of leaving its side column empty.
 const [nextEvent] = upcoming
   ? []
@@ -173,6 +185,33 @@ const jsonLd = {
                 </dd>
               </div>
             )}
+            {hosts.length > 0 && (
+              <div class="flex gap-3">
+                <dt>
+                  <Icon name="building" class="size-5 text-brand" />
+                  <span class="sr-only">Host</span>
+                </dt>
+                <dd>
+                  Hosted by{' '}
+                  {hosts.map((h, i) => (
+                    <>
+                      {i > 0 && (i === hosts.length - 1 ? ' and ' : ', ')}
+                      {h.href ? (
+                        <a
+                          href={h.href}
+                          rel={h.external ? 'noopener' : undefined}
+                          class="font-semibold text-accent"
+                        >
+                          {h.name}
+                        </a>
+                      ) : (
+                        <span class="font-semibold">{h.name}</span>
+                      )}
+                    </>
+                  ))}
+                </dd>
+              </div>
+            )}
           </dl>
           {upcoming && event.status !== 'cancelled' && (
             <div class="mt-6 flex flex-wrap gap-3">
@@ -250,6 +289,56 @@ const jsonLd = {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+    )}
+    {sponsorGroups.length > 0 && (
+      <section aria-labelledby="sponsors" class="border-t border-line">
+        <div class="container-page grid gap-8 py-12">
+          <h2 id="sponsors" class="text-2xl md:text-3xl">
+            {sponsorsTitle}
+          </h2>
+          {sponsorGroups.map((g) => (
+            <div>
+              {sponsorGroups.length > 1 && (
+                <h3 class="mb-4 text-sm font-semibold tracking-wide text-muted uppercase">
+                  {g.label}
+                </h3>
+              )}
+              <ul class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {g.items.map((s) => {
+                  const inner = s.logoKey ? (
+                    <img
+                      src={mediaUrl(s.logoKey)}
+                      alt={s.name}
+                      loading="lazy"
+                      decoding="async"
+                      class="max-h-14 w-auto max-w-full object-contain"
+                    />
+                  ) : (
+                    <span class="text-center font-semibold text-navy">{s.name}</span>
+                  );
+                  const tile =
+                    'flex h-24 items-center justify-center rounded-card border border-line bg-paper p-4';
+                  return (
+                    <li>
+                      {s.href ? (
+                        <a
+                          href={s.href}
+                          rel={s.external ? 'noopener' : undefined}
+                          class={`${tile} transition-shadow hover:shadow-card`}
+                        >
+                          {inner}
+                        </a>
+                      ) : (
+                        <div class={tile}>{inner}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </div>
       </section>
     )}

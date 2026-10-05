@@ -108,6 +108,7 @@ const BACKUP_TABLES = [
   'message_notes',
   'event_feedback',
   'event_speakers',
+  'event_sponsors',
 ];
 const KEEP_BACKUPS = 12;
 
