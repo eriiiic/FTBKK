@@ -8,6 +8,8 @@ import {
   describeMyData,
   fillPrivacyNotice,
   myDataPath,
+  myDataCodePath,
+  DataRequestSchema,
 } from '../src/lib/privacy';
 import { DATA_LINK_LABEL, renderEmail } from '../src/lib/email';
 import { eventBroadcast } from '../src/lib/event-emails';
@@ -49,7 +51,21 @@ describe('privacy notice', () => {
       'utf8',
     );
     const m = sql.match(/VALUES \('privacyNotice', '(.*)'\);/s);
+    expect(JSON.parse(m![1]!.replace(/''/g, "'"))).toContain('Manage or delete my data');
+  });
+
+  it('is updated to the current text when it was never edited', () => {
+    const seed = readFileSync(
+      new URL('../migrations/0019_privacy_notice.sql', import.meta.url),
+      'utf8',
+    ).match(/VALUES \('privacyNotice', '(.*)'\);/s)![1];
+    const sql = readFileSync(
+      new URL('../migrations/0020_privacy_notice_request.sql', import.meta.url),
+      'utf8',
+    );
+    const m = sql.match(/SET value = '(.*)' WHERE key = 'privacyNotice' AND value = '(.*)';/s);
     expect(JSON.parse(m![1]!.replace(/''/g, "'"))).toBe(DEFAULT_PRIVACY_NOTICE);
+    expect(m![2]).toBe(seed);
   });
 });
 
@@ -155,5 +171,24 @@ describe('describeMyData', () => {
       Object.fromEntries(describeMyData({ ...base, newsletter: { agreed: false, at: new Date() } }))
         .Newsletter,
     ).toBe('No, you said no');
+  });
+});
+
+describe('delete my data request', () => {
+  it('links request codes to /my-data?code=', () => {
+    expect(myDataCodePath('abc_DEF-123')).toBe('/my-data?code=abc_DEF-123');
+  });
+  it('normalises the requested email', () => {
+    expect(DataRequestSchema.parse({ email: ' Jo@Example.COM ' }).email).toBe('jo@example.com');
+    expect(DataRequestSchema.safeParse({ email: 'nope' }).success).toBe(false);
+  });
+  it('needs exactly one of a registration token or a request code', () => {
+    const t = 'a'.repeat(20);
+    expect(MyDataActionSchema.safeParse({ token: t, action: 'delete' }).success).toBe(true);
+    expect(MyDataActionSchema.safeParse({ code: t, action: 'delete' }).success).toBe(true);
+    expect(MyDataActionSchema.safeParse({ action: 'delete' }).success).toBe(false);
+    expect(MyDataActionSchema.safeParse({ token: t, code: t, action: 'delete' }).success).toBe(
+      false,
+    );
   });
 });

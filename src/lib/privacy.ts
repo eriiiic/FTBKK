@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { email as emailField } from './forms';
 import { CONTACT_EMAIL_TOKEN } from './code-of-conduct';
 
 /**
@@ -38,7 +39,7 @@ Under the PDPA you can ask to see the data we hold about you, correct it, delete
 
 ## How to use them
 
-Every email we send about an event has a "Manage or delete my data" link: it shows what we hold about you and lets you delete it, or unsubscribe from the newsletter, yourself. For anything else, write to us at ${CONTACT_EMAIL_TOKEN}.`;
+Every email we send about an event has a "Manage or delete my data" link: it shows what we hold about you and lets you delete it, or unsubscribe from the newsletter, yourself. No email to hand? Use "Delete my data" at the bottom of every page and we will email you a link. For anything else, write to us at ${CONTACT_EMAIL_TOKEN}.`;
 
 /**
  * The privacy notice Markdown with the contact email filled in (Markdown turns the bare address
@@ -57,14 +58,28 @@ export const DataTokenSchema = z
   .max(100)
   .regex(/^[A-Za-z0-9_-]+$/);
 
-/** The /my-data form: which button was pressed, and the registration token. */
-export const MyDataActionSchema = z.object({
-  token: DataTokenSchema,
-  action: z.enum(['ask-delete', 'delete', 'unsubscribe']),
+/**
+ * The /my-data form: which button was pressed, and how the person is identified: the registration
+ * token from an event email, or the code from a "Delete my data" request email.
+ */
+export const MyDataActionSchema = z
+  .object({
+    token: DataTokenSchema.optional(),
+    code: DataTokenSchema.optional(),
+    action: z.enum(['ask-delete', 'delete', 'unsubscribe']),
+  })
+  .refine((v) => Boolean(v.token) !== Boolean(v.code));
+
+/** The public "Delete my data" request form on /my-data, for people without an event email. */
+export const DataRequestSchema = z.object({
+  email: z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), emailField),
 });
 
 /** The path of the "Manage or delete my data" page for one registration token. */
 export const myDataPath = (token: string) => `/my-data?token=${encodeURIComponent(token)}`;
+
+/** The same page opened from a "Delete my data" request email (a one-day code, not a token). */
+export const myDataCodePath = (code: string) => `/my-data?code=${encodeURIComponent(code)}`;
 
 /** What we hold about someone, in plain words, for the /my-data page. */
 export function describeMyData(c: {

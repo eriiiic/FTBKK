@@ -155,6 +155,11 @@ uses any more.
   wipes the old values of their contact entries in the history and logs the deletion under
   `deleted:<short code>` instead of their email. After a deletion the link stops working. If someone asks by email
   instead, use **Delete this contact** or edit their newsletter choice yourself.
+- **Delete my data without an email to hand**: the site footer and the privacy page link to
+  `/my-data`, where anyone can enter their email. If the site holds data for that address, it
+  emails a link valid for 24 hours that opens the same page; otherwise nothing is sent. The page
+  gives the same answer either way, so nobody can find out who is in the list. Nothing is deleted
+  until the person confirms on the page.
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
   exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests

@@ -41,7 +41,11 @@ Public pages:
   the newsletter, and lets them delete all their data after a confirmation step (the same as
   "Delete this contact" in the admin: freed seats go to the waitlist). Deleting a contact also
   strips their details from the admin change history (the deletion itself is logged under a short
-  hash, not their email). Opening the link never deletes anything.
+  hash, not their email). Opening the link never deletes anything. People without an event email
+  to hand use **Delete my data** in the footer (also offered on `/privacy`): `/my-data` asks for
+  their email (with Turnstile and a rate limit) and, only if the site holds data for it, emails a
+  link that works for 24 hours (`/my-data?code=…`, a single-use `data` code in `magic_tokens`). The
+  page always answers the same way, so it doesn't reveal whether an address is known.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,

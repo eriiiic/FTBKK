@@ -13,7 +13,20 @@ import {
   loadContact,
   unsubscribeNewsletter,
 } from '../lib/contacts';
-import { DataTokenSchema, MyDataActionSchema, describeMyData } from '../lib/privacy';
+import {
+  DataRequestSchema,
+  DataTokenSchema,
+  MyDataActionSchema,
+  describeMyData,
+  myDataCodePath,
+} from '../lib/privacy';
+import { consumeToken, issueToken, peekToken } from '../lib/tokens';
+import { verifyTurnstile } from '../lib/turnstile';
+import { rateLimit } from '../lib/ratelimit';
+import { sendEmail } from '../lib/email';
+import { siteUrl } from '../lib/registrations';
+import Turnstile from '../components/Turnstile.astro';
+import FormField from '../components/FormField.astro';
 
 // "Manage or delete my data", linked from every event email with the registration's token.
 // GET only shows what we hold (link scanners must never delete anything); buttons POST.
@@ -21,35 +34,95 @@ const settings = await getSettings();
 const now = new Date();
 
 let token = '';
+let code = '';
 let action: 'show' | 'ask-delete' | 'delete' | 'unsubscribe' = 'show';
+// Without a link from one of our emails, the page offers to email one ("Delete my data" in the
+// footer and on /privacy). The reply is the same whether or not we know the address.
+let request: 'form' | 'sent' | 'error' | null = null;
+let requestError = '';
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  const parsed = MyDataActionSchema.safeParse({
-    token: form.get('token'),
-    action: form.get('action'),
-  });
-  if (parsed.success) ({ token, action } = parsed.data);
+  if (form.get('action') === 'request') {
+    const parsed = DataRequestSchema.safeParse({ email: form.get('email') });
+    const ip = Astro.request.headers.get('CF-Connecting-IP');
+    if (!parsed.success) {
+      request = 'error';
+      requestError = 'Enter a valid email address.';
+    } else if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string | null, ip))) {
+      request = 'error';
+      requestError = 'Please complete the check and try again.';
+    } else if (
+      !(await rateLimit(`data-request:${ip ?? 'unknown'}`, 5, 3600)) ||
+      !(await rateLimit(`data-request:${parsed.data.email}`, 3, 86400))
+    ) {
+      request = 'error';
+      requestError = 'Too many requests. Please try again later, or write to us.';
+    } else {
+      const { email } = parsed.data;
+      if (await loadContact(email, now)) {
+        const link = siteUrl(myDataCodePath(await issueToken('data', email, { now })));
+        await sendEmail({
+          to: email,
+          subject: 'Your data at La French Tech Bangkok',
+          paragraphs: [
+            'Someone (hopefully you) asked to see or delete the data La French Tech Bangkok keeps about this email address.',
+            'Open the link below to see it, then delete it or unsubscribe from the newsletter. The link works for 24 hours. Nothing is deleted until you confirm on the page.',
+            "If you didn't ask for this, you can ignore this email: nothing changes.",
+          ],
+          action: { label: 'See or delete my data', url: link },
+        });
+      }
+      request = 'sent';
+    }
+  } else {
+    const parsed = MyDataActionSchema.safeParse({
+      token: form.get('token') || undefined,
+      code: form.get('code') || undefined,
+      action: form.get('action'),
+    });
+    if (parsed.success) {
+      token = parsed.data.token ?? '';
+      code = parsed.data.code ?? '';
+      action = parsed.data.action;
+    }
+  }
 } else {
-  const parsed = DataTokenSchema.safeParse(Astro.url.searchParams.get('token') ?? '');
-  if (parsed.success) token = parsed.data;
+  const t = DataTokenSchema.safeParse(Astro.url.searchParams.get('token') ?? '');
+  const c = DataTokenSchema.safeParse(Astro.url.searchParams.get('code') ?? '');
+  if (t.success) token = t.data;
+  else if (c.success) code = c.data;
+  else if (!Astro.url.searchParams.has('token') && !Astro.url.searchParams.has('code'))
+    request = 'form';
 }
 
-const reg = token
-  ? await env.DB.prepare('SELECT name, email FROM registrations WHERE token = ?')
-      .bind(token)
-      .first<{ name: string; email: string | null }>()
-  : null;
-const key = reg ? contactKey(reg) : null;
+let key: string | null = null;
+if (token) {
+  const reg = await env.DB.prepare('SELECT name, email FROM registrations WHERE token = ?')
+    .bind(token)
+    .first<{ name: string; email: string | null }>();
+  key = reg ? contactKey(reg) : null;
+} else if (code) {
+  // The code is used up when the person deletes; until then it can be reopened for 24 hours.
+  const row = await (action === 'delete' ? consumeToken : peekToken)(code, 'data', now);
+  key = row?.email ?? null;
+}
 let contact = key ? await loadContact(key, now) : null;
 
-let state: 'show' | 'confirm' | 'deleted' | 'unsubscribed' | 'invalid' = contact
-  ? 'show'
-  : 'invalid';
+let state: 'show' | 'confirm' | 'deleted' | 'unsubscribed' | 'invalid' | 'request' = request
+  ? 'request'
+  : contact
+    ? 'show'
+    : 'invalid';
 if (contact && key) {
   const actor = `self-service:${contact.email ?? key}`;
   if (action === 'ask-delete') state = 'confirm';
   else if (action === 'delete') {
     await deleteContacts([key], actor, now);
+    // Request codes hold the email too: they go with the rest.
+    if (contact.email)
+      await env.DB.prepare("DELETE FROM magic_tokens WHERE purpose = 'data' AND email = ?")
+        .bind(contact.email)
+        .run();
     contact = null;
     state = 'deleted';
   } else if (action === 'unsubscribe') {
@@ -59,6 +132,7 @@ if (contact && key) {
     }
   }
 }
+const self = token ? `/my-data?token=${encodeURIComponent(token)}` : myDataCodePath(code);
 
 const rows = contact ? describeMyData(contact) : [];
 if (contact?.tags.length)
@@ -85,10 +159,53 @@ const STATUS = {
       )}
       {state === 'invalid' && (
         <Alert tone="danger" class="mt-6">
-          We couldn't open your data with this link: it may be incomplete or out of date. Use the
-          "Manage or delete my data" link in our most recent email to you, or write to us at{' '}
-          <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a> and we'll help.
+          We couldn't open your data with this link: it may be incomplete or out of date (links from
+          a request email work for 24 hours). <a href="/my-data">Ask for a new link</a>, or write to
+          us at <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a> and we'll
+          help.
         </Alert>
+      )}
+      {state === 'request' && (
+        <>
+          <p class="mt-2 text-muted">
+            See what La French Tech Bangkok keeps about you, unsubscribe from the newsletter, or
+            delete your data. Every email we send about an event has a "Manage or delete my data"
+            link that takes you straight there. Don't have one? Enter your email and we'll send you
+            a link.
+          </p>
+          {request === 'sent' ? (
+            <Alert tone="success" class="mt-6">
+              Check your inbox. If we have data for this email address, we've sent it a link that
+              works for 24 hours. Nothing arrives? We don't hold anything under that address, or
+              write to us at <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>
+              .
+            </Alert>
+          ) : (
+            <form method="post" action="/my-data" class="mt-6 grid max-w-md gap-4">
+              {request === 'error' && <Alert tone="danger">{requestError}</Alert>}
+              <input type="hidden" name="action" value="request" />
+              <FormField
+                name="email"
+                label="Your email"
+                type="email"
+                required
+                maxlength={200}
+                autocomplete="email"
+              />
+              <Turnstile />
+              <div>
+                <Button type="submit">Email me a link</Button>
+              </div>
+              <p class="text-sm text-muted">
+                We use your email only to send this link. See our{' '}
+                <a href="/privacy" class="underline">
+                  privacy notice
+                </a>
+                .
+              </p>
+            </form>
+          )}
+        </>
       )}
       {contact && (
         <>
@@ -155,12 +272,16 @@ const STATUS = {
                 upcoming events, so you lose your seats), your answers, feedback and any contact
                 card. It can't be undone.
               </Alert>
-              <input type="hidden" name="token" value={token} />
+              {token ? (
+                <input type="hidden" name="token" value={token} />
+              ) : (
+                <input type="hidden" name="code" value={code} />
+              )}
               <div class="flex flex-wrap gap-3">
                 <Button type="submit" name="action" value="delete">
                   Yes, delete my data
                 </Button>
-                <Button href={`/my-data?token=${encodeURIComponent(token)}`} variant="secondary">
+                <Button href={self} variant="secondary">
                   Keep my data
                 </Button>
               </div>
@@ -171,7 +292,11 @@ const STATUS = {
                 <form method="post" action="/my-data" class="grid gap-2">
                   <h2 class="text-xl">Newsletter</h2>
                   <p class="text-muted">Stop the newsletter and keep everything else.</p>
-                  <input type="hidden" name="token" value={token} />
+                  {token ? (
+                    <input type="hidden" name="token" value={token} />
+                  ) : (
+                    <input type="hidden" name="code" value={code} />
+                  )}
                   <div>
                     <Button type="submit" name="action" value="unsubscribe" variant="secondary">
                       Unsubscribe from the newsletter
@@ -184,7 +309,11 @@ const STATUS = {
                 <p class="text-muted">
                   Removes your registrations and everything above. You'll be asked to confirm.
                 </p>
-                <input type="hidden" name="token" value={token} />
+                {token ? (
+                  <input type="hidden" name="token" value={token} />
+                ) : (
+                  <input type="hidden" name="code" value={code} />
+                )}
                 <div>
                   <Button type="submit" name="action" value="ask-delete">
                     Delete my data
