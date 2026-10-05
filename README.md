@@ -8,27 +8,44 @@ https://ft-bkk-site.edelattre.workers.dev until the domain moves over.
 
 Public pages:
 
-- **Home** and **About**: the community, the board and institutional partners, "You can join us"
-  cards and the contact form. Texts are edited in the admin.
+- **Home** and **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
+  at a past event, most recent first), institutional partners, "You can join us" cards and the
+  contact form. Texts are edited in the admin.
 - **Ecosystem**: a directory of French startups, companies, service providers, investors,
   incubators, schools and institutions in Thailand. Anyone can request a listing; owners manage
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
   a Member badge, validated by the board.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
-  ticket and cancel link.
+  ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
+  People and reused across events), **hosts, sponsors and partners** with their logo (linked to
+  their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and
+  named in the confirmation and reminder emails), and a **feedback email** the day after (one-click 1 to 5 rating, then
+  an optional comment; results on the admin's event stats). Past events can show a **recap**: a
+  photo gallery (with a lightbox), slides to download, the video (YouTube and Vimeo play on the
+  page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a
+  "Recap" badge in the events list.
 - **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
+- **Code of conduct** at `/code-of-conduct`: how everyone is expected to behave at events, in our
+  online groups (WhatsApp, LinkedIn) and on the website, and how to report a problem. Linked in
+  the footer, on every event page and in the registration form. The text is edited in the admin.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,
-CSV export), contacts, the ecosystem directory (review queue, listings, renewals, history), people, contact
-messages (folders, team notes, blocked senders), uploaded files and site settings. See
-[docs/admin.md](docs/admin.md).
+attendee feedback, CSV export), contacts, the ecosystem directory (review queue, listings,
+renewals, history), people, contact messages (folders, team notes, blocked senders), uploaded
+files and site settings. See [docs/admin.md](docs/admin.md).
 
 Check-in at the door works from a phone: volunteers bookmark `/checkin`, which opens a list of
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
 that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
 who didn't register.
+
+Organisers can **email an event's registrants** from the admin (venue change, slides after the
+talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not
+cancelled, with counts), write a subject and message with an optional button, send a test to
+themselves, then send. Each message sent is kept in the event's email history (and in the weekly
+backup); a second send of the same message within 10 minutes, even from another tab, is refused.
 
 **Contacts** in the admin lists everyone who ever registered for an event or walked in, one line
 per person (grouped by email), with no sign-up needed. For each person it shows how many events

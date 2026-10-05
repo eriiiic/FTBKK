@@ -1,0 +1,185 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Section from '../../../components/Section.astro';
+import Alert from '../../../components/Alert.astro';
+import Button from '../../../components/Button.astro';
+import FormField from '../../../components/FormField.astro';
+import { env } from 'cloudflare:workers';
+import { eventBySlug } from '../../../lib/queries';
+import { formatEventDate } from '../../../lib/format';
+import { fieldErrors, formToObject } from '../../../lib/forms';
+import {
+  COMMENT_MAX,
+  FeedbackSchema,
+  RATINGS,
+  RATING_LABELS,
+  RatingSchema,
+} from '../../../lib/feedback';
+
+// Day-after feedback, reached from the email's one-click rating links (token = registration
+// token). A valid ?rating= is recorded on GET (an idempotent upsert); the form adds a comment or
+// changes the rating.
+// Set here too: the layout's header comes too late once the page is streaming.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const event = await eventBySlug(Astro.params.slug!);
+if (!event) return Astro.rewrite('/404');
+const token = Astro.url.searchParams.get('token') ?? '';
+const reg = token
+  ? await env.DB.prepare(
+      `SELECT r.id, r.name, r.status, f.rating, f.comment
+       FROM registrations r LEFT JOIN event_feedback f ON f.registration_id = r.id
+       WHERE r.token = ? AND r.event_id = ?`,
+    )
+      .bind(token, event.id)
+      .first<{
+        id: number;
+        name: string;
+        status: string;
+        rating: number | null;
+        comment: string | null;
+      }>()
+  : null;
+
+const state: 'ok' | 'invalid' | 'early' | 'cancelled' =
+  !reg || !['registered', 'attended'].includes(reg.status)
+    ? 'invalid'
+    : event.status === 'cancelled'
+      ? 'cancelled'
+      : event.startsAt > new Date()
+        ? 'early'
+        : 'ok';
+
+const save = (registrationId: number, rating: number, comment?: string | null) =>
+  env.DB.prepare(
+    `INSERT INTO event_feedback (registration_id, event_id, rating, comment)
+     VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (registration_id) DO UPDATE SET
+       rating = excluded.rating,
+       comment = CASE WHEN ?5 THEN excluded.comment ELSE comment END,
+       updated_at = unixepoch()`,
+  )
+    .bind(registrationId, event.id, rating, comment ?? null, comment === undefined ? 0 : 1)
+    .run();
+
+let rating = reg?.rating ?? null;
+let comment = reg?.comment ?? '';
+let errors: Record<string, string> = {};
+let notice: 'rated' | 'saved' | null = null;
+
+if (state === 'ok' && reg) {
+  if (Astro.request.method === 'POST') {
+    const values = formToObject(await Astro.request.formData());
+    const parsed = FeedbackSchema.safeParse(values);
+    if (!parsed.success) {
+      errors = fieldErrors(parsed.error);
+      comment = typeof values.comment === 'string' ? values.comment : comment;
+    } else {
+      await save(reg.id, parsed.data.rating, parsed.data.comment);
+      rating = parsed.data.rating;
+      comment = parsed.data.comment ?? '';
+      notice = 'saved';
+    }
+  } else if (Astro.request.method === 'GET') {
+    const fromLink = RatingSchema.safeParse(Astro.url.searchParams.get('rating') ?? undefined);
+    if (fromLink.success) {
+      await save(reg.id, fromLink.data);
+      rating = fromLink.data;
+      notice = 'rated';
+    }
+  }
+}
+const firstName = reg?.name.split(/\s+/)[0] ?? '';
+---
+
+<BaseLayout title="Your feedback" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Your feedback</h1>
+      <p class="mt-2 text-muted">
+        <a href={`/events/${event.slug}`}>{event.title}</a> ·{' '}
+        {formatEventDate(event.startsAt, event.endsAt)}
+      </p>
+
+      {state === 'ok' && (
+        <>
+          {notice === 'rated' && (
+            <Alert tone="success" class="mt-6">
+              Thank you{firstName ? `, ${firstName}` : ''}! We recorded your rating: {rating} out of
+              5. Want to tell us more? Add a comment below.
+            </Alert>
+          )}
+          {notice === 'saved' && (
+            <Alert tone="success" class="mt-6">
+              Thank you, your feedback is saved. You can change it any time with the link in the
+              email.
+            </Alert>
+          )}
+          {Object.keys(errors).length > 0 && (
+            <Alert tone="danger" class="mt-6">
+              Please fix the highlighted fields.
+            </Alert>
+          )}
+          <form method="post" class="mt-6 grid gap-6">
+            <fieldset aria-describedby={errors.rating ? 'rating-err' : undefined}>
+              <legend class="text-sm font-semibold text-ink">
+                How was the event? <span class="text-brand">*</span>
+              </legend>
+              <div class="mt-2 flex flex-wrap gap-2">
+                {RATINGS.map((n) => (
+                  <label class="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="rating"
+                      value={n}
+                      checked={rating === n}
+                      required
+                      class="peer sr-only"
+                    />
+                    <span class="grid size-14 place-items-center rounded-xl border-2 border-navy text-xl font-bold text-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent hover:bg-surface peer-checked:hover:bg-navy">
+                      {n}
+                      <span class="sr-only">: {RATING_LABELS[n]}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p class="mt-2 text-sm text-muted">1 = poor · 5 = excellent</p>
+              {errors.rating && (
+                <p id="rating-err" class="mt-1 text-sm text-danger">
+                  {errors.rating}
+                </p>
+              )}
+            </fieldset>
+            <FormField
+              name="comment"
+              label="Comment (optional)"
+              rows={5}
+              maxlength={COMMENT_MAX}
+              value={comment}
+              error={errors.comment}
+              hint="What did you like? What should we change, or talk about next time? We share comments with speakers and sponsors without your name."
+            />
+            <div>
+              <Button type="submit">{notice ? 'Update my feedback' : 'Send feedback'}</Button>
+            </div>
+          </form>
+        </>
+      )}
+      {state === 'early' && (
+        <Alert class="mt-6">
+          Feedback opens once the event has started. Come back after it with the link in your email.
+        </Alert>
+      )}
+      {state === 'cancelled' && (
+        <Alert class="mt-6">
+          This event was cancelled, so there is nothing to rate.{' '}
+          <a href="/events">See upcoming events</a>.
+        </Alert>
+      )}
+      {state === 'invalid' && (
+        <Alert tone="danger" class="mt-6">
+          This feedback link is not valid. Use the link in the email we sent you after the event.
+        </Alert>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

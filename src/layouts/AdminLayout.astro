@@ -7,7 +7,8 @@ interface Props {
 }
 const { title } = Astro.props;
 const adminEmail = Astro.locals.adminEmail;
-const flash = Astro.url.searchParams.get('saved');
+// Only after a redirect: a re-rendered POST (a form with errors) keeps the URL's ?saved=1.
+const flash = Astro.request.method === 'GET' ? Astro.url.searchParams.get('saved') : null;
 const flashText =
   flash === 'deleted'
     ? 'Deleted.'
@@ -101,14 +102,26 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           if (msg && !confirm(msg)) e.preventDefault();
         });
       });
-      // Editors warn before leaving with unsaved changes: <form data-warn-unsaved>.
-      let dirty = false;
+      // Editors warn before leaving with unsaved changes: <form data-warn-unsaved>. Tracked per
+      // form, since a page can have several that save separately: submitting one asks first when
+      // another has changes that would be lost.
+      const dirty = new Set<HTMLFormElement>();
       document.querySelectorAll<HTMLFormElement>('form[data-warn-unsaved]').forEach((f) => {
-        f.addEventListener('input', () => (dirty = true));
-        f.addEventListener('submit', () => (dirty = false));
+        f.addEventListener('input', () => dirty.add(f));
+        f.addEventListener('submit', (e) => {
+          if (e.defaultPrevented) return;
+          const others = [...dirty].filter((o) => o !== f);
+          const msg =
+            'Another section of this page has changes that are not saved yet. They will be lost if you save this section now. Continue?';
+          if (others.length && !confirm(msg)) {
+            e.preventDefault();
+            return;
+          }
+          dirty.clear();
+        });
       });
       addEventListener('beforeunload', (e) => {
-        if (dirty) e.preventDefault();
+        if (dirty.size) e.preventDefault();
       });
       // Copy buttons: <button data-copy="text">, including ones added to the page later.
       document.addEventListener('click', async (e) => {

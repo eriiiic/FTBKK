@@ -14,8 +14,10 @@ interface Props {
     venue: string | null;
     status?: string;
   };
+  /** Show a "Recap" badge (past events with photos, slides, video or a write-up). */
+  recap?: boolean;
 }
-const { event } = Astro.props;
+const { event, recap = false } = Astro.props;
 ---
 
 <a
@@ -27,6 +29,7 @@ const { event } = Astro.props;
     <div class="flex flex-wrap items-center gap-2">
       <Badge tone="accent">{event.series}</Badge>
       {event.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
+      {recap && <Badge tone="success">Recap</Badge>}
     </div>
     <h3 class="mt-1.5 text-base group-hover:text-brand sm:text-lg">{event.title}</h3>
     <p class="mt-1 text-sm text-muted">

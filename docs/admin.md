@@ -31,6 +31,40 @@ uses any more.
   Tech Connect.
 - **Capacity** empty means unlimited. When full, people join the waitlist.
 - **Cancel the event** keeps it on the site with a "Cancelled" label and closes registration.
+- Below the event form, **Speakers**, **Sponsors and hosts** and **Recap** each have their own
+  save button and save only that section. If another section has unsaved changes, the page asks
+  before saving, since those changes would be lost: save one section at a time.
+- **Speakers** (below the event form, once the event is saved): pick someone already in People
+  (speakers, board or institutional partners) and give an optional talk title, or fill in **Or
+  someone new** (name, job title, company, LinkedIn, photo) to add them to People in the
+  Speakers group and link them in one go. Reorder with the arrows, edit talk titles, tick
+  "Remove" to unlink (the person stays in People), then **Save the speakers**. They show on the
+  event page with their photo, title, company, talk title and LinkedIn. Speakers are reused
+  across events: next time, just pick them from the list. Everyone who spoke at a past
+  published event appears in **Speakers we've hosted** on About (the 24 most recent).
+- **Sponsors and hosts** (below the event form, once the event is saved): choose the role
+  (**Host (venue)**, **Sponsor** or **Partner**), then pick an organisation from the ecosystem
+  directory (its current name, logo and website are used, and the event page links to its
+  listing when it is published) or enter a name, website and logo (PNG, JPG, WebP or SVG, 2 MB
+  max) for someone not in the directory. Reorder with the arrows, change a role, edit the name or
+  website of hand-entered ones, tick "Remove", then **Save the sponsors**. The event page shows
+  "Hosted by" next to the venue and a logo wall ("Hosted by", "Sponsored by", "Partners"); the
+  confirmation, waitlist promotion and reminder emails list them under the date and venue, with
+  their logos (PNG and JPG only: most email clients don't show SVG). To change the logo of a
+  hand-entered one, remove it and add it again; to change a directory organisation's logo, edit it
+  in Ecosystem. Something to show sponsors: their logo on the page and in every attendee's inbox.
+- **Recap** (at the bottom of an event's page, about 10 minutes after the event): add photos
+  (select several at once, up to 20 per save, 5 MB each and 40 MB in all with the slides: save
+  big batches in several goes), reorder them with the arrows, give them an optional caption
+  (shown under the full-size photo and read to people using screen readers), or tick "Remove"
+  (the file is deleted). Upload the speakers'
+  slides as PDFs (the file name becomes the label, which you can edit) or paste a link to them,
+  paste the video link (YouTube or Vimeo play on the page, other sites open in a new page), and
+  pick the blog write-up among published posts. Click **Save the recap**. If the recap can't be
+  saved (a bad link, for example), the files you picked are not kept: choose them again after
+  fixing the error. It shows on the event
+  page once the event has passed, and the event gets a "Recap" badge in the past events list.
+  Uploaded slides also appear in **Files**, used by the event.
 
 ## Registrations
 
@@ -73,6 +107,38 @@ uses any more.
   get no email; they show up in Registrations and Contacts like everyone else, with the date they
   registered on Wix.
 - Cancelling an event emails everyone registered or on the waitlist.
+- **Email registrants** (on an event's page, or the button in Registrations) sends your own
+  message to the people of one event: a venue change, the slides after the talk, a last-minute
+  reminder. Choose who gets it (**Registered**, **Checked in**, **Waitlist** or **Everyone not
+  cancelled**; each shows how many people that is), write a subject and a plain-text message
+  (leave a blank line between paragraphs; single line breaks, for an address or a list, are kept;
+  `{name}` becomes the person's first name), and
+  optionally a button with its link (for example "Download the slides"). The email uses the
+  site's usual layout and adds the event's date, venue and a link to its page. **Send me a test**
+  sends it to you only. **Send** asks for confirmation with the number of people and the event's
+  name. After the event, **Checked in** is preselected when check-in was used, otherwise
+  **Registered**. Replies go to
+  the contact address in Settings. Walk-ins without an email are skipped, and the same email
+  can't go to the same people twice within 10 minutes unless you tick "Send it again". Everything
+  sent is listed on that page, with who sent it and to how many people. If sending stops part way
+  (the email service failing), the page lists the addresses not reached: don't send again to the
+  whole audience, or the first people get it twice.
+- **Feedback**: at 09:00 the day after a published event (not cancelled ones), everyone who
+  was checked in gets an email asking "How was it?" with five one-click buttons (1 = poor to
+  5 = excellent). If nobody who registered was checked in (walk-ins don't count), everyone
+  still registered gets it, and walk-ins with an email too. If the email service fails that
+  morning, it tries again the next morning.
+  Each person gets it once; walk-ins without an email are skipped. The click records the rating
+  and opens a page where they can add a comment (up to 2,000 characters) or change the rating,
+  any time later, with the same link.
+- **Event stats** shows, for each past event that got the feedback email, the number of feedback
+  responses and the average rating (events from before feedback emails show "–"); click the
+  number to open the event's **Feedback** page (also linked at the top of a
+  past event's page). It shows the average, the share of emailed people who answered, how many
+  gave each rating, and every rating and comment with the person's name. Names are for the team
+  only: **Hide names (to share)** shows the comments without names, ready to show speakers,
+  sponsors or the board, and **Export feedback CSV** downloads them (without names and emails
+  when names are hidden).
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.
 
@@ -94,7 +160,10 @@ them in Settings > Directory moderators.
 ## People, Messages, Settings
 
 - **People**: board and institutional partners on the About page, with their job title and
-  company. Use ↑ ↓ to reorder.
+  company. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
+  (added here or from an event's Speakers section); edit their photo, title or company here and
+  every event page updates. Each person shows how many events they spoke at; removing a person
+  also removes them from those events.
 - **Messages**: contact form messages, filed in folders: Inbox, Answered, Handled, Spam and
   Deleted. Nothing is ever removed, so every folder keeps a record; "Back to inbox" undoes any
   move. **Reply** opens your mail app with the message quoted; mark it answered afterwards.
@@ -105,11 +174,16 @@ them in Settings > Directory moderators.
   **Add a note** records what was done (who answered, what was said, why it is spam) with your
   name and the time; "Save and mark answered" files the message in the same click. Every move
   between folders is logged under the message too.
-- **Settings**: home and about texts, social links, contact email, moderators, membership switches
+- **Settings**: home and about texts, code of conduct, social links, contact email, moderators, membership switches
   and the analytics token. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
   appear on Home and About, one per line as `Title | text | link`, where the link is optional.
+- **Code of conduct**: the text of the public `/code-of-conduct` page, in Markdown. It starts with
+  a default text (our commitment, expected and unacceptable behaviour, consequences, how to
+  report). Write `{contactEmail}` where the contact email should appear; it becomes a mail link.
+  Emptying the field brings the default text back. The page is linked in the footer, on event
+  pages and under the registration form ("By registering you agree to our code of conduct").
 
 ## For developers
 

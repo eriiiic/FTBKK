@@ -1,11 +1,11 @@
 ---
 import { z } from 'zod';
-import { asc, eq } from 'drizzle-orm';
+import { asc, count, eq } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
 import { getDb } from '../../db';
-import { people, type Person } from '../../db/schema';
+import { eventSpeakers, people, type Person } from '../../db/schema';
 import { fieldErrors, formToObject, optionalText, optionalUrl } from '../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../lib/uploads';
 import { audit } from '../../lib/orgs';
@@ -18,11 +18,20 @@ const PersonSchema = z.object({
   title: optionalText(120),
   organisationName: optionalText(120),
   linkedin: optionalUrl(),
-  group: z.enum(['board', 'institutional']),
+  group: z.enum(['board', 'institutional', 'speaker']),
 });
 const GROUPS = [
-  { key: 'board', label: 'Board' },
-  { key: 'institutional', label: 'Institutional partners' },
+  { key: 'board', label: 'Board', note: 'Shown on the About page in this order.' },
+  {
+    key: 'institutional',
+    label: 'Institutional partners',
+    note: 'Shown on the About page in this order.',
+  },
+  {
+    key: 'speaker',
+    label: 'Speakers',
+    note: 'People who spoke at events, linked from the Speakers section of each event. Board and institutional people can speak too. About lists everyone who spoke at a past event, most recent first.',
+  },
 ] as const;
 let error = '';
 
@@ -84,11 +93,19 @@ if (Astro.request.method === 'POST') {
   }
 }
 const rows = await load();
+const talks = new Map(
+  (
+    await db
+      .select({ personId: eventSpeakers.personId, n: count() })
+      .from(eventSpeakers)
+      .groupBy(eventSpeakers.personId)
+  ).map((r) => [r.personId, r.n]),
+);
+const talksLabel = (n: number) => `Spoke at ${n} event${n === 1 ? '' : 's'}`;
 const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
 ---
 
 <AdminLayout title="People">
-  <p class="mb-4 text-sm text-muted">Shown on the About page in this order.</p>
   {error && (
     <Alert tone="danger" class="mb-4">
       {error}
@@ -96,9 +113,13 @@ const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
   )}
   {GROUPS.map((g) => {
     const list = rows.filter((p) => p.group === g.key);
+    const ordered = g.key !== 'speaker';
+    if (!ordered) list.sort((a, b) => a.name.localeCompare(b.name));
     return (
       <section class="admin-panel mb-6">
-        <h2 class="mb-4 text-lg">{g.label}</h2>
+        <h2 class="text-lg">{g.label}</h2>
+        <p class="mt-1 mb-4 text-sm text-muted">{g.note}</p>
+        {list.length === 0 && <p class="text-sm text-muted">Nobody yet.</p>}
         <ul class="grid gap-3">
           {list.map((p, i) => (
             <li class="rounded-lg border border-line p-3">
@@ -138,30 +159,34 @@ const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
                   <Button type="submit" name="action" value="save" size="sm">
                     Save
                   </Button>
-                  <Button
-                    type="submit"
-                    name="action"
-                    value="up"
-                    size="sm"
-                    variant="ghost"
-                    disabled={i === 0}
-                    aria-label={`Move ${p.name} up`}
-                    formnovalidate
-                  >
-                    ↑
-                  </Button>
-                  <Button
-                    type="submit"
-                    name="action"
-                    value="down"
-                    size="sm"
-                    variant="ghost"
-                    disabled={i === list.length - 1}
-                    aria-label={`Move ${p.name} down`}
-                    formnovalidate
-                  >
-                    ↓
-                  </Button>
+                  {ordered && (
+                    <>
+                      <Button
+                        type="submit"
+                        name="action"
+                        value="up"
+                        size="sm"
+                        variant="ghost"
+                        disabled={i === 0}
+                        aria-label={`Move ${p.name} up`}
+                        formnovalidate
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        type="submit"
+                        name="action"
+                        value="down"
+                        size="sm"
+                        variant="ghost"
+                        disabled={i === list.length - 1}
+                        aria-label={`Move ${p.name} down`}
+                        formnovalidate
+                      >
+                        ↓
+                      </Button>
+                    </>
+                  )}
                 </div>
                 <label class="text-xs text-muted md:col-span-2 md:col-start-2">
                   Photo
@@ -178,7 +203,18 @@ const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
                   </label>
                 )}
               </form>
-              <form method="post" data-confirm={`Remove ${p.name}?`} class="mt-2 text-right">
+              <form
+                method="post"
+                data-confirm={
+                  talks.get(p.id)
+                    ? `Remove ${p.name}? They are also removed from the ${talks.get(p.id)} event(s) they spoke at.`
+                    : `Remove ${p.name}?`
+                }
+                class="mt-2 flex items-center justify-between gap-2"
+              >
+                <span class="text-xs text-muted">
+                  {talks.get(p.id) ? talksLabel(talks.get(p.id)!) : ''}
+                </span>
                 <input type="hidden" name="id" value={p.id} />
                 <button
                   type="submit"

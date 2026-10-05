@@ -57,6 +57,41 @@
       "when": 1791177575062,
       "tag": "0009_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791178478911,
+      "tag": "0010_event_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791179131174,
+      "tag": "0012_event_recap",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791179651779,
+      "tag": "0013_event_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1791180207205,
+      "tag": "0014_event_speakers",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1791180670437,
+      "tag": "0015_event_sponsors",
+      "breakpoints": true
     }
   ]
 }
