@@ -7,6 +7,7 @@ import Alert from '../../../components/Alert.astro';
 import ContactForm from '../../../components/admin/ContactForm.astro';
 import {
   ContactSchema,
+  contactExists,
   deleteContact,
   loadContacts,
   saveContact,
@@ -29,6 +30,8 @@ let errors: Record<string, string> = {};
 let values: Record<string, unknown> | null = null;
 
 if (Astro.request.method === 'POST') {
+  // The contact may have been deleted in another tab: don't bring it back.
+  if (!(await contactExists(key))) return Astro.redirect('/admin/contacts');
   const form = await Astro.request.formData();
   const action = form.get('action');
   if (action === 'delete') {

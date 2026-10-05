@@ -272,11 +272,30 @@ type Result = { key: string } | { error: string; key?: string };
 const cardFor = async (key: string) => {
   const db = getDb();
   if (key.startsWith('name:')) return undefined;
-  const where = key.startsWith('id:')
-    ? eq(contacts.id, Number(key.slice(3)))
-    : eq(contacts.email, key);
-  return (await db.select().from(contacts).where(where))[0];
+  if (key.startsWith('id:')) {
+    const id = Number(key.slice(3));
+    if (!Number.isInteger(id)) return undefined;
+    return (await db.select().from(contacts).where(eq(contacts.id, id)))[0];
+  }
+  return (await db.select().from(contacts).where(eq(contacts.email, key)))[0];
 };
+
+/** Does this key still name someone (a saved card or at least one registration)? */
+export async function contactExists(key: string) {
+  if (await cardFor(key)) return true;
+  if (key.startsWith('id:')) return false;
+  if (key.startsWith('name:')) return (await walkInIds(key)).length > 0;
+  return registeredUnder(key);
+}
+
+async function registeredUnder(email: string) {
+  const [row] = await getDb()
+    .select({ id: registrations.id })
+    .from(registrations)
+    .where(eq(registrations.email, email))
+    .limit(1);
+  return Boolean(row);
+}
 
 /** Registrations without an email whose name groups under this walk-in key. */
 const walkInIds = async (key: string) => {
@@ -308,6 +327,9 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
   if (email && (await cardTaken(email, card?.id))) {
     return { error: 'Another contact already has this email.', key: email };
   }
+  if (!email && (input.notes || input.linkedin) && key.startsWith('name:')) {
+    return { error: 'Add an email to save notes or LinkedIn for a walk-in.' };
+  }
   const now = new Date();
 
   if (key.startsWith('name:')) {
@@ -331,10 +353,15 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
     }
     if (!email) return { key: contactKey({ email: null, name: input.name }) };
   } else if (!key.startsWith('id:') && email !== key) {
-    if (!email) return { error: 'Keep an email: their registrations are filed under it.' };
-    await env.DB.prepare('UPDATE OR IGNORE registrations SET email = ? WHERE email = ?')
-      .bind(email, key)
-      .run();
+    if (!email) {
+      // Their registrations are filed under the email: it can only go once there are none.
+      if (!card || (await registeredUnder(key)))
+        return { error: 'Keep an email: their registrations are filed under it.' };
+    } else {
+      await env.DB.prepare('UPDATE OR IGNORE registrations SET email = ? WHERE email = ?')
+        .bind(email, key)
+        .run();
+    }
   }
 
   if (card) {
@@ -396,10 +423,13 @@ export async function deleteContact(key: string) {
 
 /** A wa.me link from a phone number; Thai numbers starting with 0 get the +66 prefix. */
 export function whatsappUrl(phone: string | null) {
-  let digits = (phone ?? '').replace(/[^\d+]/g, '');
-  if (!digits) return null;
-  if (digits.startsWith('+')) digits = digits.slice(1);
-  else if (digits.startsWith('00')) digits = digits.slice(2);
+  const raw = (phone ?? '').replace(/[^\d+]/g, '');
+  let digits = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) {
+    // International already.
+  } else if (digits.startsWith('00')) digits = digits.slice(2);
   else if (digits.startsWith('0')) digits = `66${digits.slice(1)}`;
-  return digits.length >= 8 ? `https://wa.me/${digits.replace(/\D/g, '')}` : null;
+  else if (digits.length === 9) digits = `66${digits}`; // a Thai mobile typed without its 0
+  digits = digits.replace(/^660/, '66'); // "+66 (0)81…"
+  return digits.length >= 8 ? `https://wa.me/${digits}` : null;
 }

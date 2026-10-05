@@ -65,7 +65,11 @@ const v = (k: string) => (values[k] as string | null | undefined) ?? '';
     maxlength={4000}
     value={v('notes')}
     error={errors.notes}
-    hint="Only the admin team sees these."
+    hint={
+      walkIn
+        ? 'Only the admin team sees these. Needs an email for a walk-in.'
+        : 'Only the admin team sees these.'
+    }
   />
   <div>
     <Button type="submit">{submit}</Button>

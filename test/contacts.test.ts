@@ -140,6 +140,8 @@ describe('whatsappUrl', () => {
     expect(whatsappUrl('081 234 5678')).toBe('https://wa.me/66812345678');
     expect(whatsappUrl('+33 6 12 34 56 78')).toBe('https://wa.me/33612345678');
     expect(whatsappUrl('0033 6 12 34 56 78')).toBe('https://wa.me/33612345678');
+    expect(whatsappUrl('81 234 5678')).toBe('https://wa.me/66812345678');
+    expect(whatsappUrl('+66 (0)81 234 5678')).toBe('https://wa.me/66812345678');
     expect(whatsappUrl('12')).toBeNull();
     expect(whatsappUrl(null)).toBeNull();
   });
