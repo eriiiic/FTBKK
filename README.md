@@ -16,7 +16,9 @@ Public pages:
   a Member badge, validated by the board.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
-  ticket and cancel link.
+  ticket and cancel link. Past events can show a **recap**: a photo gallery (with a lightbox),
+  slides to download, the video (YouTube and Vimeo play on the page, cookie-free) and a card
+  linking to the blog write-up. Past events with a recap get a "Recap" badge in the events list.
 - **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
 - **Code of conduct** at `/code-of-conduct`: how everyone is expected to behave at events, in our
   online groups (WhatsApp, LinkedIn) and on the website, and how to report a problem. Linked in

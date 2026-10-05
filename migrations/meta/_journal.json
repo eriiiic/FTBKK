@@ -64,6 +64,13 @@
       "when": 1791178478911,
       "tag": "0010_event_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791179131174,
+      "tag": "0012_event_recap",
+      "breakpoints": true
     }
   ]
 }

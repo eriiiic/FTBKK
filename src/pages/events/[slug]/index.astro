@@ -5,7 +5,9 @@ import Button from '../../../components/Button.astro';
 import Icon from '../../../components/Icon.astro';
 import Alert from '../../../components/Alert.astro';
 import RegistrationForm from '../../../components/RegistrationForm.astro';
-import { eventBySlug, isUpcoming, upcomingEvents } from '../../../lib/queries';
+import PostCard from '../../../components/PostCard.astro';
+import { eventBySlug, isUpcoming, publishedPostById, upcomingEvents } from '../../../lib/queries';
+import { hasRecap, videoEmbed, videoSite } from '../../../lib/recap';
 import { formatEventDate, mediaUrl } from '../../../lib/format';
 import { plainText, renderMarkdown } from '../../../lib/markdown';
 import { clientIp, fieldErrors, formToObject } from '../../../lib/forms';
@@ -74,6 +76,12 @@ if (isPost) {
     }
   }
 }
+// Recap of a past event: photos, slides, video and the blog write-up.
+const recap = !upcoming && hasRecap(event.recap) ? event.recap : null;
+const writeUp = recap?.postId ? await publishedPostById(recap.postId) : null;
+const embed = videoEmbed(recap?.videoUrl);
+const photoAlt = (alt: string | undefined, i: number) =>
+  alt || `Photo ${i + 1} of ${recap?.photos.length} from ${event.title}`;
 const cover = mediaUrl(event.coverKey);
 const mapUrl =
   event.mapUrl ??
@@ -215,5 +223,169 @@ const jsonLd = {
         </p>
       </aside>
     </div>
+    {recap && (
+      <section aria-labelledby="recap" class="border-t border-line bg-surface">
+        <div class="container-page grid gap-10 py-12">
+          <h2 id="recap" class="text-2xl md:text-3xl">
+            Recap
+          </h2>
+          {recap.photos.length > 0 && (
+            <div>
+              <h3 class="sr-only">Photos</h3>
+              <ul
+                class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4"
+                data-gallery
+              >
+                {recap.photos.map((p, i) => (
+                  <li>
+                    <a
+                      href={mediaUrl(p.key)}
+                      class="block overflow-hidden rounded-lg bg-paper"
+                      data-index={i}
+                    >
+                      <img
+                        src={mediaUrl(p.key)}
+                        alt={photoAlt(p.alt, i)}
+                        loading="lazy"
+                        decoding="async"
+                        class="aspect-[4/3] w-full object-cover transition-transform hover:scale-105"
+                      />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <dialog
+                aria-label="Photos"
+                class="m-auto max-h-none max-w-none bg-transparent p-0 backdrop:bg-ink/90"
+                data-lightbox
+              >
+                <figure class="grid max-h-[90vh] w-[min(64rem,92vw)] gap-2">
+                  <img alt="" class="max-h-[80vh] w-full rounded-lg object-contain" />
+                  <figcaption class="text-center text-sm text-paper" />
+                </figure>
+                <div class="mt-3 flex justify-center gap-2">
+                  {recap.photos.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        class="rounded-full bg-paper px-4 py-2 text-sm font-semibold text-ink"
+                        data-step="-1"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-full bg-paper px-4 py-2 text-sm font-semibold text-ink"
+                        data-step="1"
+                      >
+                        Next
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    class="rounded-full bg-paper px-4 py-2 text-sm font-semibold text-ink"
+                    data-close
+                  >
+                    Close
+                  </button>
+                </div>
+              </dialog>
+            </div>
+          )}
+          {(recap.slides.length > 0 || recap.videoUrl || writeUp) && (
+            <div class="grid gap-8 md:grid-cols-2">
+              {recap.videoUrl && (
+                <div class={writeUp || recap.slides.length ? '' : 'md:col-span-2'}>
+                  <h3 class="mb-3 text-xl">Video</h3>
+                  {embed && (
+                    <iframe
+                      src={embed}
+                      title={`Video of ${event.title}`}
+                      loading="lazy"
+                      allow="encrypted-media; fullscreen; picture-in-picture"
+                      allowfullscreen
+                      referrerpolicy="strict-origin-when-cross-origin"
+                      class="mb-3 aspect-video w-full rounded-card bg-ink"
+                    />
+                  )}
+                  <a href={recap.videoUrl} rel="noopener" class="text-accent">
+                    Watch on {videoSite(recap.videoUrl)}
+                  </a>
+                </div>
+              )}
+              <div class="grid content-start gap-8">
+                {recap.slides.length > 0 && (
+                  <div>
+                    <h3 class="mb-3 text-xl">Slides</h3>
+                    <ul class="grid gap-2">
+                      {recap.slides.map((s) => (
+                        <li>
+                          <a
+                            href={s.key ? mediaUrl(s.key)! : s.url}
+                            rel="noopener"
+                            class="inline-flex items-center gap-2 text-accent"
+                          >
+                            <Icon name={s.key ? 'download' : 'external'} class="size-5 shrink-0" />
+                            {s.label}
+                            {s.key && <span class="text-sm text-muted">(PDF)</span>}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {writeUp && (
+                  <div>
+                    <h3 class="mb-3 text-xl">Read the write-up</h3>
+                    <div class="max-w-sm">
+                      <PostCard post={writeUp} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    )}
   </article>
 </BaseLayout>
+
+<script>
+  // Lightbox for the recap photos. Without JavaScript, each photo links to the full-size image.
+  const gallery = document.querySelector<HTMLElement>('[data-gallery]');
+  const box = document.querySelector<HTMLDialogElement>('dialog[data-lightbox]');
+  if (gallery && box) {
+    const links = [...gallery.querySelectorAll<HTMLAnchorElement>('a[data-index]')];
+    const img = box.querySelector('img')!;
+    const caption = box.querySelector('figcaption')!;
+    let current = 0;
+    const show = (i: number) => {
+      current = (i + links.length) % links.length;
+      const thumb = links[current]!.querySelector('img')!;
+      img.src = links[current]!.href;
+      img.alt = thumb.alt;
+      caption.textContent = `${current + 1} / ${links.length}`;
+    };
+    gallery.addEventListener('click', (e) => {
+      const a = (e.target as Element | null)?.closest<HTMLAnchorElement>('a[data-index]');
+      if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      e.preventDefault();
+      show(Number(a.dataset.index));
+      box.showModal();
+    });
+    box.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      if (t === box) box.close();
+      else if (t.closest('[data-close]')) box.close();
+      else if (t.closest<HTMLElement>('[data-step]'))
+        show(current + Number(t.closest<HTMLElement>('[data-step]')!.dataset.step));
+    });
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') show(current - 1);
+      if (e.key === 'ArrowRight') show(current + 1);
+    });
+    box.addEventListener('close', () => links[current]?.focus());
+  }
+</script>

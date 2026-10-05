@@ -31,6 +31,14 @@ uses any more.
   Tech Connect.
 - **Capacity** empty means unlimited. When full, people join the waitlist.
 - **Cancel the event** keeps it on the site with a "Cancelled" label and closes registration.
+- **Recap** (at the bottom of an event's page, about 10 minutes after the event): add photos
+  (select several at once, up to 20 per save, 5 MB each), reorder them with the arrows, give them
+  an optional alt text or caption, or tick "Remove" (the file is deleted). Upload the speakers'
+  slides as PDFs (the file name becomes the label, which you can edit) or paste a link to them,
+  paste the video link (YouTube or Vimeo play on the page, other sites open in a new page), and
+  pick the blog write-up among published posts. Click **Save the recap**. It shows on the event
+  page once the event has passed, and the event gets a "Recap" badge in the past events list.
+  Uploaded slides also appear in **Files**, used by the event.
 
 ## Registrations
 

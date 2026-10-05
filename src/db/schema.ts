@@ -22,6 +22,26 @@ const json = <T>(name: string) => text(name, { mode: 'json' }).$type<T>();
 
 // ---------- events ----------
 
+/** A recap photo: an R2 key, with optional alt text / caption. */
+export interface RecapPhoto {
+  key: string;
+  alt?: string;
+}
+/** Slides after the talk: an uploaded PDF (key) or a link elsewhere (url). */
+export interface RecapSlide {
+  label: string;
+  key?: string;
+  url?: string;
+}
+/** What happened at a past event, shown on its page. */
+export interface EventRecap {
+  photos: RecapPhoto[];
+  slides: RecapSlide[];
+  videoUrl?: string | null;
+  /** The blog write-up. */
+  postId?: number | null;
+}
+
 export const events = sqliteTable(
   'events',
   {
@@ -51,6 +71,8 @@ export const events = sqliteTable(
     status: text('status', { enum: ['draft', 'published', 'cancelled'] })
       .notNull()
       .default('draft'),
+    /** Photos, slides, video and blog write-up of a past event; null = no recap yet. */
+    recap: json<EventRecap>('recap'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

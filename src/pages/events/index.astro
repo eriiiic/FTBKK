@@ -8,6 +8,7 @@ import Button from '../../components/Button.astro';
 import Icon from '../../components/Icon.astro';
 import { pastEvents, upcomingEvents } from '../../lib/queries';
 import { TZ, formatEventDate, mediaUrl } from '../../lib/format';
+import { hasRecap } from '../../lib/recap';
 
 const series = Astro.url.searchParams.get('series');
 const [upcoming, past] = await Promise.all([upcomingEvents(), pastEvents()]);
@@ -131,7 +132,7 @@ const chip =
           <h3 class="mb-4 text-xl">{y}</h3>
           <div class="grid gap-x-6 gap-y-1 rounded-card bg-paper p-1 shadow-card sm:p-2 lg:grid-cols-2">
             {list.map((e) => (
-              <EventRow event={e} />
+              <EventRow event={e} recap={hasRecap(e.recap)} />
             ))}
           </div>
         </div>

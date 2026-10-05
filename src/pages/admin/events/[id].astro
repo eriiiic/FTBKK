@@ -1,12 +1,12 @@
 ---
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import FormField from '../../../components/FormField.astro';
 import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import MarkdownEditor from '../../../components/admin/MarkdownEditor.astro';
 import { getDb } from '../../../db';
-import { events, type Event } from '../../../db/schema';
+import { events, posts, type Event } from '../../../db/schema';
 import { EventSchema, toLocalInput, uniqueContentSlug } from '../../../lib/admin';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
@@ -14,6 +14,16 @@ import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
 import { getSettings } from '../../../lib/settings';
 import { sendEventCancelled } from '../../../lib/registrations';
+import {
+  MAX_FILES_PER_UPLOAD,
+  MAX_RECAP_PHOTOS,
+  MAX_RECAP_SLIDES,
+  RECAP_ARRAYS,
+  RecapFormSchema,
+  buildRecap,
+  labelFromFileName,
+  slideRef,
+} from '../../../lib/recap';
 import { env } from 'cloudflare:workers';
 
 const db = getDb();
@@ -44,6 +54,23 @@ let source: Event | null = null;
 if (isNew && fromId) {
   [source = null] = await db.select().from(events).where(eq(events.id, fromId)).limit(1);
 }
+
+// Recap (photos, slides, video, blog write-up): its own form, below the event form.
+const PHOTO_MAX = 5 * 1024 * 1024;
+const SLIDES_MAX = 20 * 1024 * 1024;
+const PDF_TYPES = ['application/pdf'];
+const writeUps = event
+  ? await db
+      .select({ id: posts.id, title: posts.title })
+      .from(posts)
+      .where(eq(posts.status, 'published'))
+      .orderBy(desc(posts.publishedAt))
+  : [];
+let recapErrors: Record<string, string> = {};
+let recapValues: Record<string, unknown> = {
+  videoUrl: event?.recap?.videoUrl ?? '',
+  postId: event?.recap?.postId ?? '',
+};
 
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = event
@@ -90,52 +117,126 @@ if (Astro.request.method === 'POST') {
     );
     return Astro.redirect(`/admin/events/${event.id}?saved=1`);
   }
-  values = formToObject(form);
-  const parsed = EventSchema.safeParse(values);
-  if (!parsed.success) errors = fieldErrors(parsed.error);
-  // Cancelling goes through "Cancel the event", which tells the people registered.
-  if (parsed.success && parsed.data.status === 'cancelled' && event?.status !== 'cancelled')
-    errors.status =
-      'To cancel, use "Cancel the event" at the bottom: it emails everyone registered.';
-  const picked = form.get('cover');
-  const hasFile = picked instanceof File && picked.size > 0;
-  // Upload only once the rest is valid, so a rejected form leaves no orphan file in R2.
-  const cover = Object.keys(errors).length
-    ? { key: null, error: hasFile ? 'Choose the image again after fixing the other fields.' : null }
-    : await storeUpload(picked, {
-        prefix: 'events',
-        maxBytes: 5 * 1024 * 1024,
-        types: IMAGE_TYPES,
-      });
-  if (cover.error) errors.cover = cover.error;
-  if (parsed.success && !Object.keys(errors).length) {
-    const d = parsed.data;
-    const slug = await uniqueContentSlug(events, d.slug || slugify(d.title), event?.id);
-    const keepCover = values.removeCover
-      ? null
-      : (event?.coverKey ?? (source?.coverKey && values.copyCover ? source.coverKey : null));
-    const row = { ...d, slug, coverKey: cover.key ?? keepCover, updatedAt: new Date() };
-    let eventId = event?.id;
-    if (event) {
-      await db.update(events).set(row).where(eq(events.id, event.id));
-    } else {
-      const [ins] = await db.insert(events).values(row).returning({ id: events.id });
-      eventId = ins!.id;
+  if (event && action === 'recap') {
+    recapValues = formToObject(form, RECAP_ARRAYS);
+    const parsed = RecapFormSchema.safeParse(recapValues);
+    if (!parsed.success) recapErrors = fieldErrors(parsed.error);
+    const files = (name: string) =>
+      form.getAll(name).filter((f): f is File => f instanceof File && f.size > 0);
+    const photoFiles = files('recapPhotos');
+    const slideFiles = files('recapSlides');
+    // Check every file before storing any, so a bad one leaves no orphans in R2.
+    const check = (list: File[], types: string[], max: number, what: string) => {
+      if (list.length > MAX_FILES_PER_UPLOAD)
+        return `Upload at most ${MAX_FILES_PER_UPLOAD} ${what} at a time.`;
+      const bad = list.find((f) => !types.includes(f.type));
+      if (bad) return `${bad.name}: file type not allowed.`;
+      const big = list.find((f) => f.size > max);
+      if (big) return `${big.name}: file too large (max ${max / 1024 / 1024} MB).`;
+    };
+    const photoError = check(photoFiles, IMAGE_TYPES, PHOTO_MAX, 'photos');
+    if (photoError) recapErrors.recapPhotos = photoError;
+    const slideError = check(slideFiles, PDF_TYPES, SLIDES_MAX, 'files');
+    if (slideError) recapErrors.recapSlides = slideError;
+    if (parsed.success) {
+      const d = parsed.data;
+      if (d.postId && !writeUps.some((p) => p.id === d.postId))
+        recapErrors.postId = 'Pick a published post.';
+      const kept = d.photoKey.filter((k) => !d.photoRemove.includes(k)).length;
+      if (kept + photoFiles.length > MAX_RECAP_PHOTOS)
+        recapErrors.recapPhotos = `A recap holds at most ${MAX_RECAP_PHOTOS} photos.`;
+      const keptSlides = d.slideRef.filter((r) => !d.slideRemove.includes(r)).length;
+      if (keptSlides + slideFiles.length + (d.newSlideUrl ? 1 : 0) > MAX_RECAP_SLIDES)
+        recapErrors.recapSlides = `A recap holds at most ${MAX_RECAP_SLIDES} slide decks.`;
     }
-    await audit(
-      actor,
-      event ? 'update' : 'create',
-      'event',
-      eventId!,
-      event ? { status: event.status } : null,
-      {
-        title: row.title,
-        status: row.status,
-      },
-    );
-    return Astro.redirect(`/admin/events/${eventId}?saved=1`);
+    if (parsed.success && !Object.keys(recapErrors).length) {
+      const uploaded = { photos: [] as string[], slides: [] as { key: string; label: string }[] };
+      for (const f of photoFiles) {
+        const up = await storeUpload(f, {
+          prefix: 'events/recap',
+          maxBytes: PHOTO_MAX,
+          types: IMAGE_TYPES,
+        });
+        if (up.key) uploaded.photos.push(up.key);
+      }
+      // Slides go with the other PDFs, so they show in Files with this event as their use.
+      for (const f of slideFiles) {
+        const up = await storeUpload(f, {
+          prefix: 'files',
+          maxBytes: SLIDES_MAX,
+          types: PDF_TYPES,
+        });
+        if (up.key) uploaded.slides.push({ key: up.key, label: labelFromFileName(f.name) });
+      }
+      const { recap, removedPhotos } = buildRecap(event.recap, parsed.data, uploaded);
+      await db.update(events).set({ recap, updatedAt: new Date() }).where(eq(events.id, event.id));
+      // Recap photos are only used here, so removing one deletes the file.
+      if (removedPhotos.length) await env.MEDIA.delete(removedPhotos);
+      const summary = (r: Event['recap']) =>
+        r && {
+          photos: r.photos.length,
+          slides: r.slides.length,
+          videoUrl: r.videoUrl ?? null,
+          postId: r.postId ?? null,
+        };
+      await audit(actor, 'recap', 'event', event.id, summary(event.recap), summary(recap));
+      return Astro.redirect(`/admin/events/${event.id}?saved=1#recap`);
+    }
+  } else {
+    values = formToObject(form);
+    const parsed = EventSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    // Cancelling goes through "Cancel the event", which tells the people registered.
+    if (parsed.success && parsed.data.status === 'cancelled' && event?.status !== 'cancelled')
+      errors.status =
+        'To cancel, use "Cancel the event" at the bottom: it emails everyone registered.';
+    const picked = form.get('cover');
+    const hasFile = picked instanceof File && picked.size > 0;
+    // Upload only once the rest is valid, so a rejected form leaves no orphan file in R2.
+    const cover = Object.keys(errors).length
+      ? {
+          key: null,
+          error: hasFile ? 'Choose the image again after fixing the other fields.' : null,
+        }
+      : await storeUpload(picked, {
+          prefix: 'events',
+          maxBytes: 5 * 1024 * 1024,
+          types: IMAGE_TYPES,
+        });
+    if (cover.error) errors.cover = cover.error;
+    if (parsed.success && !Object.keys(errors).length) {
+      const d = parsed.data;
+      const slug = await uniqueContentSlug(events, d.slug || slugify(d.title), event?.id);
+      const keepCover = values.removeCover
+        ? null
+        : (event?.coverKey ?? (source?.coverKey && values.copyCover ? source.coverKey : null));
+      const row = { ...d, slug, coverKey: cover.key ?? keepCover, updatedAt: new Date() };
+      let eventId = event?.id;
+      if (event) {
+        await db.update(events).set(row).where(eq(events.id, event.id));
+      } else {
+        const [ins] = await db.insert(events).values(row).returning({ id: events.id });
+        eventId = ins!.id;
+      }
+      await audit(
+        actor,
+        event ? 'update' : 'create',
+        'event',
+        eventId!,
+        event ? { status: event.status } : null,
+        {
+          title: row.title,
+          status: row.status,
+        },
+      );
+      return Astro.redirect(`/admin/events/${eventId}?saved=1`);
+    }
   }
 }
+const rstr = (k: string) =>
+  recapValues[k] === null || recapValues[k] === undefined ? '' : String(recapValues[k]);
+const recap = event?.recap ?? null;
+const eventPast = event ? (event.endsAt ?? event.startsAt) < new Date() : false;
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Other'];
 ---
@@ -353,6 +454,168 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
   </form>
 
   {event && (
+    <section id="recap" aria-labelledby="recap-title" class="admin-panel mt-8 grid gap-6">
+      <div>
+        <h2 id="recap-title" class="text-lg">
+          Recap
+        </h2>
+        <p class="mt-1 text-sm text-muted">
+          {eventPast
+            ? 'Photos, slides, video and the blog write-up, shown on the event page now that it has passed.'
+            : 'Shown on the event page once the event has passed: photos, slides, video and the blog write-up.'}
+        </p>
+      </div>
+      {Object.keys(recapErrors).length > 0 && (
+        <Alert tone="danger">The recap was not saved. Please fix the highlighted fields.</Alert>
+      )}
+      <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid gap-6">
+        <input type="hidden" name="action" value="recap" />
+        <fieldset class="grid gap-4">
+          <legend class="font-semibold text-navy">Photos</legend>
+          {recap && recap.photos.length > 0 && (
+            <ol class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-recap-photos>
+              {recap.photos.map((p, i) => (
+                <li class="grid grid-cols-[5rem_1fr] gap-3 rounded-lg border border-line p-2">
+                  <img
+                    src={mediaUrl(p.key)}
+                    alt={p.alt || `Photo ${i + 1}`}
+                    loading="lazy"
+                    class="aspect-square w-20 rounded object-cover"
+                  />
+                  <div class="grid min-w-0 content-start gap-2">
+                    <input type="hidden" name="photoKey" value={p.key} />
+                    <label class="text-sm">
+                      <span class="sr-only">Photo {i + 1}: </span>Alt text or caption
+                      <input
+                        name="photoAlt"
+                        value={p.alt ?? ''}
+                        maxlength={300}
+                        class="admin-input mt-1"
+                      />
+                    </label>
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                      <button type="button" data-move="-1" class="rounded border border-line px-2">
+                        ↑<span class="sr-only"> Move photo {i + 1} earlier</span>
+                      </button>
+                      <button type="button" data-move="1" class="rounded border border-line px-2">
+                        ↓<span class="sr-only"> Move photo {i + 1} later</span>
+                      </button>
+                      <label class="ml-auto flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          name="photoRemove"
+                          value={p.key}
+                          class="size-4 accent-brand"
+                        />
+                        Remove<span class="sr-only"> photo {i + 1}</span>
+                      </label>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+          <FormField
+            name="recapPhotos"
+            label="Add photos"
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,image/webp"
+            error={recapErrors.recapPhotos}
+            hint={`Select several at once (up to ${MAX_FILES_PER_UPLOAD} per save, 5 MB each). Use the arrows to reorder; alt text is optional but helps people using screen readers.`}
+          />
+        </fieldset>
+
+        <fieldset class="grid gap-4">
+          <legend class="font-semibold text-navy">Slides</legend>
+          {recap && recap.slides.length > 0 && (
+            <ul class="grid gap-2">
+              {recap.slides.map((s, i) => (
+                <li class="flex flex-wrap items-end gap-3 rounded-lg border border-line p-2">
+                  <input type="hidden" name="slideRef" value={slideRef(s)} />
+                  <label class="min-w-48 flex-1 text-sm">
+                    Label<span class="sr-only"> of slides {i + 1}</span>
+                    <input
+                      name="slideLabel"
+                      value={s.label}
+                      maxlength={200}
+                      class="admin-input mt-1"
+                    />
+                  </label>
+                  <a
+                    href={s.key ? mediaUrl(s.key)! : s.url}
+                    target="_blank"
+                    rel="noopener"
+                    class="text-sm"
+                  >
+                    {s.key ? 'PDF' : 'Link'} ↗
+                  </a>
+                  <label class="flex items-center gap-1 text-sm">
+                    <input
+                      type="checkbox"
+                      name="slideRemove"
+                      value={slideRef(s)}
+                      class="size-4 accent-brand"
+                    />
+                    Remove<span class="sr-only"> {s.label}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          <FormField
+            name="recapSlides"
+            label="Upload slides (PDF)"
+            type="file"
+            multiple
+            accept="application/pdf"
+            error={recapErrors.recapSlides}
+            hint="One or more PDFs, 20 MB each. The file name becomes the label; edit it after saving."
+          />
+          <div class="grid gap-4 sm:grid-cols-2">
+            <FormField
+              name="newSlideUrl"
+              label="Or a link to the slides"
+              value={rstr('newSlideUrl')}
+              error={recapErrors.newSlideUrl}
+              placeholder="https://docs.google.com/…"
+            />
+            <FormField
+              name="newSlideLabel"
+              label="Label for the link"
+              maxlength={200}
+              value={rstr('newSlideLabel')}
+              placeholder="Slides"
+            />
+          </div>
+        </fieldset>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <FormField
+            name="videoUrl"
+            label="Video"
+            value={rstr('videoUrl')}
+            error={recapErrors.videoUrl}
+            placeholder="https://www.youtube.com/watch?v=…"
+            hint="YouTube and Vimeo videos play on the page; other links open the video site."
+          />
+          <FormField
+            name="postId"
+            label="Blog write-up"
+            value={rstr('postId')}
+            error={recapErrors.postId}
+            options={writeUps.map((p) => ({ value: String(p.id), label: p.title }))}
+            hint='Published posts only. Write the post first, then pick it here. Leave on "Choose…" for none.'
+          />
+        </div>
+        <div>
+          <Button type="submit">Save the recap</Button>
+        </div>
+      </form>
+    </section>
+  )}
+
+  {event && (
     <div class="mt-8 flex flex-wrap gap-3">
       {event.status !== 'cancelled' && (
         <form
@@ -372,3 +635,21 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
     </div>
   )}
 </AdminLayout>
+
+<script>
+  // Recap photos: the arrows move a photo; the order of the hidden fields is the saved order.
+  document.querySelectorAll<HTMLElement>('[data-recap-photos]').forEach((list) => {
+    list.addEventListener('click', (e) => {
+      const b = (e.target as Element | null)?.closest<HTMLButtonElement>('button[data-move]');
+      const item = b?.closest('li');
+      if (!b || !item) return;
+      const sibling =
+        b.dataset.move === '-1' ? item.previousElementSibling : item.nextElementSibling;
+      if (!sibling) return;
+      if (b.dataset.move === '-1') list.insertBefore(item, sibling);
+      else list.insertBefore(sibling, item);
+      b.focus();
+      list.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+</script>

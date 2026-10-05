@@ -92,6 +92,15 @@ export async function postBySlug(slug: string) {
   return p ?? null;
 }
 
+export async function publishedPostById(id: number) {
+  const [p] = await getDb()
+    .select()
+    .from(posts)
+    .where(and(eq(posts.id, id), publishedPost()))
+    .limit(1);
+  return p ?? null;
+}
+
 export async function categoriesWithCounts() {
   return getDb()
     .select({
