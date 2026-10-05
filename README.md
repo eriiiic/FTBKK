@@ -18,6 +18,9 @@ Public pages:
   automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
   ticket and cancel link.
 - **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
+- **Code of conduct** at `/code-of-conduct`: how everyone is expected to behave at events, in our
+  online groups (WhatsApp, LinkedIn) and on the website, and how to report a problem. Linked in
+  the footer, on every event page and in the registration form. The text is edited in the admin.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,

@@ -103,7 +103,12 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         <Button type="submit">{state.full ? 'Join the waitlist' : 'Register'}</Button>
       </div>
       <p class="text-xs text-muted">
-        Free. We only use your details for this event and send a reminder the day before.
+        Free. We only use your details for this event and send a reminder the day before. By
+        registering you agree to our{' '}
+        <a href="/code-of-conduct" class="underline">
+          code of conduct
+        </a>
+        .
       </p>
     </form>
   )}

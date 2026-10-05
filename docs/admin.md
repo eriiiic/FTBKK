@@ -107,11 +107,16 @@ them in Settings > Directory moderators.
   **Add a note** records what was done (who answered, what was said, why it is spam) with your
   name and the time; "Save and mark answered" files the message in the same click. Every move
   between folders is logged under the message too.
-- **Settings**: home and about texts, social links, contact email, moderators, membership switches
+- **Settings**: home and about texts, code of conduct, social links, contact email, moderators, membership switches
   and the analytics token. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
   appear on Home and About, one per line as `Title | text | link`, where the link is optional.
+- **Code of conduct**: the text of the public `/code-of-conduct` page, in Markdown. It starts with
+  a default text (our commitment, expected and unacceptable behaviour, consequences, how to
+  report). Write `{contactEmail}` where the contact email should appear; it becomes a mail link.
+  Emptying the field brings the default text back. The page is linked in the footer, on event
+  pages and under the registration form ("By registering you agree to our code of conduct").
 
 ## For developers
 

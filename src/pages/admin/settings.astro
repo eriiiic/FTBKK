@@ -64,6 +64,7 @@ const Schema = z.object({
   aboutIntro: longText(6000),
   communityText: longText(6000),
   joinPaths: z.array(card).max(6),
+  codeOfConduct: longText(12000),
   membershipOpen: z.boolean().optional().default(false),
   memberPriority: z.boolean().optional().default(false),
   analyticsToken: z.string().max(100),
@@ -236,6 +237,19 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         breaks
         uploads={false}
         hint="Shown next to the official logo on the About page. Start a line with ## for a heading. Empty = hidden."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Code of conduct</h2>
+      <MarkdownEditor
+        name="codeOfConduct"
+        label="Code of conduct"
+        rows={16}
+        value={str('codeOfConduct')}
+        error={errors.codeOfConduct}
+        uploads={false}
+        hint="The /code-of-conduct page, linked in the footer, on event pages and in the registration form. {contactEmail} is replaced by the contact email. Start a line with ## for a heading, - for a list. Empty = the default text."
       />
     </section>
 
