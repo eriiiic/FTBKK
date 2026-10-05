@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ContactSchema,
   buildContacts,
+  contactInput,
+  newsletterConsent,
+  newsletterDate,
   filterContacts,
   normalizeTags,
   withTag,
@@ -201,5 +204,82 @@ describe('whatsappUrl', () => {
     expect(whatsappUrl('+66 (0)81 234 5678')).toBe('https://wa.me/66812345678');
     expect(whatsappUrl('12')).toBeNull();
     expect(whatsappUrl(null)).toBeNull();
+  });
+});
+
+describe('newsletter consent', () => {
+  const d = (s: string) => new Date(s);
+  const asked = (yes: boolean, at: string) => ({
+    newsletterConsent: yes,
+    newsletterConsentAt: d(at),
+  });
+
+  it('is no when they were never asked (Wix imports, walk-ins)', () => {
+    expect(newsletterConsent([{ newsletterConsent: false, newsletterConsentAt: null }])).toEqual({
+      agreed: false,
+      at: null,
+      source: null,
+    });
+    expect(newsletterConsent([])).toMatchObject({ agreed: false, source: null });
+  });
+
+  it('follows the latest registration that asked, ticked or not', () => {
+    const yesThenNo = [asked(true, '2026-08-01T00:00:00Z'), asked(false, '2026-09-01T00:00:00Z')];
+    expect(newsletterConsent(yesThenNo)).toMatchObject({ agreed: false, source: 'registration' });
+    const later = [...yesThenNo, { newsletterConsent: false, newsletterConsentAt: null }];
+    expect(newsletterConsent([asked(true, '2026-09-02T00:00:00Z'), ...later])).toEqual({
+      agreed: true,
+      at: d('2026-09-02T00:00:00Z'),
+      source: 'registration',
+    });
+  });
+
+  it('takes the contact card when it is the more recent choice', () => {
+    const regs = [asked(true, '2026-08-01T00:00:00Z')];
+    const card = { newsletter: 'no' as const, newsletterAt: d('2026-09-01T00:00:00Z') };
+    expect(newsletterConsent(regs, card)).toMatchObject({ agreed: false, source: 'card' });
+    expect(newsletterConsent([asked(true, '2026-09-15T00:00:00Z')], card)).toMatchObject({
+      agreed: true,
+      source: 'registration',
+    });
+    expect(newsletterConsent(regs, { newsletter: null, newsletterAt: null })).toMatchObject({
+      agreed: true,
+    });
+  });
+
+  it('feeds the contact list filter', () => {
+    const list = buildContacts(
+      [
+        reg({ ...asked(true, '2026-08-01T00:00:00Z') }),
+        reg({ email: 'bob@example.com', name: 'Bob', ...asked(false, '2026-08-01T00:00:00Z') }),
+      ],
+      [],
+      now,
+    );
+    expect(filterContacts(list, { show: 'newsletter' }).map((c) => c.email)).toEqual([
+      'alice@example.com',
+    ]);
+  });
+
+  it('dates a card choice: today is now, another day is that day in Bangkok', () => {
+    expect(newsletterDate('2026-10-05', now)).toBe(now);
+    expect(newsletterDate('2026-09-30', now)).toEqual(d('2026-09-29T17:00:00Z'));
+  });
+
+  it('keeps the card date when the choice did not change, and refuses future dates', () => {
+    const base = ContactSchema.parse({ name: 'Alice', newsletter: 'yes', newsletterAt: '' });
+    const card = { newsletter: 'yes' as const, newsletterAt: d('2026-09-01T03:00:00Z') };
+    expect(contactInput(base, card, now)).toMatchObject({ newsletterAt: card.newsletterAt });
+    expect(contactInput({ ...base, newsletter: 'no' }, card, now)).toMatchObject({
+      newsletter: 'no',
+      newsletterAt: now,
+    });
+    expect(contactInput({ ...base, newsletterAt: '2026-10-06' }, card, now)).toHaveProperty(
+      'error',
+    );
+    expect(contactInput({ ...base, newsletter: null }, card, now)).toMatchObject({
+      newsletter: null,
+      newsletterAt: null,
+    });
   });
 });

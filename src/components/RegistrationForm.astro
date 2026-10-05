@@ -98,13 +98,19 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         error={errors.photoConsent}
         label="I understand photos and videos may be taken and shared by La French Tech Bangkok."
       />
+      <FormField
+        name="newsletter"
+        type="checkbox"
+        checked={values.newsletter === true}
+        label="Send me the La French Tech Bangkok newsletter (about once a month). You can unsubscribe at any time."
+      />
       <Turnstile />
       <div>
         <Button type="submit">{state.full ? 'Join the waitlist' : 'Register'}</Button>
       </div>
       <p class="text-xs text-muted">
-        Free. We only use your details for this event and send a reminder the day before. By
-        registering you agree to our{' '}
+        Free. We only use your details for this event, send a reminder the day before and, only if
+        you tick the box, the newsletter. By registering you agree to our{' '}
         <a href="/code-of-conduct" class="underline">
           code of conduct
         </a>

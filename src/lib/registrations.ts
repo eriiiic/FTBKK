@@ -25,6 +25,8 @@ export const RegisterSchema = z.object({
   role: z.string().max(120).optional().default(''),
   howHeard: z.string().max(120).optional().default(''),
   photoConsent: z.literal(true, { error: 'Please accept the photo notice to register.' }),
+  /** Opt-in only: an unticked box (absent from the form) is a "no", recorded with the date. */
+  newsletter: z.boolean().optional().default(false),
 });
 
 export const HOW_HEARD = [
@@ -102,16 +104,19 @@ export async function insertRegistration(
   const token = randomToken(24);
   const row = await db
     .prepare(
-      `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token, phone)
+      `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token, phone,
+         newsletter_consent, newsletter_consent_at)
        SELECT ?1, ?2, ?3, ?4, ?5, ?6, 1,
          CASE WHEN ?7 IS NULL OR (SELECT count(*) FROM registrations
            WHERE event_id = ?1 AND status IN ('registered', 'attended')) < ?7
          THEN 'registered' ELSE 'waitlist' END,
-         ?8, ?9
+         ?8, ?9, ?10, unixepoch()
        WHERE true
        ON CONFLICT (event_id, email) DO UPDATE SET
          name = excluded.name, company = excluded.company, role = excluded.role, phone = excluded.phone,
          how_heard = excluded.how_heard, status = excluded.status, token = excluded.token,
+         newsletter_consent = excluded.newsletter_consent,
+         newsletter_consent_at = excluded.newsletter_consent_at,
          created_at = unixepoch(), checked_in_at = NULL, reminder_sent_at = NULL
        WHERE registrations.status = 'cancelled'
        RETURNING id, status, token`,
@@ -126,6 +131,7 @@ export async function insertRegistration(
       capacity,
       token,
       data.phone || null,
+      data.newsletter ? 1 : 0,
     )
     .first<{ id: number; status: 'registered' | 'waitlist'; token: string }>();
   return row; // null = already registered

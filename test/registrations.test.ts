@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { registrationState } from '../src/lib/registrations';
+import { RegisterSchema, registrationState } from '../src/lib/registrations';
 
 const DAY = 86400_000;
 const now = new Date('2026-11-01T03:00:00Z');
@@ -82,5 +82,14 @@ describe('registrationState', () => {
       const s = registrationState(e, 0, now, { memberPriority: false, isMember: true });
       expect(s).toMatchObject({ open: false, capacity: 50 });
     });
+  });
+});
+
+describe('RegisterSchema newsletter consent', () => {
+  const form = { name: 'Alice', email: 'Alice@Example.com', photoConsent: true };
+  it('is opt-in: an unticked box (absent) is a no, a ticked one a yes', () => {
+    expect(RegisterSchema.parse(form).newsletter).toBe(false);
+    expect(RegisterSchema.parse({ ...form, newsletter: true }).newsletter).toBe(true);
+    expect(RegisterSchema.safeParse({ ...form, newsletter: 'yes' }).success).toBe(false);
   });
 });

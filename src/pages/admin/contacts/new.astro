@@ -2,7 +2,7 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Alert from '../../../components/Alert.astro';
 import ContactForm from '../../../components/admin/ContactForm.astro';
-import { ContactSchema, createContact } from '../../../lib/contacts';
+import { ContactSchema, contactInput, createContact } from '../../../lib/contacts';
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 
@@ -14,14 +14,16 @@ let existing = '';
 if (Astro.request.method === 'POST') {
   values = formToObject(await Astro.request.formData(), ['tags']);
   const parsed = ContactSchema.safeParse(values);
+  const input = parsed.success ? contactInput(parsed.data, null) : null;
   if (!parsed.success) errors = fieldErrors(parsed.error);
+  else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
   else {
-    const result = await createContact(parsed.data);
+    const result = await createContact(input);
     if ('error' in result) {
       errors = { email: result.error };
       existing = result.key ?? '';
     } else {
-      await audit(actor, 'contact_create', 'contact', null, null, parsed.data);
+      await audit(actor, 'contact_create', 'contact', null, null, input);
       return Astro.redirect(`/admin/contacts/view?c=${encodeURIComponent(result.key)}&saved=done`);
     }
   }

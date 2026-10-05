@@ -68,7 +68,8 @@ uses any more.
 
 ## Registrations
 
-- People register on the event page (name, email, company, role, photo notice). They get a
+- People register on the event page (name, email, company, role, photo notice, and an optional
+  newsletter box, unticked by default). They get a
   confirmation with a calendar invite and a cancel link, and a reminder the day before.
 - When the event is full, new people join the **waitlist**. If someone cancels, the first person
   on the waitlist is registered automatically and emailed.
@@ -81,7 +82,8 @@ uses any more.
 - **Walk-ins**: on the check-in screen, **+ Walk-in** (or **Add as a walk-in** when a search
   finds nobody) adds someone who didn't register and checks them in. Only the name is required.
   If the email is already registered for the event, that registration is checked in instead.
-  Walk-ins are marked in Registrations and in the CSV export.
+  Walk-ins are marked in Registrations and in the CSV export. Tick **They want the newsletter**
+  only if the person said yes (it needs their email).
 - **Contacts** lists everyone who ever registered or walked in, one line per person (by email;
   walk-ins without an email are grouped by name). It shows how many events each person attended,
   registered for and missed (registered for a past event where check-in was used, but not
@@ -109,6 +111,17 @@ uses any more.
   rows), **Add tag** / **Remove tag** (choose the tag in the menu first; walk-ins without an email
   are skipped, and the message says how many) and **Delete** (asks first; removes those contacts and their registrations, and freed
   seats on upcoming events go to the waitlist).
+- **Newsletter consent**: the law (Thailand's PDPA) wants a clear yes, given by the person, with
+  a date. The registration form asks with an unticked box; each answer is kept with its date. The
+  contacts list has a **Newsletter** column ("Agreed") and an "Agreed to the newsletter" filter;
+  the contact page shows their current choice, where it came from and when. If someone tells you
+  in person or by message, open their contact, **Edit**, set **Newsletter** to "Subscribed" or
+  "Not subscribed" and the date they told you (empty = today). Their latest choice always wins: a
+  later registration replaces what you set, and the other way round. "As they chose when
+  registering" removes your entry. People imported from Wix were never asked, so they count as
+  not subscribed. To send a newsletter, filter on "Agreed to the newsletter" and **Export CSV**
+  (columns "Newsletter" and "Newsletter consent date") into your newsletter tool. Only use **Copy
+  emails** for event messages, not for the newsletter.
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
   exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests

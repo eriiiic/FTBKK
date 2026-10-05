@@ -12,6 +12,11 @@ interface Props {
 }
 const { values, errors, submit, walkIn = false } = Astro.props;
 const v = (k: string) => (values[k] as string | null | undefined) ?? '';
+const newsletterOptions = [
+  ['', 'As they chose when registering'],
+  ['yes', 'Subscribed (they told us)'],
+  ['no', 'Not subscribed (they told us)'],
+];
 const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
 ---
 
@@ -83,6 +88,37 @@ const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
     </p>
     {errors.tags && <p class="mt-1 text-sm text-danger">{errors.tags}</p>}
   </fieldset>
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div>
+      <label for="f-newsletter" class="block text-sm font-semibold text-ink">
+        Newsletter
+      </label>
+      <select
+        id="f-newsletter"
+        name="newsletter"
+        aria-describedby="f-newsletter-hint"
+        class="mt-1 block w-full rounded-lg border border-line bg-paper px-3 py-2 text-ink focus:border-accent"
+      >
+        {newsletterOptions.map(([value, label]) => (
+          <option value={value} selected={v('newsletter') === value}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <p id="f-newsletter-hint" class="mt-1 text-sm text-muted">
+        Only when someone tells you in person or by message. Their latest choice counts.
+      </p>
+      {errors.newsletter && <p class="mt-1 text-sm text-danger">{errors.newsletter}</p>}
+    </div>
+    <FormField
+      name="newsletterAt"
+      label="Date they told us"
+      type="date"
+      value={v('newsletterAt')}
+      error={errors.newsletterAt}
+      hint="Leave empty for today."
+    />
+  </div>
   <FormField
     name="notes"
     label="Notes"

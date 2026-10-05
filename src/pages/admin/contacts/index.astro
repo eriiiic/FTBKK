@@ -289,6 +289,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
               <th>No-shows</th>
               <th>Last event</th>
               <th>Ecosystem</th>
+              <th>Newsletter</th>
             </tr>
           </thead>
           <tbody>
@@ -339,6 +340,9 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
                       )}
                     </span>
                   ))}
+                </td>
+                <td data-sort={c.newsletter.agreed ? 1 : 0}>
+                  {c.newsletter.agreed && <Badge tone="success">Agreed</Badge>}
                 </td>
               </tr>
             ))}

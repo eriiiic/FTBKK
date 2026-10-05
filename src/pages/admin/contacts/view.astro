@@ -7,7 +7,9 @@ import ContactForm from '../../../components/admin/ContactForm.astro';
 import {
   CONTACT_TAGS,
   ContactSchema,
+  cardFor,
   contactExists,
+  contactInput,
   deleteContacts,
   loadContacts,
   saveContact,
@@ -16,6 +18,7 @@ import {
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { formatDate, formatEventDate } from '../../../lib/format';
+import { toDateInput } from '../../../lib/admin';
 
 const key = Astro.url.searchParams.get('c') ?? '';
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -36,12 +39,16 @@ if (Astro.request.method === 'POST') {
   }
   values = formToObject(form, ['tags']);
   const parsed = ContactSchema.safeParse(values);
+  const input = parsed.success
+    ? contactInput(parsed.data, (await cardFor(key)) ?? null, now)
+    : null;
   if (!parsed.success) errors = fieldErrors(parsed.error);
+  else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
   else {
-    const result = await saveContact(key, parsed.data);
+    const result = await saveContact(key, input);
     if ('error' in result) errors = { email: result.error };
     else {
-      await audit(actor, 'contact_update', 'contact', null, { key }, parsed.data);
+      await audit(actor, 'contact_update', 'contact', null, { key }, input);
       return Astro.redirect(view(result.key));
     }
   }
@@ -83,7 +90,13 @@ const details = [
   ['Company', c.company],
   ['Role', c.role],
   ['First seen', formatDate(c.firstSeen)],
+  ['Newsletter', newsletterText(c.newsletter)],
 ].filter(([, v]) => v) as [string, string][];
+function newsletterText(n: typeof c.newsletter) {
+  if (!n.at) return 'Never asked';
+  const how = n.source === 'card' ? 'told the team' : 'registration form';
+  return `${n.agreed ? 'Agreed' : 'Not subscribed'} (${how}, ${formatDate(n.at)})`;
+}
 const stats = [
   ['Attended', c.attended],
   ['Registered', c.registrations],
@@ -150,7 +163,13 @@ const stats = [
             </Alert>
           )}
           <ContactForm
-            values={values ?? { ...c }}
+            values={
+              values ?? {
+                ...c,
+                newsletter: c.newsletterCard?.choice ?? '',
+                newsletterAt: toDateInput(c.newsletterCard?.at),
+              }
+            }
             errors={errors}
             submit="Save contact"
             walkIn={walkIn}

@@ -58,6 +58,16 @@ export them to CSV, add or remove a tag, or delete them at once. Contacts can be
 edited (with tags, team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
 the total number of contacts.
 
+**Newsletter consent** (Thailand's PDPA: explicit, opt-in, dated). The registration form has an
+unticked box "Send me the La French Tech Bangkok newsletter"; each registration stores the answer
+and when it was given (`newsletter_consent`, `newsletter_consent_at`). The walk-in dialog has the
+same optional box (only a tick is recorded, and it needs an email). When someone tells the team
+in person, an admin sets "Subscribed" or "Not subscribed" with the date on their contact card
+(`contacts.newsletter`, `newsletter_at`). A person's consent is their most recent explicit choice;
+people never asked (Wix imports) have none. Contacts can be filtered on "Agreed to the newsletter"
+and the CSV has "Newsletter" and "Newsletter consent date" columns, to import into a newsletter
+tool. The site doesn't send newsletters itself.
+
 The design follows the French Tech usage charter: its palette, the official La French Tech
 Bangkok logo and the full name "La French Tech Bangkok".
 

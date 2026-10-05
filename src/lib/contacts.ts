@@ -7,6 +7,7 @@ import { email as emailField, optionalText, optionalUrl } from './forms';
 import { promoteFromWaitlist, sendPromotion } from './registrations';
 import { getSettings } from './settings';
 import { audit } from './orgs';
+import { fromLocalInput, toDateInput } from './admin';
 
 // Contacts: everyone who ever registered for an event (or walked in), one row per person, built
 // from registrations. No sign-up needed: a person is identified by their email, and walk-ins
@@ -43,6 +44,9 @@ export interface ContactRegistration {
   status: 'registered' | 'waitlist' | 'cancelled' | 'attended';
   walkIn: boolean;
   createdAt: Date;
+  /** Ticked the newsletter box; newsletterConsentAt is null when they were never asked. */
+  newsletterConsent?: boolean;
+  newsletterConsentAt?: Date | null;
   event: { id: number; title: string; slug: string; startsAt: Date; endsAt: Date | null };
 }
 
@@ -66,7 +70,36 @@ export interface SavedContact {
   linkedin: string | null;
   notes: string | null;
   tags?: string[] | null;
+  newsletter?: 'yes' | 'no' | null;
+  newsletterAt?: Date | null;
   createdAt: Date;
+}
+
+/** Someone's newsletter consent: their most recent explicit choice, and where it comes from. */
+export interface NewsletterConsent {
+  agreed: boolean;
+  /** When they made that choice; null when they were never asked. */
+  at: Date | null;
+  /** 'card': they told the team (set on the contact card); 'registration': the form's box. */
+  source: 'card' | 'registration' | null;
+}
+
+/**
+ * The most recent explicit newsletter choice: the latest registration that asked (ticked or
+ * not), unless the team recorded a later answer on the contact card. Never asked = no consent.
+ */
+export function newsletterConsent(
+  regs: Pick<ContactRegistration, 'newsletterConsent' | 'newsletterConsentAt'>[],
+  card?: Pick<SavedContact, 'newsletter' | 'newsletterAt'> | null,
+): NewsletterConsent {
+  let best: NewsletterConsent = { agreed: false, at: null, source: null };
+  for (const r of regs) {
+    if (r.newsletterConsentAt && (!best.at || r.newsletterConsentAt > best.at))
+      best = { agreed: !!r.newsletterConsent, at: r.newsletterConsentAt, source: 'registration' };
+  }
+  if (card?.newsletter && card.newsletterAt && (!best.at || card.newsletterAt >= best.at))
+    best = { agreed: card.newsletter === 'yes', at: card.newsletterAt, source: 'card' };
+  return best;
 }
 
 export interface Contact {
@@ -81,6 +114,9 @@ export interface Contact {
   linkedin: string | null;
   notes: string | null;
   tags: ContactTag[];
+  newsletter: NewsletterConsent;
+  /** What the team recorded on the contact card, for the edit form. */
+  newsletterCard: { choice: 'yes' | 'no'; at: Date } | null;
   /** Registrations not cancelled (registered, waitlist or attended). */
   registrations: number;
   attended: number;
@@ -162,6 +198,11 @@ export function buildContacts(
         linkedin: card?.linkedin ?? null,
         notes: card?.notes ?? null,
         tags: normalizeTags(card?.tags),
+        newsletter: newsletterConsent(rs, card),
+        newsletterCard:
+          card?.newsletter && card.newsletterAt
+            ? { choice: card.newsletter, at: card.newsletterAt }
+            : null,
         registrations: live.length,
         attended: attended.length,
         noShows: rs.filter(
@@ -197,6 +238,8 @@ export async function loadContacts(now = new Date()) {
         status: registrations.status,
         walkIn: registrations.walkIn,
         createdAt: registrations.createdAt,
+        newsletterConsent: registrations.newsletterConsent,
+        newsletterConsentAt: registrations.newsletterConsentAt,
         event: {
           id: events.id,
           title: events.title,
@@ -229,6 +272,7 @@ export const CONTACT_FILTERS = {
   regulars: 'Came 2 times or more',
   never: 'Registered, never came',
   ecosystem: 'Linked to an ecosystem listing',
+  newsletter: 'Agreed to the newsletter',
 } as const;
 export type ContactFilter = keyof typeof CONTACT_FILTERS;
 
@@ -260,6 +304,7 @@ export function filterContacts(
     if (show === 'regulars') return c.attended > 1;
     if (show === 'never') return c.attended === 0 && c.registrations > 0;
     if (show === 'ecosystem') return c.organisations.length > 0;
+    if (show === 'newsletter') return c.newsletter.agreed;
     return true;
   });
 }
@@ -275,6 +320,17 @@ export interface ContactInput {
   linkedin: string | null;
   notes: string | null;
   tags: ContactTag[];
+  /** Set by the team when someone tells them in person; null = go by their registrations. */
+  newsletter: 'yes' | 'no' | null;
+  newsletterAt: Date | null;
+}
+
+/**
+ * The date typed for a newsletter choice on the contact card -> a timestamp. Today means now, so
+ * the choice beats a registration made earlier today; an earlier day is that day in Bangkok.
+ */
+export function newsletterDate(day: string, now: Date) {
+  return day === toDateInput(now) ? now : fromLocalInput(day);
 }
 
 /** The contact form, as posted from /admin/contacts. */
@@ -304,11 +360,42 @@ export const ContactSchema = z.object({
     .max(20)
     .default([])
     .transform(normalizeTags),
+  newsletter: z
+    .enum(['', 'yes', 'no'])
+    .optional()
+    .transform((v) => (v ? v : null)),
+  newsletterAt: z
+    .union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a date.')])
+    .optional(),
 });
+
+/**
+ * The contact form's fields, ready to save: the newsletter date is kept as it was when neither
+ * the choice nor the day changed (so saving other details doesn't move it), else today if left
+ * empty. A date in the future is refused.
+ */
+export function contactInput(
+  data: z.infer<typeof ContactSchema>,
+  card: { newsletter?: 'yes' | 'no' | null; newsletterAt?: Date | null } | null,
+  now = new Date(),
+): ContactInput | { error: string } {
+  const { newsletterAt: day, ...rest } = data;
+  if (!rest.newsletter) return { ...rest, newsletterAt: null };
+  if (day && day > toDateInput(now)) return { error: 'The date can’t be in the future.' };
+  const keep =
+    card?.newsletter === rest.newsletter &&
+    card.newsletterAt &&
+    (!day || day === toDateInput(card.newsletterAt));
+  return {
+    ...rest,
+    newsletterAt: keep ? card.newsletterAt! : newsletterDate(day || toDateInput(now), now),
+  };
+}
 
 type Result = { key: string } | { error: string; key?: string };
 
-const cardFor = async (key: string) => {
+/** The saved contact card for this key, if any. */
+export const cardFor = async (key: string) => {
   const db = getDb();
   if (key.startsWith('name:')) return undefined;
   if (key.startsWith('id:')) {
@@ -366,8 +453,12 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
   if (email && (await cardTaken(email, card?.id))) {
     return { error: 'Another contact already has this email.', key: email };
   }
-  if (!email && (input.notes || input.linkedin || input.tags.length) && key.startsWith('name:')) {
-    return { error: 'Add an email to save notes, tags or LinkedIn for a walk-in.' };
+  if (
+    !email &&
+    (input.notes || input.linkedin || input.tags.length || input.newsletter) &&
+    key.startsWith('name:')
+  ) {
+    return { error: 'Add an email to save notes, tags, newsletter or LinkedIn for a walk-in.' };
   }
   const now = new Date();
 

@@ -94,6 +94,10 @@ export const registrations = sqliteTable(
     role: text('role'),
     howHeard: text('how_heard'),
     photoConsent: integer('photo_consent', { mode: 'boolean' }).notNull().default(false),
+    /** Ticked "Send me the newsletter" (opt-in, unticked by default). */
+    newsletterConsent: integer('newsletter_consent', { mode: 'boolean' }).notNull().default(false),
+    /** When they answered the newsletter question; null when it was never asked (Wix imports). */
+    newsletterConsentAt: ts('newsletter_consent_at'),
     walkIn: integer('walk_in', { mode: 'boolean' }).notNull().default(false),
     status: text('status', { enum: ['registered', 'waitlist', 'cancelled', 'attended'] })
       .notNull()
@@ -168,6 +172,10 @@ export const contacts = sqliteTable('contacts', {
   notes: text('notes'),
   /** Tag keys from CONTACT_TAGS in lib/contacts.ts (speaker, sponsor, volunteer, board, press). */
   tags: json<string[]>('tags').notNull().default([]),
+  /** Newsletter choice they told the team in person; null = go by their latest registration. */
+  newsletter: text('newsletter', { enum: ['yes', 'no'] }),
+  /** When they told us (see newsletter). */
+  newsletterAt: ts('newsletter_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
