@@ -1,0 +1,157 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Badge from '../../../components/Badge.astro';
+import Button from '../../../components/Button.astro';
+import { CONTACT_FILTERS, filterContacts, loadContacts } from '../../../lib/contacts';
+import { formatDate } from '../../../lib/format';
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const show = url.searchParams.get('show') ?? 'all';
+const event = Number(url.searchParams.get('event')) || 0;
+const all = await loadContacts();
+const shown = filterContacts(all, { q, show, event });
+
+// Events people registered for, newest first, for the event filter.
+const eventOptions = [
+  ...new Map(all.flatMap((c) => c.history.map((r) => [r.event.id, r.event] as const))).values(),
+].sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime());
+const summary = [
+  ['Contacts', all.length],
+  ['Came at least once', all.filter((c) => c.attended > 0).length],
+  ['Came 2 times or more', all.filter((c) => c.attended > 1).length],
+  ['Linked to the ecosystem', all.filter((c) => c.organisations.length > 0).length],
+];
+const csv = `/admin/contacts.csv${url.search}`;
+const filtered = Boolean(q || event || show !== 'all');
+---
+
+<AdminLayout title="Contacts">
+  <p class="mb-4 max-w-3xl text-muted">
+    Everyone who ever registered for an event or was added as a walk-in, one line per person
+    (grouped by email). Nobody has to sign up: the list builds itself from registrations.
+  </p>
+  <dl class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    {summary.map(([k, v]) => (
+      <div class="admin-panel !p-3">
+        <dt class="text-xs text-muted">{k}</dt>
+        <dd class="font-display text-2xl font-bold text-navy">{v}</dd>
+      </div>
+    ))}
+  </dl>
+
+  <div class="admin-panel overflow-x-auto">
+    <form method="get" role="search" class="mb-4 flex flex-wrap items-center gap-2">
+      <label for="q" class="sr-only">
+        Search
+      </label>
+      <input
+        id="q"
+        name="q"
+        value={q}
+        type="search"
+        placeholder="Name, email, company or listing"
+        class="w-full rounded-lg border border-line px-3 py-1.5 sm:w-72"
+      />
+      <label for="show" class="sr-only">
+        Show
+      </label>
+      <select
+        id="show"
+        name="show"
+        class="max-w-full rounded-lg border border-line px-3 py-1.5"
+        onchange="this.form.requestSubmit()"
+      >
+        {Object.entries(CONTACT_FILTERS).map(([k, label]) => (
+          <option value={k} selected={k === show}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <label for="event" class="sr-only">
+        Event
+      </label>
+      <select
+        id="event"
+        name="event"
+        class="max-w-full rounded-lg border border-line px-3 py-1.5 sm:max-w-xs"
+        onchange="this.form.requestSubmit()"
+      >
+        <option value="">All events</option>
+        {eventOptions.map((e) => (
+          <option value={e.id} selected={e.id === event}>
+            {formatDate(e.startsAt)} · {e.title}
+          </option>
+        ))}
+      </select>
+      <Button type="submit" size="sm" variant="secondary">
+        Filter
+      </Button>
+      {filtered && (
+        <a href="/admin/contacts" class="text-sm">
+          Clear
+        </a>
+      )}
+      <Button href={csv} size="sm" class="sm:ml-auto">
+        Export CSV{filtered ? ` (${shown.length})` : ''}
+      </Button>
+    </form>
+
+    {shown.length ? (
+      <table class="admin-table" data-sortable>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Company</th>
+            <th>Attended</th>
+            <th>Registered</th>
+            <th>No-shows</th>
+            <th>Last event</th>
+            <th>Ecosystem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((c) => (
+            <tr>
+              <td>
+                <a href={`/admin/contacts/view?c=${encodeURIComponent(c.key)}`}>{c.name}</a>
+                <span class="block text-xs break-all text-muted">
+                  {c.email ?? 'Walk-in, no email'}
+                </span>
+              </td>
+              <td>
+                {c.company ?? ''}
+                {c.role && <span class="block text-xs text-muted">{c.role}</span>}
+              </td>
+              <td data-sort={c.attended}>{c.attended}</td>
+              <td data-sort={c.registrations}>{c.registrations}</td>
+              <td data-sort={c.noShows}>{c.noShows || ''}</td>
+              <td
+                class="whitespace-nowrap text-muted"
+                data-sort={c.lastEvent?.startsAt.getTime() ?? 0}
+              >
+                {c.lastEvent ? formatDate(c.lastEvent.startsAt) : ''}
+              </td>
+              <td>
+                {c.organisations.map((o) => (
+                  <span class="block">
+                    {o.name}
+                    {o.memberStatus === 'member' && (
+                      <Badge tone="accent" class="ml-1">
+                        Member
+                      </Badge>
+                    )}
+                  </span>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      <p class="text-muted">
+        {all.length ? 'Nobody matches these filters.' : 'Nobody has registered yet.'}
+      </p>
+    )}
+  </div>
+</AdminLayout>

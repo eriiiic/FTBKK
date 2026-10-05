@@ -48,6 +48,13 @@ uses any more.
   finds nobody) adds someone who didn't register and checks them in. Only the name is required.
   If the email is already registered for the event, that registration is checked in instead.
   Walk-ins are marked in Registrations and in the CSV export.
+- **Contacts** lists everyone who ever registered or walked in, one line per person (by email;
+  walk-ins without an email are grouped by name). It shows how many events each person attended,
+  registered for and missed (registered for a past event where check-in was used, but not
+  checked in), and the ecosystem listings their email manages or is the contact for. Filter by
+  "came at least once", "came 2 times or more", "registered, never came", "linked to an
+  ecosystem listing" or by event, then **Export CSV** (the export keeps the filters). Click a
+  name to see their full event history. Details come from their latest registration.
 - Cancelling an event emails everyone registered or on the waitlist.
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.

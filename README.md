@@ -21,7 +21,7 @@ Public pages:
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,
-CSV export), the ecosystem directory (review queue, listings, renewals, history), people, contact
+CSV export), contacts, the ecosystem directory (review queue, listings, renewals, history), people, contact
 messages (folders, team notes, blocked senders), uploaded files and site settings. See
 [docs/admin.md](docs/admin.md).
 
@@ -29,6 +29,12 @@ Check-in at the door works from a phone: volunteers bookmark `/checkin`, which o
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
 that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
 who didn't register.
+
+**Contacts** in the admin lists everyone who ever registered for an event or walked in, one line
+per person (grouped by email), with no sign-up needed. For each person it shows how many events
+they attended, registered for and missed, which events those were, their company, and the
+ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
+came, linked to the ecosystem, by event) and exported to CSV.
 
 The design follows the French Tech usage charter: its palette, the official La French Tech
 Bangkok logo and the full name "La French Tech Bangkok".
