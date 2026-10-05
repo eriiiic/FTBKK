@@ -1,0 +1,111 @@
+---
+import { asc, desc, gte, lt, and, ne } from 'drizzle-orm';
+import '../../styles/global.css';
+import { getDb } from '../../db';
+import { events } from '../../db/schema';
+import { registrationCount } from '../../lib/registrations';
+import { formatEventDate } from '../../lib/format';
+
+// Phone-first event picker for door volunteers: bookmark /checkin (it redirects here, behind
+// Access) and tap an event to open its check-in screen, without going through the admin menus.
+const db = getDb();
+const now = new Date();
+const dayKey = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+const today = dayKey(now);
+const fields = {
+  id: events.id,
+  title: events.title,
+  startsAt: events.startsAt,
+  endsAt: events.endsAt,
+  registered: registrationCount(['registered', 'attended']),
+  attended: registrationCount(['attended']),
+};
+const notCancelled = ne(events.status, 'cancelled');
+// Anything that started in the last two days (so an evening event is still "today" after
+// midnight), then what's coming, then a few recent ones for late check-ins.
+const since = new Date(now.getTime() - 2 * 86400_000);
+const [current, recent] = await Promise.all([
+  db
+    .select(fields)
+    .from(events)
+    .where(and(notCancelled, gte(events.startsAt, since)))
+    .orderBy(asc(events.startsAt))
+    .limit(8),
+  db
+    .select(fields)
+    .from(events)
+    .where(and(notCancelled, lt(events.startsAt, since)))
+    .orderBy(desc(events.startsAt))
+    .limit(3),
+]);
+type Row = (typeof current)[number];
+const isToday = (e: Row) =>
+  dayKey(e.startsAt) === today || (e.startsAt <= now && (e.endsAt ?? e.startsAt) >= now);
+const groups = [
+  { title: 'Today', rows: current.filter(isToday) },
+  { title: 'Coming up', rows: current.filter((e) => !isToday(e) && e.startsAt > now) },
+  {
+    title: 'Recent',
+    rows: [...current.filter((e) => !isToday(e) && e.startsAt <= now).reverse(), ...recent],
+  },
+].filter((g) => g.rows.length > 0);
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="apple-mobile-web-app-title" content="Check-in" />
+    <title>Check-in · La French Tech Bangkok</title>
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  </head>
+  <body class="min-h-screen bg-surface">
+    <header class="bg-navy p-4 text-paper">
+      <div class="flex items-center justify-between gap-3">
+        <h1 class="text-lg text-paper">Event check-in</h1>
+        <a href="/admin" class="text-sm text-accent-soft">
+          Admin
+        </a>
+      </div>
+      <p class="mt-1 text-sm text-accent-soft">Pick the event you are checking people in for.</p>
+    </header>
+
+    <main class="grid gap-6 p-3">
+      {groups.length === 0 && <p class="p-6 text-center text-muted">No events yet.</p>}
+      {groups.map((g) => (
+        <section>
+          <h2 class="mb-2 px-1 text-sm font-semibold tracking-widest text-muted uppercase">
+            {g.title}
+          </h2>
+          <ul class="grid gap-2">
+            {g.rows.map((e) => (
+              <li>
+                <a
+                  href={`/admin/events/${e.id}/checkin`}
+                  class={`flex items-center justify-between gap-3 rounded-xl border bg-paper p-4 text-ink no-underline ${g.title === 'Today' ? 'border-brand' : 'border-line'}`}
+                >
+                  <span class="min-w-0">
+                    <span class="block text-lg font-semibold">{e.title}</span>
+                    <span class="block text-sm text-muted">
+                      {formatEventDate(e.startsAt, e.endsAt)}
+                    </span>
+                  </span>
+                  <span class="shrink-0 text-right text-sm text-muted">
+                    <span class="block font-semibold text-ink">
+                      {e.attended} / {e.registered}
+                    </span>
+                    checked in
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </main>
+  </body>
+</html>

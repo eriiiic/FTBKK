@@ -34,6 +34,7 @@ export const GET: APIRoute = async ({ params }) => {
     'Registered',
     'Checked in',
     'Photo consent',
+    'Walk-in',
   ];
   const lines = rows.map((r) =>
     [
@@ -47,6 +48,7 @@ export const GET: APIRoute = async ({ params }) => {
       toLocalInput(r.createdAt).replace('T', ' '),
       toLocalInput(r.checkedInAt).replace('T', ' '),
       r.photoConsent ? 'yes' : 'no',
+      r.walkIn ? 'yes' : 'no',
     ]
       .map(cell)
       .join(','),

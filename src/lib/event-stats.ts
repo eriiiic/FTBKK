@@ -13,7 +13,8 @@ export interface StatEvent {
 
 export interface StatRegistration {
   eventId: number;
-  email: string;
+  /** Null for walk-ins added at the door without an email. */
+  email: string | null;
   status: 'registered' | 'waitlist' | 'cancelled' | 'attended';
   createdAt: Date;
   checkedInAt: Date | null;
@@ -79,9 +80,10 @@ export function eventStats(events: StatEvent[], regs: StatRegistration[], now: D
 
   // Attendees: people who came (or registered, before check-in was used), by email.
   const visits = new Map<string, number>();
-  for (const r of regs) {
+  for (const [i, r] of regs.entries()) {
     if (r.status !== 'attended') continue;
-    const e = r.email.toLowerCase();
+    // A walk-in without an email counts as one person we can't match to other visits.
+    const e = r.email?.toLowerCase() ?? `#${i}`;
     visits.set(e, (visits.get(e) ?? 0) + 1);
   }
   const uniqueAttendees = visits.size;

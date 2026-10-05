@@ -65,12 +65,14 @@ export const registrations = sqliteTable(
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    email: text('email').notNull(),
+    // Null only for walk-ins added at the door without an email.
+    email: text('email'),
     company: text('company'),
     phone: text('phone'),
     role: text('role'),
     howHeard: text('how_heard'),
     photoConsent: integer('photo_consent', { mode: 'boolean' }).notNull().default(false),
+    walkIn: integer('walk_in', { mode: 'boolean' }).notNull().default(false),
     status: text('status', { enum: ['registered', 'waitlist', 'cancelled', 'attended'] })
       .notNull()
       .default('registered'),

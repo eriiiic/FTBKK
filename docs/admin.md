@@ -41,7 +41,13 @@ uses any more.
 - **Registrations** (or the count on the Events page): counts, search, check in, register someone
   from the waitlist (this can go over capacity), cancel, and **Export CSV** for Excel.
 - **Check-in mode** is made for a phone at the door: type a few letters of the name and tap to
-  check the person in. Tap again to undo.
+  check the person in. Tap again to undo. Door volunteers can bookmark
+  `/checkin` on their phone: it opens a list of today's and upcoming events (after the admin
+  login), and tapping one opens its check-in mode. They must be allowed in Cloudflare Access.
+- **Walk-ins**: on the check-in screen, **+ Walk-in** (or **Add as a walk-in** when a search
+  finds nobody) adds someone who didn't register and checks them in. Only the name is required.
+  If the email is already registered for the event, that registration is checked in instead.
+  Walk-ins are marked in Registrations and in the CSV export.
 - Cancelling an event emails everyone registered or on the waitlist.
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.
