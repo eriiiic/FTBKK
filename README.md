@@ -66,7 +66,7 @@ printed to the console instead of being sent. To fill the local database with th
 captured from Wix, run `npm run import` (see [migration/README.md](migration/README.md)).
 
 To bring an event's registrations over from Wix, export its guest list in Wix (Events > the event >
-Guests > Export) and run `npm run import:guests -- <Guest_list_….csv>` (add `--remote` for the
+Guests > Export; ticketed and RSVP events both work) and run `npm run import:guests -- <Guest_list_….csv>` (add `--remote` for the
 live database). It adds one registration per email with the Wix order date, puts LinkedIn URLs
 and "Anything we should know?" answers on the contact cards, sends no email, and can be re-run.
 

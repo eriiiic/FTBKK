@@ -33,7 +33,8 @@ if (!file) {
   process.exit(1);
 }
 const slug =
-  option('--event') ?? path.basename(file).match(/^Guest_list_(.+?)_\d{4}-\d{2}-\d{2}/i)?.[1];
+  option('--event') ??
+  path.basename(file).match(/^Guest[_ ]list[_ ](.+?)[_ ]\d{4}-\d{2}-\d{2}/i)?.[1];
 if (!slug) {
   console.error('Could not tell the event from the file name; pass --event <slug>.');
   process.exit(1);

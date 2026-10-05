@@ -1,7 +1,7 @@
 // Parses a Wix Events guest list export ("Guest_list_<event>_<date>.csv") into one guest per
-// email. Wix exports it as UTF-16, tab-separated, one row per ticket, and often lists the same
-// ticket twice (numbers ending in 1P and 1Q). The registration questions are event-specific
-// columns, so they are found by keyword.
+// email. Wix exports it as UTF-16, tab-separated. Ticketed events have one row per ticket, often
+// twice (numbers ending in 1P and 1Q); RSVP events have one row per answer, with repeat RSVPs.
+// The registration questions are event-specific columns, so they are found by keyword.
 
 export interface WixGuest {
   name: string;
@@ -61,8 +61,8 @@ export function parseDelimited(text: string): string[][] {
 
 /** A LinkedIn profile URL, or null when the answer isn't one (people sometimes type their name). */
 export function linkedinUrl(v: string): string | null {
-  const s = v.trim();
-  if (!/linkedin\.com\//i.test(s)) return null;
+  const s = v.replace(/\s+/g, '');
+  if (!/linkedin\.com\/(in|pub|company)\/[^/?#]/i.test(s)) return null;
   const url = /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
   // Drop share-link tracking (?utm_source=…, ?locale=fr).
   return url.replace(/[?#].*$/, '');
@@ -89,15 +89,19 @@ export function parseWixGuests(text: string): WixGuest[] {
   const h = header.map((c) => c.trim().toLowerCase());
   const col = (test: (c: string) => boolean) => h.findIndex(test);
   const idx = {
-    first: col((c) => c === 'guest first name'),
-    last: col((c) => c === 'guest last name'),
+    first: col((c) => c === 'guest first name' || c === 'first name'),
+    last: col((c) => c === 'guest last name' || c === 'last name'),
     email: col((c) => c === 'email'),
-    date: col((c) => c === 'order date'),
-    checkedIn: col((c) => c === 'checked in'),
+    date: col((c) => c === 'order date' || c === 'timestamp'),
+    checkedIn: col((c) => c === 'checked in' || c === 'checked-in'),
+    response: col((c) => c === 'response'),
     company: col((c) => c.includes('company')),
     role: col((c) => c.includes('job title') || c === 'position'),
+    // RSVP forms ask for a profile ("Founder / Co-founder") instead of a job title.
+    profile: col((c) => c.includes('best describes you')),
     linkedin: col((c) => c.includes('linkedin')),
     notes: col((c) => c.startsWith('anything')),
+    comment: col((c) => c.includes('add a comment')),
   };
   if (idx.email < 0 || idx.first < 0) throw new Error('Not a Wix guest list: no Email column');
 
@@ -106,15 +110,17 @@ export function parseWixGuests(text: string): WixGuest[] {
     const get = (i: number) => (i >= 0 ? r[i] : undefined);
     const email = clean(get(idx.email))?.toLowerCase();
     if (!email || !email.includes('@')) continue;
+    // RSVP "No" answers are people who said they won't come.
+    if (/^no$/i.test(get(idx.response)?.trim() ?? '')) continue;
     const name = [clean(get(idx.first)), clean(get(idx.last))].filter(Boolean).join(' ');
     const guest: WixGuest = {
       name: tidyName(name) || email,
       email,
       company: clean(get(idx.company)),
-      role: clean(get(idx.role)),
+      role: clean(get(idx.role)) ?? clean(get(idx.profile)),
       linkedin: linkedinUrl(get(idx.linkedin) ?? ''),
-      notes: clean(get(idx.notes)),
-      checkedIn: /^(yes|true|checked in)$/i.test(get(idx.checkedIn)?.trim() ?? ''),
+      notes: [clean(get(idx.notes)), clean(get(idx.comment))].filter(Boolean).join('\n') || null,
+      checkedIn: /^(yes|true|1|checked in)$/i.test(get(idx.checkedIn)?.trim() ?? ''),
       orderedAt: bangkokTimestamp(get(idx.date) ?? '') ?? Math.floor(Date.now() / 1000),
     };
     const prev = byEmail.get(email);

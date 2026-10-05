@@ -111,6 +111,26 @@ describe('parseWixGuests', () => {
   });
 });
 
+describe('parseWixGuests on an RSVP export', () => {
+  const text = [
+    'First name\tLast name\tEmail\tResponse\tChecked-in\tTotal guests\tTimestamp\tAnything we should know?\tWant to add a comment?\tWhich best describes you?\tLinkedIn profile URL',
+    'Maxime\tSchmitt\tdodmax@gmail.com\tYes\t1\t1\t2026-08-12 16:15:07\t\tSee you\tFounder / Co-founder\twww.linkedin.com/in/ maxime/',
+    'Bob\tNo\tbob@x.com\tNo\t0\t1\t2026-08-12 16:20:00\t\t\tStudent\t',
+  ].join('\n');
+
+  it('skips "No" answers and reads the RSVP columns', () => {
+    const guests = parseWixGuests(text);
+    expect(guests).toHaveLength(1);
+    expect(guests[0]).toMatchObject({
+      name: 'Maxime Schmitt',
+      role: 'Founder / Co-founder',
+      linkedin: 'https://www.linkedin.com/in/maxime/',
+      notes: 'See you',
+      checkedIn: true,
+    });
+  });
+});
+
 describe('helpers', () => {
   it('reads Wix order dates as Bangkok time', () => {
     expect(bangkokTimestamp('2026-10-01 07:35:34')).toBe(Date.parse('2026-10-01T00:35:34Z') / 1000);
@@ -118,6 +138,7 @@ describe('helpers', () => {
   });
   it('keeps only LinkedIn URLs', () => {
     expect(linkedinUrl('Octave Huyghues Despointes')).toBeNull();
+    expect(linkedinUrl('https://www.linkedin.com/me?trk=feed')).toBeNull();
     expect(linkedinUrl('https://th.linkedin.com/in/x/?locale=fr')).toBe(
       'https://th.linkedin.com/in/x/',
     );
