@@ -83,6 +83,19 @@ uses any more.
   the contact address in Settings. Walk-ins without an email are skipped, and the same email
   can't go to the same people twice within 10 minutes unless you tick "Send it again". Everything
   sent is listed on that page, with who sent it and to how many people.
+- **Feedback**: at 09:00 the day after a published event (not cancelled ones), everyone who
+  was checked in gets an email asking "How was it?" with five one-click buttons (1 = poor to
+  5 = excellent). If nobody was checked in for that event, everyone still registered gets it.
+  Each person gets it once; walk-ins without an email are skipped. The click records the rating
+  and opens a page where they can add a comment (up to 2,000 characters) or change the rating,
+  any time later, with the same link.
+- **Event stats** shows, for each past event, the number of feedback responses and the average
+  rating; click the number to open the event's **Feedback** page (also linked at the top of a
+  past event's page). It shows the average, the share of emailed people who answered, how many
+  gave each rating, and every rating and comment with the person's name. Names are for the team
+  only: **Hide names (to share)** shows the comments without names, ready to show speakers,
+  sponsors or the board, and **Export feedback CSV** downloads them (without names and emails
+  when names are hidden).
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.
 

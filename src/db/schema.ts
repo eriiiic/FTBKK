@@ -102,11 +102,33 @@ export const registrations = sqliteTable(
     createdAt: createdAt(),
     checkedInAt: ts('checked_in_at'),
     reminderSentAt: ts('reminder_sent_at'),
+    /** When the day-after feedback email went out (src/lib/cron-events.ts). */
+    feedbackSentAt: ts('feedback_sent_at'),
   },
   (t) => [
     uniqueIndex('registrations_event_email').on(t.eventId, t.email),
     index('registrations_event_status').on(t.eventId, t.status),
   ],
+);
+
+/** Day-after feedback: one rating (1 to 5) and an optional comment per registration. */
+export const eventFeedback = sqliteTable(
+  'event_feedback',
+  {
+    id: id(),
+    registrationId: integer('registration_id')
+      .notNull()
+      .unique()
+      .references(() => registrations.id, { onDelete: 'cascade' }),
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    rating: integer('rating').notNull(),
+    comment: text('comment'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('event_feedback_event').on(t.eventId)],
 );
 
 /** Messages an admin sent to an event's registrants from /admin/events/[id]/email. */
@@ -432,6 +454,7 @@ export const blockedSenders = sqliteTable('blocked_senders', {
 export type Event = typeof events.$inferSelect;
 export type Registration = typeof registrations.$inferSelect;
 export type EventEmail = typeof eventEmails.$inferSelect;
+export type EventFeedback = typeof eventFeedback.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;

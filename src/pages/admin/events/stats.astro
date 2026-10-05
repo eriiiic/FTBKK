@@ -4,14 +4,15 @@ import Button from '../../../components/Button.astro';
 import Badge from '../../../components/Badge.astro';
 import LineChart from '../../../components/admin/LineChart.astro';
 import { getDb } from '../../../db';
-import { events, registrations } from '../../../db/schema';
+import { eventFeedback, events, registrations } from '../../../db/schema';
 import { eventStats } from '../../../lib/event-stats';
+import { feedbackSummary, formatRating } from '../../../lib/feedback';
 import { formatDate, formatEventDate } from '../../../lib/format';
 import { DAY_MS } from '../../../lib/lifecycle';
 
 const db = getDb();
 const now = new Date();
-const [eventRows, regRows] = await Promise.all([
+const [eventRows, regRows, feedbackRows] = await Promise.all([
   db
     .select({
       id: events.id,
@@ -32,8 +33,13 @@ const [eventRows, regRows] = await Promise.all([
       howHeard: registrations.howHeard,
     })
     .from(registrations),
+  db.select({ eventId: eventFeedback.eventId, rating: eventFeedback.rating }).from(eventFeedback),
 ]);
 const s = eventStats(eventRows, regRows, now);
+const feedback = new Map<number, ReturnType<typeof feedbackSummary>>();
+for (const id of new Set(feedbackRows.map((f) => f.eventId))) {
+  feedback.set(id, feedbackSummary(feedbackRows.filter((f) => f.eventId === id)));
+}
 const pct = (v: number | null) => (v === null ? '–' : `${Math.round(v * 100)}%`);
 const shortDate = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -228,6 +234,8 @@ const kpis = [
           <th>Show-up</th>
           <th>Waitlist</th>
           <th>Cancelled</th>
+          <th>Feedback</th>
+          <th>Rating</th>
         </tr>
       </thead>
       <tbody>
@@ -255,6 +263,20 @@ const kpis = [
             <td data-sort={r.showUp ?? -1}>{pct(r.showUp)}</td>
             <td data-sort={r.waitlist}>{r.waitlist}</td>
             <td data-sort={r.cancelled}>{r.cancelled}</td>
+            <td data-sort={feedback.get(r.event.id)?.responses ?? -1} class="whitespace-nowrap">
+              {r.event.startsAt < now ? (
+                <a href={`/admin/events/${r.event.id}/feedback`}>
+                  {feedback.get(r.event.id)?.responses ?? 0}
+                  <span class="sr-only"> feedback responses for {r.event.title}</span>
+                  <span aria-hidden="true"> ›</span>
+                </a>
+              ) : (
+                <span class="text-muted">–</span>
+              )}
+            </td>
+            <td data-sort={feedback.get(r.event.id)?.average ?? -1}>
+              {formatRating(feedback.get(r.event.id)?.average ?? null)}
+            </td>
           </tr>
         ))}
       </tbody>
