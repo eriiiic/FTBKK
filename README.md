@@ -16,13 +16,19 @@ Public pages:
   a Member badge, validated by the board.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, confirmation email with a calendar invite, reminder the day before, QR
-  ticket, cancel link and check-in at the door.
+  ticket and cancel link.
 - **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,
-CSV export, check-in mode), the ecosystem directory (review queue, listings, renewals, history),
-people, contact messages, uploaded files and site settings. See [docs/admin.md](docs/admin.md).
+CSV export), the ecosystem directory (review queue, listings, renewals, history), people, contact
+messages (folders, team notes, blocked senders), uploaded files and site settings. See
+[docs/admin.md](docs/admin.md).
+
+Check-in at the door works from a phone: volunteers bookmark `/checkin`, which opens a list of
+today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
+that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
+who didn't register.
 
 The design follows the French Tech usage charter: its palette, the official La French Tech
 Bangkok logo and the full name "La French Tech Bangkok".
