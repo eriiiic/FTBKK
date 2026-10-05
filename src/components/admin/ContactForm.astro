@@ -1,0 +1,77 @@
+---
+import FormField from '../FormField.astro';
+import Button from '../Button.astro';
+
+interface Props {
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+  submit: string;
+  /** A walk-in without an email: notes and LinkedIn need an email to be saved. */
+  walkIn?: boolean;
+}
+const { values, errors, submit, walkIn = false } = Astro.props;
+const v = (k: string) => (values[k] as string | null | undefined) ?? '';
+---
+
+<form method="post" class="grid gap-4" data-warn-unsaved>
+  <input type="hidden" name="action" value="save" />
+  <div class="grid gap-4 sm:grid-cols-2">
+    <FormField
+      name="name"
+      label="Name"
+      required
+      maxlength={120}
+      value={v('name')}
+      error={errors.name}
+    />
+    <FormField
+      name="email"
+      label="Email"
+      type="email"
+      maxlength={200}
+      value={v('email')}
+      error={errors.email}
+      hint={walkIn ? 'Add one to save notes and to group their future registrations.' : undefined}
+    />
+    <FormField
+      name="phone"
+      label="Phone"
+      type="tel"
+      maxlength={40}
+      value={v('phone')}
+      error={errors.phone}
+    />
+    <FormField
+      name="company"
+      label="Company"
+      maxlength={120}
+      value={v('company')}
+      error={errors.company}
+    />
+    <FormField name="role" label="Role" maxlength={120} value={v('role')} error={errors.role} />
+    <FormField
+      name="linkedin"
+      label="LinkedIn"
+      type="url"
+      value={v('linkedin')}
+      error={errors.linkedin}
+      placeholder="https://www.linkedin.com/in/…"
+    />
+  </div>
+  <FormField
+    name="notes"
+    label="Notes"
+    rows={4}
+    maxlength={4000}
+    value={v('notes')}
+    error={errors.notes}
+    hint={
+      walkIn
+        ? 'Only the admin team sees these. Needs an email for a walk-in.'
+        : 'Only the admin team sees these.'
+    }
+  />
+  <div>
+    <Button type="submit">{submit}</Button>
+  </div>
+</form>

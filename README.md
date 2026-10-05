@@ -34,7 +34,10 @@ who didn't register.
 per person (grouped by email), with no sign-up needed. For each person it shows how many events
 they attended, registered for and missed, which events those were, their company, and the
 ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
-came, linked to the ecosystem, by event) and exported to CSV.
+came, linked to the ecosystem, by event) and exported to CSV, and "Copy emails" copies the
+filtered addresses for the Bcc field of an email. Contacts can be added by hand, edited (with
+team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
+the total number of contacts.
 
 The design follows the French Tech usage charter: its palette, the official La French Tech
 Bangkok logo and the full name "La French Tech Bangkok".

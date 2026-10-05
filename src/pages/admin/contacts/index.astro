@@ -24,13 +24,20 @@ const summary = [
 ];
 const csv = `/admin/contacts.csv${url.search}`;
 const filtered = Boolean(q || event || show !== 'all');
+const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', ');
 ---
 
 <AdminLayout title="Contacts">
-  <p class="mb-4 max-w-3xl text-muted">
-    Everyone who ever registered for an event or was added as a walk-in, one line per person
-    (grouped by email). Nobody has to sign up: the list builds itself from registrations.
-  </p>
+  <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <p class="max-w-3xl text-muted">
+      Everyone who ever registered for an event or was added as a walk-in, one line per person
+      (grouped by email), plus anyone you add by hand. Nobody has to sign up: the list builds itself
+      from registrations. Click a name to edit, contact or delete them.
+    </p>
+    <Button href="/admin/contacts/new" size="sm">
+      New contact
+    </Button>
+  </div>
   <dl class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
     {summary.map(([k, v]) => (
       <div class="admin-panel !p-3">
@@ -92,7 +99,18 @@ const filtered = Boolean(q || event || show !== 'all');
           Clear
         </a>
       )}
-      <Button href={csv} size="sm" class="sm:ml-auto">
+      {emails && (
+        <Button
+          size="sm"
+          variant="secondary"
+          class="sm:ml-auto"
+          data-copy={emails}
+          title="Paste into the Bcc field of an email"
+        >
+          Copy emails
+        </Button>
+      )}
+      <Button href={csv} size="sm" class={emails ? '' : 'sm:ml-auto'}>
         Export CSV{filtered ? ` (${shown.length})` : ''}
       </Button>
     </form>

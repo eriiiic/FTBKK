@@ -1,0 +1,48 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Alert from '../../../components/Alert.astro';
+import ContactForm from '../../../components/admin/ContactForm.astro';
+import { ContactSchema, createContact } from '../../../lib/contacts';
+import { audit } from '../../../lib/orgs';
+import { fieldErrors, formToObject } from '../../../lib/forms';
+
+const actor = Astro.locals.adminEmail ?? 'admin';
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let existing = '';
+
+if (Astro.request.method === 'POST') {
+  values = formToObject(await Astro.request.formData());
+  const parsed = ContactSchema.safeParse(values);
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  else {
+    const result = await createContact(parsed.data);
+    if ('error' in result) {
+      errors = { email: result.error };
+      existing = result.key ?? '';
+    } else {
+      await audit(actor, 'contact_create', 'contact', null, null, parsed.data);
+      return Astro.redirect(`/admin/contacts/view?c=${encodeURIComponent(result.key)}&saved=done`);
+    }
+  }
+}
+---
+
+<AdminLayout title="New contact">
+  <p class="mb-4">
+    <a href="/admin/contacts">← All contacts</a>
+  </p>
+  <div class="admin-panel max-w-3xl">
+    <p class="mb-4 text-sm text-muted">
+      For someone who hasn't registered for an event yet. When they register later with the same
+      email, their registrations join this contact.
+    </p>
+    {existing && (
+      <Alert tone="danger" class="mb-4">
+        This email is already in your contacts.{' '}
+        <a href={`/admin/contacts/view?c=${encodeURIComponent(existing)}`}>Open that contact</a>
+      </Alert>
+    )}
+    <ContactForm values={values} errors={errors} submit="Add contact" />
+  </div>
+</AdminLayout>

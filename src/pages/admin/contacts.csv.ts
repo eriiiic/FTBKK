@@ -32,6 +32,8 @@ export const GET: APIRoute = async ({ url }) => {
     'Events attended',
     'Ecosystem listings',
     'Member',
+    'LinkedIn',
+    'Notes',
   ];
   const lines = contacts.map((c) =>
     [
@@ -56,6 +58,8 @@ export const GET: APIRoute = async ({ url }) => {
         .map((o) => `${o.name} (${o.relation === 'owner' ? 'manages' : 'contact'})`)
         .join('; '),
       c.organisations.some((o) => o.memberStatus === 'member') ? 'yes' : 'no',
+      c.linkedin,
+      c.notes,
     ]
       .map(cell)
       .join(','),

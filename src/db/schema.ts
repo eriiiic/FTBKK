@@ -87,6 +87,25 @@ export const registrations = sqliteTable(
   ],
 );
 
+/**
+ * A saved contact card. Contacts are built from registrations (see lib/contacts.ts); a row here
+ * adds or overrides a person's details and notes, or records someone who never registered.
+ */
+export const contacts = sqliteTable('contacts', {
+  id: id(),
+  /** Lowercased. Null for someone added without an email. */
+  email: text('email').unique(),
+  name: text('name').notNull(),
+  phone: text('phone'),
+  company: text('company'),
+  role: text('role'),
+  linkedin: text('linkedin'),
+  notes: text('notes'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+export type ContactRow = typeof contacts.$inferSelect;
+
 // ---------- blog ----------
 
 export interface Attachment {
