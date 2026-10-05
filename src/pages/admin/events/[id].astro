@@ -149,6 +149,7 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
         </a>
       )}
       <a href={`/admin/registrations?event=${event.id}`}>Registrations</a>
+      <a href={`/admin/events/${event.id}/email`}>Email registrants</a>
       <a href={`/admin/events/new?from=${event.id}`}>Duplicate</a>
     </div>
   )}

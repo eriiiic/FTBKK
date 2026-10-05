@@ -185,7 +185,7 @@ export interface RegistrationRow {
 
 // ---------- emails ----------
 
-function siteUrl(path: string) {
+export function siteUrl(path: string) {
   return new URL(path, env.SITE_URL || 'https://www.french-tech-bangkok.com').href;
 }
 
@@ -198,7 +198,9 @@ function icsAttachment(e: Event) {
   };
 }
 
-function eventDetails(e: Event): [string, string][] {
+export function eventDetails(
+  e: Pick<Event, 'startsAt' | 'endsAt' | 'venue' | 'address'>,
+): [string, string][] {
   return [
     ['When', `${formatEventDate(e.startsAt, e.endsAt)} (Bangkok time)`],
     ...(e.venue || e.address

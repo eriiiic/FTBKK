@@ -64,6 +64,17 @@ uses any more.
   registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
 - Cancelling an event emails everyone registered or on the waitlist.
+- **Email registrants** (on an event's page, or the button in Registrations) sends your own
+  message to the people of one event: a venue change, the slides after the talk, a last-minute
+  reminder. Choose who gets it (**Registered**, **Checked in**, **Waitlist** or **Everyone not
+  cancelled**; each shows how many people that is), write a subject and a plain-text message
+  (leave a blank line between paragraphs; `{name}` becomes the person's first name), and
+  optionally a button with its link (for example "Download the slides"). The email uses the
+  site's usual layout and adds the event's date, venue and a link to its page. **Send me a test**
+  sends it to you only. **Send** asks for confirmation with the number of people. Replies go to
+  the contact address in Settings. Walk-ins without an email are skipped, and the same email
+  can't go to the same people twice within 10 minutes unless you tick "Send it again". Everything
+  sent is listed on that page, with who sent it and to how many people.
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.
 

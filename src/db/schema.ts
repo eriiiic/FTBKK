@@ -87,6 +87,27 @@ export const registrations = sqliteTable(
   ],
 );
 
+/** Messages an admin sent to an event's registrants from /admin/events/[id]/email. */
+export const eventEmails = sqliteTable(
+  'event_emails',
+  {
+    id: id(),
+    eventId: integer('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    audience: text('audience', { enum: ['registered', 'attended', 'waitlist', 'all'] }).notNull(),
+    subject: text('subject').notNull(),
+    body: text('body').notNull(),
+    actionLabel: text('action_label'),
+    actionUrl: text('action_url'),
+    /** How many emails went out. */
+    recipients: integer('recipients').notNull(),
+    sentBy: text('sent_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('event_emails_event').on(t.eventId)],
+);
+
 /**
  * A saved contact card. Contacts are built from registrations (see lib/contacts.ts); a row here
  * adds or overrides a person's details and notes, or records someone who never registered.
@@ -388,6 +409,7 @@ export const blockedSenders = sqliteTable('blocked_senders', {
 
 export type Event = typeof events.$inferSelect;
 export type Registration = typeof registrations.$inferSelect;
+export type EventEmail = typeof eventEmails.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;

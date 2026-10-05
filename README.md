@@ -30,6 +30,11 @@ today's and upcoming events (after the Access login). Tapping one opens its chec
 that screen they can search by name, email or phone, scan the QR ticket, and add walk-in guests
 who didn't register.
 
+Organisers can **email an event's registrants** from the admin (venue change, slides after the
+talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not
+cancelled, with counts), write a subject and message with an optional button, send a test to
+themselves, then send. Each message sent is kept in the event's email history.
+
 **Contacts** in the admin lists everyone who ever registered for an event or walked in, one line
 per person (grouped by email), with no sign-up needed. For each person it shows how many events
 they attended, registered for and missed, which events those were, their company, and the
