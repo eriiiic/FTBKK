@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { getDb } from '../db';
 import { contacts, events, organisations, registrations } from '../db/schema';
 import { email as emailField, optionalText, optionalUrl } from './forms';
+import { promoteFromWaitlist, sendPromotion } from './registrations';
+import { getSettings } from './settings';
+import { audit } from './orgs';
 
 // Contacts: everyone who ever registered for an event (or walked in), one row per person, built
 // from registrations. No sign-up needed: a person is identified by their email, and walk-ins
@@ -419,6 +422,35 @@ export async function deleteContact(key: string) {
       ...new Set(removed.filter((r) => r.status === 'registered').map((r) => r.eventId)),
     ],
   };
+}
+
+/**
+ * Deletes several contacts (see deleteContact), logs each one, then gives the seats freed on
+ * upcoming events to the next people on the waitlist, as when someone cancels.
+ */
+export async function deleteContacts(keys: string[], actor: string, now = new Date()) {
+  const freed = new Set<number>();
+  let deleted = 0;
+  for (const key of new Set(keys)) {
+    if (!(await contactExists(key))) continue;
+    const { registrations: n, freedEvents } = await deleteContact(key);
+    await audit(actor, 'contact_delete', 'contact', null, { key, registrations: n }, null);
+    freedEvents.forEach((id) => freed.add(id));
+    deleted++;
+  }
+  if (freed.size) {
+    const settings = await getSettings();
+    const rows = await getDb()
+      .select()
+      .from(events)
+      .where(inArray(events.id, [...freed]));
+    for (const event of rows) {
+      if ((event.endsAt ?? event.startsAt) < now) continue;
+      const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+      if (row) await sendPromotion(event, row);
+    }
+  }
+  return deleted;
 }
 
 /** A wa.me link from a phone number; Thai numbers starting with 0 get the +66 prefix. */

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { filterContacts, loadContacts } from '../../lib/contacts';
+import { z } from 'zod';
+import { filterContacts, loadContacts, type Contact } from '../../lib/contacts';
 import { toDateInput } from '../../lib/admin';
 
 // Admin only (guarded in middleware). The Contacts list as a CSV, with the page's filters.
@@ -9,12 +10,27 @@ const cell = (v: unknown) => {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export const GET: APIRoute = async ({ url }) => {
-  const contacts = filterContacts(await loadContacts(), {
-    q: url.searchParams.get('q') ?? '',
-    show: url.searchParams.get('show') ?? 'all',
-    event: Number(url.searchParams.get('event')) || 0,
-  });
+// GET exports the list with the page's filters; POST exports the rows ticked on the page.
+export const GET: APIRoute = async ({ url }) =>
+  csvResponse(
+    filterContacts(await loadContacts(), {
+      q: url.searchParams.get('q') ?? '',
+      show: url.searchParams.get('show') ?? 'all',
+      event: Number(url.searchParams.get('event')) || 0,
+    }),
+  );
+
+export const POST: APIRoute = async ({ request }) => {
+  const keys = z
+    .array(z.string().max(320))
+    .max(2000)
+    .safeParse((await request.formData()).getAll('c'));
+  if (!keys.success) return new Response('Invalid selection.', { status: 400 });
+  const wanted = new Set(keys.data);
+  return csvResponse((await loadContacts()).filter((c) => wanted.has(c.key)));
+};
+
+function csvResponse(contacts: Contact[]) {
   const header = [
     'Name',
     'Email',
@@ -71,4 +87,4 @@ export const GET: APIRoute = async ({ url }) => {
       'Content-Disposition': `attachment; filename="contacts-${toDateInput(new Date())}.csv"`,
     },
   });
-};
+}

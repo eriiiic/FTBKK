@@ -63,6 +63,10 @@ uses any more.
   adds someone who never registered. **Delete this contact** removes them and all their
   registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
+- **Bulk actions on Contacts**: tick the boxes in front of the names (or the box in the header to
+  tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
+  rows) and **Delete** (asks first; removes those contacts and their registrations, and freed
+  seats on upcoming events go to the waitlist).
 - **Guests registered on Wix** are imported from the Wix guest list export with
   `npm run import:guests -- <Guest_list_….csv> --remote` (see the README). The event must already
   exist on the new site with the same slug as in the file name, or pass `--event <slug>`. Guests
