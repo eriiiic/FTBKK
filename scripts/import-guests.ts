@@ -9,7 +9,8 @@
  *                      marked as already reminded, since Wix sends its own)
  *   --dry-run          print the SQL instead of running it
  *
- * One registration per email, dated with the Wix order date. LinkedIn URLs and "Anything we
+ * One registration per email, dated with the Wix order date; guests checked in on Wix are marked
+ * as attended (checked in at the event start time). LinkedIn URLs and "Anything we
  * should know?" answers go on the person's contact card. Re-running is safe: people already
  * registered for the event are left as they are, and contact cards only get empty fields filled.
  */
@@ -54,7 +55,7 @@ for (const g of guests) {
   const status = g.checkedIn ? 'attended' : 'registered';
   sql.push(
     `INSERT INTO registrations (event_id, name, email, company, role, photo_consent, walk_in, status, token, created_at, checked_in_at, reminder_sent_at)
-     SELECT ${event}, ${q(g.name)}, ${q(g.email)}, ${q(g.company)}, ${q(g.role)}, 0, 0, '${status}', ${q(token())}, ${g.orderedAt}, ${g.checkedIn ? g.orderedAt : 'NULL'}, ${reminded}
+     SELECT ${event}, ${q(g.name)}, ${q(g.email)}, ${q(g.company)}, ${q(g.role)}, 0, 0, '${status}', ${q(token())}, ${g.orderedAt}, ${g.checkedIn ? `(SELECT starts_at FROM events WHERE slug = ${q(slug)})` : 'NULL'}, ${reminded}
      WHERE ${event} IS NOT NULL
      ON CONFLICT (event_id, email) DO NOTHING;`,
   );
