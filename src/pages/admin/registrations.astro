@@ -48,7 +48,8 @@ if (Astro.request.method === 'POST' && event) {
         .set({ status: 'registered' })
         .where(where)
         .returning();
-      if (row) await sendPromotion(event, { ...row, event_id: row.eventId });
+      if (row?.email)
+        await sendPromotion(event, { ...row, email: row.email, event_id: row.eventId });
     } else if (action === 'promote-next') {
       const settings = await getSettings();
       const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
@@ -100,7 +101,7 @@ const counts = {
 const shown = rows.filter(
   (r) =>
     (!statusFilter || r.status === statusFilter) &&
-    (!q || `${r.name} ${r.email} ${r.company ?? ''}`.toLowerCase().includes(q)),
+    (!q || `${r.name} ${r.email ?? ''} ${r.company ?? ''}`.toLowerCase().includes(q)),
 );
 const tone = (s: string) =>
   s === 'registered'
@@ -232,8 +233,9 @@ const tone = (s: string) =>
                   <td>
                     {r.name}
                     {r.role && <span class="block text-xs text-muted">{r.role}</span>}
+                    {r.walkIn && <span class="block text-xs text-muted">Walk-in</span>}
                   </td>
-                  <td class="break-all">{r.email}</td>
+                  <td class="break-all">{r.email ?? ''}</td>
                   <td>{r.company ?? ''}</td>
                   <td>
                     <Badge tone={tone(r.status)}>{r.status}</Badge>

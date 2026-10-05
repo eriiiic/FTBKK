@@ -23,6 +23,7 @@ const rows = await Promise.all(
         phone: registrations.phone,
         company: registrations.company,
         status: registrations.status,
+        walkIn: registrations.walkIn,
         token: registrations.token,
       })
       .from(registrations)
@@ -56,12 +57,13 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
   <body class="min-h-screen bg-surface">
     <header class="sticky top-0 z-10 bg-navy p-4 text-paper">
       <div class="flex items-center justify-between gap-3">
-        <a href={`/admin/registrations?event=${event.id}`} class="text-sm text-accent-soft">
-          ← Back
+        <a href="/admin/checkin" class="text-sm text-accent-soft">
+          {' '}
+          ← Events{' '}
         </a>
         <p class="text-sm" aria-live="polite">
           <span data-count>{rows.filter((r) => r.status === 'attended').length}</span> /{' '}
-          {rows.length} checked in
+          <span data-total>{rows.length}</span> checked in
         </p>
       </div>
       <h1 class="mt-1 truncate text-lg text-paper">{event.title}</h1>
@@ -86,10 +88,90 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           Scan QR
         </button>
       </div>
-      <p class="mt-2 text-xs text-accent-soft">
-        Press Enter to check in when only one person matches. A handheld scanner works too.
-      </p>
+      <div class="mt-2 flex items-center justify-between gap-3">
+        <p class="text-xs text-accent-soft">
+          Press Enter to check in when only one person matches. A handheld scanner works too.
+        </p>
+        <button
+          type="button"
+          data-walkin-open
+          class="shrink-0 rounded-xl border border-paper/40 px-3 py-2 text-sm font-semibold text-paper"
+        >
+          + Walk-in
+        </button>
+      </div>
     </header>
+
+    <dialog
+      data-walkin
+      aria-labelledby="walkin-title"
+      class="m-auto w-[min(32rem,calc(100%-1.5rem))] rounded-card bg-paper p-0 text-ink shadow-card backdrop:bg-ink/60"
+    >
+      <form data-walkin-form class="grid gap-3 p-5">
+        <h2 id="walkin-title" class="text-lg">
+          Add a walk-in
+        </h2>
+        <p class="text-sm text-muted">
+          For someone who didn't register. They are checked in as soon as you add them.
+        </p>
+        <label class="grid gap-1 text-sm font-semibold">
+          Name
+          <input
+            name="name"
+            required
+            minlength="2"
+            maxlength="120"
+            autocomplete="off"
+            class="rounded-xl border border-line px-3 py-3 text-base font-normal"
+          />
+        </label>
+        <label class="grid gap-1 text-sm font-semibold">
+          Email <span class="font-normal text-muted">(optional, to invite them next time)</span>
+          <input
+            name="email"
+            type="email"
+            inputmode="email"
+            maxlength="200"
+            autocomplete="off"
+            class="rounded-xl border border-line px-3 py-3 text-base font-normal"
+          />
+        </label>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="grid gap-1 text-sm font-semibold">
+            Phone <span class="font-normal text-muted">(optional)</span>
+            <input
+              name="phone"
+              type="tel"
+              maxlength="40"
+              autocomplete="off"
+              class="rounded-xl border border-line px-3 py-3 text-base font-normal"
+            />
+          </label>
+          <label class="grid gap-1 text-sm font-semibold">
+            Company <span class="font-normal text-muted">(optional)</span>
+            <input
+              name="company"
+              maxlength="120"
+              autocomplete="off"
+              class="rounded-xl border border-line px-3 py-3 text-base font-normal"
+            />
+          </label>
+        </div>
+        <p data-walkin-error hidden role="alert" class="text-sm font-semibold text-danger"></p>
+        <div class="mt-2 flex justify-end gap-2">
+          <button
+            type="button"
+            data-walkin-cancel
+            class="rounded-xl border border-line px-4 py-3 font-semibold"
+          >
+            Cancel
+          </button>
+          <button type="submit" class="rounded-xl bg-brand px-4 py-3 font-semibold text-paper">
+            Add and check in
+          </button>
+        </div>
+      </form>
+    </dialog>
 
     <div
       data-toast
@@ -130,7 +212,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
             <span class="min-w-0">
               <span class="block text-lg font-semibold">{r.name}</span>
               <span class="block truncate text-sm text-muted">
-                {[r.company, r.email, r.phone].filter(Boolean).join(' · ')}
+                {[r.company, r.email, r.phone].filter(Boolean).join(' · ') ||
+                  (r.walkIn ? 'Walk-in' : '')}
               </span>
             </span>
             <span data-label class="shrink-0 text-sm font-semibold">
@@ -144,10 +227,38 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         </li>
       ))}
     </ul>
-    {rows.length === 0 && <p class="p-6 text-center text-muted">Nobody registered yet.</p>}
-    <p data-none hidden class="p-6 text-center text-muted">
-      No match.
-    </p>
+    <template data-row>
+      <li>
+        <button
+          type="button"
+          data-status="attended"
+          class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4 text-left data-[status=attended]:border-success data-[status=attended]:bg-success/5"
+        >
+          <span class="min-w-0">
+            <span data-row-name class="block text-lg font-semibold"></span>
+            <span data-row-details class="block truncate text-sm text-muted"></span>
+          </span>
+          <span data-label class="shrink-0 text-sm font-semibold">
+            ✓ In
+          </span>
+        </button>
+      </li>
+    </template>
+    {rows.length === 0 && (
+      <p data-empty class="p-6 text-center text-muted">
+        Nobody registered yet.
+      </p>
+    )}
+    <div data-none hidden class="grid justify-items-center gap-3 p-6 text-center text-muted">
+      <p>No match.</p>
+      <button
+        type="button"
+        data-walkin-open
+        class="rounded-xl bg-navy px-4 py-3 font-semibold text-paper"
+      >
+        Add as a walk-in
+      </button>
+    </div>
 
     <script>
       const list = document.querySelector('[data-list]') as unknown as HTMLElement;
@@ -156,6 +267,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       const search = document.getElementById('search') as unknown as HTMLInputElement;
       const none = document.querySelector('[data-none]') as unknown as HTMLElement;
       const toast = document.querySelector('[data-toast]') as unknown as HTMLElement;
+      const total = document.querySelector('[data-total]') as unknown as HTMLElement;
       const buttons = [...list.querySelectorAll<HTMLButtonElement>('button[data-id]')];
       const code = (s: string) =>
         s
@@ -235,16 +347,126 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         filter();
       };
 
-      for (const b of buttons) {
-        b.addEventListener('click', async () => {
-          if (b.dataset.status === 'attended') {
-            if (confirm(`Undo the check-in of ${b.dataset.name}?`)) await toggle(b, true);
-            return;
-          }
-          await checkIn(b);
-          search.focus();
+      list.addEventListener('click', async (e) => {
+        const b = (e.target as Element).closest<HTMLButtonElement>('button[data-id]');
+        if (!b) return;
+        if (b.dataset.status === 'attended') {
+          if (confirm(`Undo the check-in of ${b.dataset.name}?`)) await toggle(b, true);
+          return;
+        }
+        await checkIn(b);
+        search.focus();
+      });
+
+      // ---------- walk-ins ----------
+      const dialog = document.querySelector('[data-walkin]') as unknown as HTMLDialogElement;
+      const form = document.querySelector('[data-walkin-form]') as unknown as HTMLFormElement;
+      const formError = document.querySelector('[data-walkin-error]') as unknown as HTMLElement;
+      const rowTemplate = document.querySelector('[data-row]') as unknown as HTMLTemplateElement;
+      const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+
+      for (const open of document.querySelectorAll('[data-walkin-open]')) {
+        open.addEventListener('click', () => {
+          form.reset();
+          formError.hidden = true;
+          // Whatever was typed in the search box is usually the name (or the email).
+          const q = search.value.trim();
+          if (q) field(q.includes('@') ? 'email' : 'name').value = q;
+          dialog.showModal();
+          field('name').focus();
         });
       }
+      document
+        .querySelector('[data-walkin-cancel]')
+        ?.addEventListener('click', () => dialog.close());
+
+      const addRow = (r: {
+        id: number;
+        name: string;
+        email: string | null;
+        phone: string | null;
+        company: string | null;
+        code: string;
+      }) => {
+        const li = rowTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
+        const b = li.querySelector('button')!;
+        const details = [r.company, r.email, r.phone].filter(Boolean).join(' · ');
+        b.dataset.id = String(r.id);
+        b.dataset.name = r.name;
+        b.dataset.code = r.code;
+        b.dataset.search = [
+          r.name,
+          r.email,
+          r.company,
+          r.phone,
+          r.phone?.replace(/\D/g, ''),
+          r.code,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        li.querySelector('[data-row-name]')!.textContent = r.name;
+        li.querySelector('[data-row-details]')!.textContent = details || 'Walk-in';
+        list.insertBefore(li, list.firstChild);
+        buttons.unshift(b);
+        document.querySelector('[data-empty]')?.remove();
+      };
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submit = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+        submit.disabled = true;
+        formError.hidden = true;
+        const res = await fetch('/api/admin/walk-in', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            eventId,
+            name: field('name').value,
+            email: field('email').value,
+            phone: field('phone').value,
+            company: field('company').value,
+          }),
+        }).catch(() => null);
+        submit.disabled = false;
+        const data = (await res?.json().catch(() => null)) as
+          (Parameters<typeof addRow>[0] & { existing: boolean; error?: string }) | null;
+        if (!res?.ok || !data) {
+          // 409: that email is already checked in; show them on the list.
+          if (res?.status === 409 && data?.id) {
+            dialog.close();
+            const b = buttons.find((x) => x.dataset.id === String(data.id));
+            if (b && b.dataset.status !== 'attended') {
+              b.dataset.status = 'attended';
+              b.querySelector('[data-label]')!.textContent = '✓ In';
+            }
+            say(data.error ?? 'Already checked in', 'warn');
+            return;
+          }
+          formError.textContent =
+            data?.error ?? 'Could not add them. Check the connection and try again.';
+          formError.hidden = false;
+          return;
+        }
+        dialog.close();
+        const listed = buttons.find((x) => x.dataset.id === String(data.id));
+        if (listed) {
+          // They had registered with that email: the server checked that registration in.
+          const wasIn = listed.dataset.status === 'attended';
+          listed.dataset.status = 'attended';
+          listed.querySelector('[data-label]')!.textContent = '✓ In';
+          if (!wasIn) count.textContent = String(Number(count.textContent) + 1);
+          say(`✓ ${data.name} had registered: checked in`, 'good');
+        } else {
+          addRow(data);
+          count.textContent = String(Number(count.textContent) + 1);
+          total.textContent = String(Number(total.textContent) + 1);
+          say(`✓ ${data.name} added and checked in`, 'good');
+        }
+        search.value = '';
+        filter();
+        search.focus();
+      });
 
       // Enter (or a handheld scanner, which types the code then Enter) checks in a single match.
       search.addEventListener('keydown', (e) => {

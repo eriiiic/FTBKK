@@ -13,6 +13,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(pathname.slice(0, -1) + search, 301);
   }
 
+  // Short address to bookmark on the door volunteers' phones; Access guards the target.
+  if (pathname === '/checkin') return context.redirect('/admin/checkin', 302);
+
   if (
     pathname === '/admin' ||
     pathname.startsWith('/admin/') ||
