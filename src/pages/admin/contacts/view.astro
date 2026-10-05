@@ -1,5 +1,4 @@
 ---
-import { eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
@@ -8,17 +7,13 @@ import ContactForm from '../../../components/admin/ContactForm.astro';
 import {
   ContactSchema,
   contactExists,
-  deleteContact,
+  deleteContacts,
   loadContacts,
   saveContact,
   whatsappUrl,
 } from '../../../lib/contacts';
-import { promoteFromWaitlist, sendPromotion } from '../../../lib/registrations';
-import { getSettings } from '../../../lib/settings';
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
-import { getDb } from '../../../db';
-import { events } from '../../../db/schema';
 import { formatDate, formatEventDate } from '../../../lib/format';
 
 const key = Astro.url.searchParams.get('c') ?? '';
@@ -35,16 +30,7 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = form.get('action');
   if (action === 'delete') {
-    const { registrations, freedEvents } = await deleteContact(key);
-    await audit(actor, 'contact_delete', 'contact', null, { key, registrations }, null);
-    // Freed seats go to the next people on the waitlist, as when someone cancels.
-    const settings = await getSettings();
-    for (const id of freedEvents) {
-      const [event] = await getDb().select().from(events).where(eq(events.id, id));
-      if (!event || (event.endsAt ?? event.startsAt) < now) continue;
-      const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
-      if (row) await sendPromotion(event, row);
-    }
+    await deleteContacts([key], actor, now);
     return Astro.redirect('/admin/contacts?saved=deleted');
   }
   values = formToObject(form);

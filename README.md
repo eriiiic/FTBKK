@@ -35,7 +35,8 @@ per person (grouped by email), with no sign-up needed. For each person it shows 
 they attended, registered for and missed, which events those were, their company, and the
 ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
 came, linked to the ecosystem, by event) and exported to CSV, and "Copy emails" copies the
-filtered addresses for the Bcc field of an email. Contacts can be added by hand, edited (with
+filtered addresses for the Bcc field of an email. Tick several contacts to copy their emails,
+export them to CSV or delete them at once. Contacts can be added by hand, edited (with
 team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
 the total number of contacts.
 

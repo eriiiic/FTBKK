@@ -2,10 +2,33 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
-import { CONTACT_FILTERS, filterContacts, loadContacts } from '../../../lib/contacts';
+import { z } from 'zod';
+import {
+  CONTACT_FILTERS,
+  deleteContacts,
+  filterContacts,
+  loadContacts,
+} from '../../../lib/contacts';
 import { formatDate } from '../../../lib/format';
 
 const url = Astro.url;
+if (Astro.request.method === 'POST') {
+  // Bulk actions on the selected rows (export goes to contacts.csv instead).
+  const form = await Astro.request.formData();
+  const parsed = z
+    .object({
+      action: z.literal('delete'),
+      keys: z.array(z.string().min(1).max(320)).min(1).max(2000),
+    })
+    .safeParse({ action: form.get('action'), keys: form.getAll('c') });
+  if (parsed.success) {
+    await deleteContacts(parsed.data.keys, Astro.locals.adminEmail ?? 'admin');
+    const back = new URLSearchParams(url.search);
+    back.set('saved', 'deleted');
+    return Astro.redirect(`/admin/contacts?${back}`);
+  }
+  return Astro.redirect(`/admin/contacts${url.search}`);
+}
 const q = url.searchParams.get('q') ?? '';
 const show = url.searchParams.get('show') ?? 'all';
 const event = Number(url.searchParams.get('event')) || 0;
@@ -116,60 +139,154 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
     </form>
 
     {shown.length ? (
-      <table class="admin-table" data-sortable>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Company</th>
-            <th>Attended</th>
-            <th>Registered</th>
-            <th>No-shows</th>
-            <th>Last event</th>
-            <th>Ecosystem</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((c) => (
+      <form method="post" data-bulk>
+        <div
+          data-bulk-bar
+          hidden
+          class="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-navy p-3 text-paper"
+        >
+          <p class="mr-auto text-sm font-semibold" aria-live="polite">
+            <span data-bulk-count>0</span> selected
+          </p>
+          <Button type="button" size="sm" variant="light" data-bulk-copy>
+            Copy emails
+          </Button>
+          <Button
+            type="submit"
+            size="sm"
+            variant="light"
+            formaction="/admin/contacts.csv"
+            formmethod="post"
+          >
+            Export CSV
+          </Button>
+          <Button
+            type="submit"
+            size="sm"
+            name="action"
+            value="delete"
+            data-bulk-delete
+            data-confirm="Delete the selected contacts and all their registrations?"
+          >
+            Delete
+          </Button>
+        </div>
+        <table class="admin-table" data-sortable>
+          <thead>
             <tr>
-              <td>
-                <a href={`/admin/contacts/view?c=${encodeURIComponent(c.key)}`}>{c.name}</a>
-                <span class="block text-xs break-all text-muted">
-                  {c.email ?? 'Walk-in, no email'}
-                </span>
-              </td>
-              <td>
-                {c.company ?? ''}
-                {c.role && <span class="block text-xs text-muted">{c.role}</span>}
-              </td>
-              <td data-sort={c.attended}>{c.attended}</td>
-              <td data-sort={c.registrations}>{c.registrations}</td>
-              <td data-sort={c.noShows}>{c.noShows || ''}</td>
-              <td
-                class="whitespace-nowrap text-muted"
-                data-sort={c.lastEvent?.startsAt.getTime() ?? 0}
-              >
-                {c.lastEvent ? formatDate(c.lastEvent.startsAt) : ''}
-              </td>
-              <td>
-                {c.organisations.map((o) => (
-                  <span class="block">
-                    {o.name}
-                    {o.memberStatus === 'member' && (
-                      <Badge tone="accent" class="ml-1">
-                        Member
-                      </Badge>
-                    )}
-                  </span>
-                ))}
-              </td>
+              <th data-nosort class="w-8">
+                <input
+                  type="checkbox"
+                  data-bulk-all
+                  aria-label="Select all contacts shown"
+                  class="size-4 accent-brand"
+                />
+              </th>
+              <th>Name</th>
+              <th>Company</th>
+              <th>Attended</th>
+              <th>Registered</th>
+              <th>No-shows</th>
+              <th>Last event</th>
+              <th>Ecosystem</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {shown.map((c) => (
+              <tr>
+                <td>
+                  <input
+                    type="checkbox"
+                    name="c"
+                    value={c.key}
+                    data-email={c.email ?? ''}
+                    aria-label={`Select ${c.name}`}
+                    class="size-4 accent-brand"
+                  />
+                </td>
+                <td>
+                  <a href={`/admin/contacts/view?c=${encodeURIComponent(c.key)}`}>{c.name}</a>
+                  <span class="block text-xs break-all text-muted">
+                    {c.email ?? 'Walk-in, no email'}
+                  </span>
+                </td>
+                <td>
+                  {c.company ?? ''}
+                  {c.role && <span class="block text-xs text-muted">{c.role}</span>}
+                </td>
+                <td data-sort={c.attended}>{c.attended}</td>
+                <td data-sort={c.registrations}>{c.registrations}</td>
+                <td data-sort={c.noShows}>{c.noShows || ''}</td>
+                <td
+                  class="whitespace-nowrap text-muted"
+                  data-sort={c.lastEvent?.startsAt.getTime() ?? 0}
+                >
+                  {c.lastEvent ? formatDate(c.lastEvent.startsAt) : ''}
+                </td>
+                <td>
+                  {c.organisations.map((o) => (
+                    <span class="block">
+                      {o.name}
+                      {o.memberStatus === 'member' && (
+                        <Badge tone="accent" class="ml-1">
+                          Member
+                        </Badge>
+                      )}
+                    </span>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </form>
     ) : (
       <p class="text-muted">
         {all.length ? 'Nobody matches these filters.' : 'Nobody has registered yet.'}
       </p>
     )}
   </div>
+  <script>
+    // Bulk selection: a bar with the count and actions appears once a row is ticked.
+    const form = document.querySelector<HTMLFormElement>('form[data-bulk]');
+    if (form) {
+      const bar = form.querySelector<HTMLElement>('[data-bulk-bar]')!;
+      const count = form.querySelector<HTMLElement>('[data-bulk-count]')!;
+      const all = form.querySelector<HTMLInputElement>('[data-bulk-all]')!;
+      const del = form.querySelector<HTMLButtonElement>('[data-bulk-delete]')!;
+      const copy = form.querySelector<HTMLButtonElement>('[data-bulk-copy]')!;
+      const boxes = () => [...form.querySelectorAll<HTMLInputElement>('input[name="c"]')];
+      const update = () => {
+        const ticked = boxes().filter((b) => b.checked);
+        count.textContent = String(ticked.length);
+        bar.hidden = ticked.length === 0;
+        all.checked = ticked.length > 0 && ticked.length === boxes().length;
+        all.indeterminate = ticked.length > 0 && !all.checked;
+        const regs = ticked.length === 1 ? 'contact' : 'contacts';
+        del.dataset.confirm = `Delete ${ticked.length} ${regs} and all their registrations? Event counts and stats will no longer include them. This can't be undone.`;
+        const emails = new Set(ticked.map((b) => b.dataset.email).filter(Boolean));
+        copy.disabled = emails.size === 0;
+        copy.textContent = `Copy emails (${emails.size})`;
+      };
+      form.addEventListener('change', update);
+      all.addEventListener('change', () => {
+        for (const b of boxes()) b.checked = all.checked;
+        update();
+      });
+      copy.addEventListener('click', async () => {
+        const emails = [
+          ...new Set(
+            boxes()
+              .filter((b) => b.checked)
+              .map((b) => b.dataset.email)
+              .filter(Boolean),
+          ),
+        ];
+        await navigator.clipboard.writeText(emails.join(', '));
+        copy.textContent = 'Copied';
+        setTimeout(update, 1500);
+      });
+      update();
+    }
+  </script>
 </AdminLayout>

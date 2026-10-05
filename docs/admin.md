@@ -63,6 +63,10 @@ uses any more.
   adds someone who never registered. **Delete this contact** removes them and all their
   registrations (their seats on upcoming events go to the waitlist). **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
+- **Bulk actions on Contacts**: tick the boxes in front of the names (or the box in the header to
+  tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
+  rows) and **Delete** (asks first; removes those contacts and their registrations, and freed
+  seats on upcoming events go to the waitlist).
 - Cancelling an event emails everyone registered or on the waitlist.
 - Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
   are kept). It is never served publicly.
