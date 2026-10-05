@@ -352,7 +352,7 @@ export const magicTokens = sqliteTable(
   {
     id: id(),
     tokenHash: text('token_hash').notNull().unique(),
-    purpose: text('purpose', { enum: ['verify', 'manage', 'confirm', 'claim'] }).notNull(),
+    purpose: text('purpose', { enum: ['verify', 'manage', 'confirm', 'claim', 'data'] }).notNull(),
     orgId: integer('org_id').references(() => organisations.id, { onDelete: 'cascade' }),
     /** For claims: the claim row this token verifies. */
     refId: integer('ref_id'),

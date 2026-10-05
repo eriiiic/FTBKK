@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { getSettings } from '../lib/settings';
 import { renderMarkdown } from '../lib/markdown';
 import { fillPrivacyNotice } from '../lib/privacy';
+import Button from '../components/Button.astro';
 
 const settings = await getSettings();
 const html = renderMarkdown(fillPrivacyNotice(settings.privacyNotice, settings.contactEmail));
@@ -20,5 +21,15 @@ const html = renderMarkdown(fillPrivacyNotice(settings.privacyNotice, settings.c
   </section>
   <section class="container-page py-12 md:py-16">
     <div class="prose max-w-3xl break-words prose-headings:font-display" set:html={html} />
+    <div class="mt-10 max-w-3xl rounded-card border border-line p-6">
+      <h2 class="text-xl">See or delete your data</h2>
+      <p class="mt-2 text-muted">
+        Use the "Manage or delete my data" link in any of our event emails, or ask for a link by
+        email: we only send it to the address you enter.
+      </p>
+      <div class="mt-4">
+        <Button href="/my-data">Manage or delete my data</Button>
+      </div>
+    </div>
   </section>
 </BaseLayout>

@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 
-export type TokenPurpose = 'verify' | 'manage' | 'confirm' | 'claim';
+export type TokenPurpose = 'verify' | 'manage' | 'confirm' | 'claim' | 'data';
 
 const DAY = 86400;
 /** Lifetimes in seconds. Confirm links double as reactivation links, so they live a year. */
@@ -9,6 +9,8 @@ export const TOKEN_TTL: Record<TokenPurpose, number> = {
   manage: 30 * 60,
   confirm: 365 * DAY,
   claim: 7 * DAY,
+  /** "Delete my data" requests made from the public form, without an event email to hand. */
+  data: DAY,
 };
 /** Confirm links can be used again (yearly confirm, reactivation); the rest are single use. */
 export const REUSABLE: Record<TokenPurpose, boolean> = {
@@ -16,6 +18,7 @@ export const REUSABLE: Record<TokenPurpose, boolean> = {
   manage: false,
   confirm: true,
   claim: false,
+  data: false,
 };
 
 export function randomToken(bytes = 32) {
