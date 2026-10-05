@@ -129,6 +129,26 @@ describe('parseWixGuests on an RSVP export', () => {
       checkedIn: true,
     });
   });
+
+  it('counts a guest checked in with a +1 and drops emoji from profiles', () => {
+    const rsvp = [
+      'First name\tLast name\tEmail\tResponse\tChecked-in\tTotal guests\tTimestamp\tWhich best describes you?',
+      'Ann\tLee\tann@x.com\tYes\t2\t2\t2026-08-12 16:15:07\t🧑‍💻 Tech Professional',
+      'Tom\tLee\ttom@x.com\tYes\t0\t1\t2026-08-12 16:15:07\t',
+    ].join('\n');
+    expect(parseWixGuests(rsvp).map((g) => [g.checkedIn, g.role])).toEqual([
+      [true, 'Tech Professional'],
+      [false, null],
+    ]);
+  });
+});
+
+it('reads both questions of a bilingual form as notes', () => {
+  const text = [
+    'Order number\tOrder date\tGuest first name\tGuest last name\tEmail\tChecked in\tAny additional information you would like to share?\tSouhaitez-vous partager une information avec nous ?',
+    'C1\t2026-07-31 15:56:09\tAnn\tLee\tann@x.com\tYes\tCan I park in the building?\tMerci',
+  ].join('\n');
+  expect(parseWixGuests(text)[0].notes).toBe('Can I park in the building?\nMerci');
 });
 
 it('drops placeholder answers', () => {
@@ -150,6 +170,14 @@ describe('helpers', () => {
     expect(linkedinUrl('https://th.linkedin.com/in/x/?locale=fr')).toBe(
       'https://th.linkedin.com/in/x/',
     );
+    expect(linkedinUrl('https://sheplayzz.com/')).toBeNull();
+    for (const typo of [
+      'https/LinkedIn.com/in/coachmc',
+      'Htttps://www.linkedin.com/in/coachmc',
+      'linkedin/in/coachmc',
+      '/in/coachmc',
+    ])
+      expect(linkedinUrl(typo)).toBe('https://www.linkedin.com/in/coachmc');
   });
   it('capitalises names typed in lower case only', () => {
     expect(tidyName("jean-marc o'neil")).toBe("Jean-Marc O'Neil");

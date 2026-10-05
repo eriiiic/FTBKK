@@ -67,8 +67,11 @@ captured from Wix, run `npm run import` (see [migration/README.md](migration/REA
 
 To bring an event's registrations over from Wix, export its guest list in Wix (Events > the event >
 Guests > Export; ticketed and RSVP events both work) and run `npm run import:guests -- <Guest_list_….csv>` (add `--remote` for the
-live database). It adds one registration per email with the Wix order date, puts LinkedIn URLs
-and "Anything we should know?" answers on the contact cards, sends no email, and can be re-run.
+live database). It adds one registration per email with the Wix order date and Wix check-ins
+(attended), takes the role from the job title or "Which best describes you?" question, puts
+LinkedIn URLs (mistyped ones are repaired) and free-text answers on the contact cards, sends no
+email, and can be re-run. For a folder of exports:
+`for f in ~/Downloads/Guest_list_*.csv; do npm run -s import:guests -- "$f" --remote; done`.
 
 Other commands:
 
