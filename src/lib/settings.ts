@@ -35,6 +35,8 @@ export interface Settings {
   /** /privacy page (Markdown); {contactEmail} is replaced by the contact email. */
   privacyNotice: string;
   membershipOpen: boolean;
+  /** Individual membership sign-up on /join (lib/members.ts). */
+  memberSignupOpen: boolean;
   memberPriority: boolean;
   analyticsToken: string;
 }
@@ -60,6 +62,7 @@ export const defaultSettings: Settings = {
   codeOfConduct: DEFAULT_CODE_OF_CONDUCT,
   privacyNotice: DEFAULT_PRIVACY_NOTICE,
   membershipOpen: false,
+  memberSignupOpen: false,
   memberPriority: false,
   analyticsToken: '',
 };

@@ -353,7 +353,16 @@ export const magicTokens = sqliteTable(
     id: id(),
     tokenHash: text('token_hash').notNull().unique(),
     purpose: text('purpose', {
-      enum: ['verify', 'manage', 'confirm', 'claim', 'data', 'newsletter'],
+      enum: [
+        'verify',
+        'manage',
+        'confirm',
+        'claim',
+        'data',
+        'newsletter',
+        'member_confirm',
+        'member',
+      ],
     }).notNull(),
     orgId: integer('org_id').references(() => organisations.id, { onDelete: 'cascade' }),
     /** For claims: the claim row this token verifies. */
@@ -529,6 +538,53 @@ export const emailTemplates = sqliteTable('email_templates', {
   updatedAt: updatedAt(),
 });
 
+// ---------- members ----------
+
+/**
+ * Free individual membership (lib/members.ts): one row per email, active once the email is
+ * confirmed; the board reviews new members afterwards and can suspend them.
+ */
+export const members = sqliteTable(
+  'members',
+  {
+    id: id(),
+    /** Lowercased. */
+    email: text('email').notNull().unique(),
+    name: text('name').notNull(),
+    phone: text('phone'),
+    company: text('company'),
+    jobTitle: text('job_title'),
+    linkedin: text('linkedin'),
+    /** PROFILE_TYPES key in lib/members.ts. */
+    profileType: text('profile_type').notNull().default('other'),
+    /** NATIONALITY_GROUPS key in lib/members.ts, for the board's reporting only. */
+    nationality: text('nationality'),
+    /** Sectors of interest (the directory's SECTORS). */
+    interests: json<string[]>('interests').notNull().default([]),
+    howHeard: text('how_heard'),
+    status: text('status', { enum: ['pending', 'active', 'suspended', 'lapsed'] })
+      .notNull()
+      .default('pending'),
+    /** Code of conduct and privacy notice accepted (required to join). */
+    termsAcceptedAt: ts('terms_accepted_at').notNull(),
+    /** Ticked the newsletter box when joining; recorded on the contact card once confirmed. */
+    newsletterRequested: integer('newsletter_requested', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    confirmedAt: ts('confirmed_at'),
+    memberSince: ts('member_since'),
+    renewalDueAt: ts('renewal_due_at'),
+    reviewedAt: ts('reviewed_at'),
+    reviewedBy: text('reviewed_by'),
+    /** Why the board suspended them (team only). */
+    suspendedReason: text('suspended_reason'),
+    notes: text('notes'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('members_status').on(t.status)],
+);
+
 // ---------- team and ownership ----------
 
 /** The organising team: who signs in to the admin, and the roles that make them a step's owner. */
@@ -579,5 +635,6 @@ export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
+export type Member = typeof members.$inferSelect;
 export type EventTask = typeof eventTasks.$inferSelect;
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;

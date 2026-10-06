@@ -1,0 +1,248 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import Alert from '../../components/Alert.astro';
+import Button from '../../components/Button.astro';
+import FormField from '../../components/FormField.astro';
+import Turnstile from '../../components/Turnstile.astro';
+import MemberProfileFields from '../../components/MemberProfileFields.astro';
+import { getSettings } from '../../lib/settings';
+import { formatDate, formatEventDate } from '../../lib/format';
+import { clientIp, email, fieldErrors, formToObject } from '../../lib/forms';
+import { verifyTurnstile } from '../../lib/turnstile';
+import { rateLimit } from '../../lib/ratelimit';
+import {
+  MemberProfileSchema,
+  deleteMembers,
+  memberByEmail,
+  memberEvents,
+  memberForLink,
+  memberPagePath,
+  sendMemberLink,
+  updateProfile,
+} from '../../lib/members';
+
+// A member's own page, reached with the link from their emails (no passwords): profile, the
+// WhatsApp invitation, their events, and leaving. Without a valid link it offers to email one;
+// the answer is the same whether or not the address is a member.
+const settings = await getSettings();
+const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
+let member = await memberForLink(token);
+let state: 'page' | 'saved' | 'left' | 'sent' = Astro.url.searchParams.has('saved')
+  ? 'saved'
+  : 'page';
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = member ?? {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  if (action === 'request') {
+    const parsed = email.safeParse(form.get('email'));
+    const ip = clientIp(Astro.request);
+    if (!parsed.success) errors = { email: 'Enter a valid email address.' };
+    else if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip)))
+      errors = { form: 'The anti-spam check failed. Please try again.' };
+    else if (
+      !(await rateLimit(`member-link:${ip}`, 5, 3600)) ||
+      !(await rateLimit(`member-link:${parsed.data}`, 3, 86400))
+    )
+      errors = { form: 'Too many requests. Please try again later.' };
+    else {
+      const m = await memberByEmail(parsed.data);
+      if (m && m.status !== 'pending') await sendMemberLink(m);
+      state = 'sent';
+    }
+  } else if (member && action === 'save') {
+    values = formToObject(form, ['interests']);
+    const parsed = MemberProfileSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    else {
+      await updateProfile(member, parsed.data);
+      return Astro.redirect(`${memberPagePath(token)}&saved=1`, 303);
+    }
+  } else if (member && action === 'leave' && form.get('confirm') === 'on') {
+    await deleteMembers([member.id], 'self-service');
+    member = null;
+    state = 'left';
+  } else if (member && action === 'leave') errors = { leave: 'Tick the box to confirm.' };
+}
+
+const linkInvalid = Boolean(token) && !member && state === 'page';
+const active = member?.status === 'active';
+const history = member ? await memberEvents(member.email) : [];
+const now = new Date();
+const upcoming = history.filter((e) => (e.endsAt ?? e.startsAt) >= now);
+const past = history.filter((e) => (e.endsAt ?? e.startsAt) < now);
+const regLabel: Record<string, string> = {
+  registered: 'Registered',
+  waitlist: 'On the waitlist',
+  cancelled: 'Cancelled',
+  attended: 'Attended',
+};
+const whatsapp = settings.socials.whatsapp;
+const welcome = Astro.url.searchParams.has('welcome');
+---
+
+<BaseLayout title="My membership" noindex cache={false}>
+  <Section>
+    <div class="max-w-2xl">
+      <h1 class="text-3xl">{member ? `Hi ${member.name.split(' ')[0]}` : 'My membership'}</h1>
+
+      {state === 'left' && (
+        <Alert tone="success" class="mt-6">
+          Your membership has ended and your member profile is deleted. Your event registrations are
+          kept until you delete them from <a href="/my-data">My data</a>. You're welcome back any
+          time.
+        </Alert>
+      )}
+
+      {!member && state !== 'left' && (
+        <div class="mt-6 grid gap-4">
+          {linkInvalid && (
+            <Alert tone="warning">This link has expired. Ask for a new one below.</Alert>
+          )}
+          {state === 'sent' ? (
+            <Alert tone="success">
+              If this address belongs to a member, we've sent the link to their member page. Check
+              your inbox (and spam folder).
+            </Alert>
+          ) : (
+            <form method="post" class="grid gap-4">
+              <input type="hidden" name="action" value="request" />
+              <p>
+                Your member page is opened from the link in our emails. Enter your email and we'll
+                send you a new one.
+              </p>
+              {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+              <FormField
+                name="email"
+                label="Email"
+                type="email"
+                required
+                autocomplete="email"
+                error={errors.email}
+              />
+              <Turnstile />
+              <div>
+                <Button type="submit">Send me my link</Button>
+              </div>
+              <p class="text-sm text-muted">
+                Not a member yet? <a href="/join#become-member">Join for free</a>.
+              </p>
+            </form>
+          )}
+        </div>
+      )}
+
+      {member && (
+        <div class="mt-6 grid gap-8">
+          {welcome && active && (
+            <Alert tone="success">
+              Welcome to La French Tech Bangkok! Your membership is active.
+            </Alert>
+          )}
+          {state === 'saved' && <Alert tone="success">Your profile is saved.</Alert>}
+          {member.status === 'suspended' && (
+            <Alert tone="warning">
+              Your membership is suspended. Write to us at {settings.contactEmail} if you think this
+              is a mistake.
+            </Alert>
+          )}
+
+          <section class="rounded-card border border-line bg-paper p-6 shadow-card">
+            <h2 class="text-xl">Your membership</h2>
+            <dl class="mt-3 grid gap-1 text-sm sm:grid-cols-[10rem_1fr]">
+              <dt class="text-muted">Email</dt>
+              <dd>{member.email}</dd>
+              <dt class="text-muted">Member since</dt>
+              <dd>{member.memberSince ? formatDate(member.memberSince) : 'Not yet'}</dd>
+              {member.renewalDueAt && (
+                <>
+                  <dt class="text-muted">Confirm again by</dt>
+                  <dd>{formatDate(member.renewalDueAt)}</dd>
+                </>
+              )}
+            </dl>
+            {active && whatsapp && (
+              <div class="mt-5">
+                <Button href={whatsapp} rel="noopener" size="sm">
+                  Join the WhatsApp community
+                </Button>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 class="text-xl">Your events</h2>
+            {history.length === 0 ? (
+              <p class="mt-2 text-muted">
+                None yet. <a href="/events">See what's coming up</a>.
+              </p>
+            ) : (
+              <div class="mt-3 grid gap-4">
+                {[
+                  ['Coming up', upcoming],
+                  ['Past', past],
+                ].map(([label, list]) =>
+                  (list as typeof history).length ? (
+                    <div>
+                      <h3 class="text-sm font-semibold text-muted uppercase">{label as string}</h3>
+                      <ul class="mt-2 grid gap-2">
+                        {(list as typeof history).map((e) => (
+                          <li class="flex flex-wrap justify-between gap-x-4 border-b border-line pb-2">
+                            <a href={`/events/${e.slug}`}>{e.title}</a>
+                            <span class="text-sm text-muted">
+                              {formatEventDate(e.startsAt, e.endsAt)} · {regLabel[e.status]}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null,
+                )}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 class="text-xl">Your profile</h2>
+            <p class="mt-1 text-sm text-muted">
+              Only the La French Tech Bangkok team sees it. It helps us introduce you to the right
+              people and plan events you'll like.
+            </p>
+            <form method="post" class="mt-4 grid gap-4">
+              <input type="hidden" name="action" value="save" />
+              <MemberProfileFields values={values} errors={errors} />
+              <div>
+                <Button type="submit">Save my profile</Button>
+              </div>
+            </form>
+          </section>
+
+          <section>
+            <h2 class="text-xl">Leave</h2>
+            <form method="post" class="mt-3 grid gap-3">
+              <input type="hidden" name="action" value="leave" />
+              <p class="text-sm text-muted">
+                Ends your membership and deletes your member profile. To delete your event history
+                and newsletter subscription too, use <a href="/my-data">My data</a>.
+              </p>
+              <FormField
+                name="confirm"
+                type="checkbox"
+                label="Yes, end my membership"
+                error={errors.leave}
+              />
+              <div>
+                <Button type="submit" variant="secondary" size="sm">
+                  Leave La French Tech Bangkok
+                </Button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

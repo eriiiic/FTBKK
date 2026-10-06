@@ -1,0 +1,101 @@
+---
+// The member profile fields, shared by the sign-up form on /join and the member page.
+import FormField from './FormField.astro';
+import { SECTORS } from '../lib/directory';
+import { NATIONALITY_GROUPS, PROFILE_TYPES } from '../lib/members';
+
+interface Props {
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+}
+const { values, errors } = Astro.props;
+const str = (k: string) => (values[k] == null ? '' : String(values[k]));
+const interests = Array.isArray(values.interests) ? (values.interests as string[]) : [];
+---
+
+<div class="grid gap-4 sm:grid-cols-2">
+  <FormField
+    name="name"
+    id="m-name"
+    label="Name"
+    required
+    autocomplete="name"
+    value={str('name')}
+    error={errors.name}
+  />
+  <FormField
+    name="phone"
+    id="m-phone"
+    label="Phone"
+    type="tel"
+    autocomplete="tel"
+    value={str('phone')}
+    error={errors.phone}
+    hint="Optional. Only the team sees it."
+  />
+  <FormField
+    name="company"
+    id="m-company"
+    label="Company"
+    autocomplete="organization"
+    value={str('company')}
+    error={errors.company}
+  />
+  <FormField
+    name="jobTitle"
+    id="m-jobTitle"
+    label="Job title"
+    autocomplete="organization-title"
+    value={str('jobTitle')}
+    error={errors.jobTitle}
+  />
+  <FormField
+    name="linkedin"
+    id="m-linkedin"
+    label="LinkedIn profile"
+    type="url"
+    placeholder="https://www.linkedin.com/in/…"
+    value={str('linkedin')}
+    error={errors.linkedin}
+  />
+  <FormField
+    name="profileType"
+    id="m-profileType"
+    label="What describes you best?"
+    required
+    value={str('profileType')}
+    error={errors.profileType}
+    options={Object.entries(PROFILE_TYPES).map(([value, label]) => ({ value, label }))}
+  />
+  <FormField
+    name="nationality"
+    id="m-nationality"
+    label="Nationality"
+    value={str('nationality')}
+    error={errors.nationality}
+    hint="Optional. Only for the board's yearly figures; never shown."
+    options={Object.entries(NATIONALITY_GROUPS).map(([value, label]) => ({ value, label }))}
+  />
+</div>
+<fieldset>
+  <legend class="text-sm font-semibold">
+    Sectors you're interested in <span class="font-normal text-muted">(up to 5)</span>
+  </legend>
+  <div class="mt-2 flex flex-wrap gap-2">
+    {SECTORS.map((s) => (
+      <label class="cursor-pointer">
+        <input
+          type="checkbox"
+          name="interests"
+          value={s}
+          checked={interests.includes(s)}
+          class="peer sr-only"
+        />
+        <span class="inline-block rounded-full border border-line px-3 py-1 text-sm peer-checked:border-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+          {s}
+        </span>
+      </label>
+    ))}
+  </div>
+  {errors.interests && <p class="mt-1 text-sm text-danger">{errors.interests}</p>}
+</fieldset>

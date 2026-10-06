@@ -1,6 +1,7 @@
 import { runDirectoryJobs } from './cron-directory';
 import { sendEventReminders, sendFeedbackRequests, weeklyBackup } from './cron-events';
 import { sendOwnerDigests } from './ownership';
+import { sendBoardMemberDigest } from './members';
 import { TZ } from './format';
 
 /**
@@ -14,6 +15,7 @@ export async function runScheduled(_env: Env, now: Date): Promise<void> {
     ['directory', () => runDirectoryJobs(now)],
     ['backup', () => weeklyBackup(now)],
     ['owner-digest', () => (isMonday(now) ? sendOwnerDigests(now) : Promise.resolve(0))],
+    ['member-digest', () => (isMonday(now) ? sendBoardMemberDigest() : Promise.resolve(0))],
   ];
   for (const [name, job] of jobs) {
     try {
