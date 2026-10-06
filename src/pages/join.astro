@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Section from '../components/Section.astro';
 import Alert from '../components/Alert.astro';
 import Button from '../components/Button.astro';
 import FormField from '../components/FormField.astro';
@@ -97,6 +96,20 @@ if (isPost) {
 
 const memberForm = open && !member.sent;
 
+const ways = [
+  { href: '#become-member', title: 'Become a member', text: 'Free, in two minutes' },
+  { href: '#whatsapp', title: 'The WhatsApp community', text: 'For members' },
+  { href: '#directory', title: 'List your company', text: 'In the ecosystem directory' },
+  { href: '#involved', title: 'Get involved', text: 'Volunteer, host, partner, speak' },
+  { href: '#newsletter', title: 'The newsletter', text: 'About once a month' },
+];
+
+const perks = [
+  'Register for every event with just your email',
+  "The invitation to the members' WhatsApp community",
+  'Your member page: your profile and your events',
+];
+
 const involved = [
   {
     topic: 'volunteer',
@@ -126,151 +139,265 @@ const involved = [
   description="Join La French Tech Bangkok: free membership, the WhatsApp community, the ecosystem directory, volunteering, partnerships and the newsletter."
   cache={!isPost}
 >
-  <section class="bg-navy text-paper">
-    <div class="container-page py-16 md:py-24">
-      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">
-        Join the community
-      </p>
-      <h1 class="max-w-3xl text-4xl text-paper md:text-5xl">
-        Meet the French tech community in Thailand
-      </h1>
-      <div
-        class="prose prose-lg mt-8 max-w-3xl prose-invert prose-p:text-paper/90 prose-a:text-paper prose-strong:text-paper"
-        set:html={intro}
-      />
-    </div>
-  </section>
-
-  <Section>
-    <ul class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <li
-        id="membership"
-        class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card"
-      >
-        <Icon name="users" class="size-8 text-brand" />
-        <h2 class="mt-4 text-xl">Become a member</h2>
-        <div class="prose mt-3 text-muted" set:html={membership} />
-        <div class="mt-auto flex flex-wrap gap-2 pt-6">
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
+    <div
+      aria-hidden="true"
+      class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+    ></div>
+    <div class="container-page grid gap-12 py-16 md:py-24 lg:grid-cols-[1fr_22rem] lg:items-center">
+      <div>
+        <p class="mb-5 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase">
+          Join the community
+        </p>
+        <h1 class="max-w-3xl text-4xl leading-[1.1] text-paper md:text-6xl">
+          Meet the French tech community in Thailand
+        </h1>
+        <div class="join-intro mt-8 max-w-2xl" set:html={intro} />
+        <div class="mt-10 flex flex-wrap gap-3">
           {open ? (
             <>
-              <Button href="#become-member" size="sm">
-                Become a member
-              </Button>
-              <Button href="/member" variant="ghost" size="sm">
-                I'm a member
+              <Button href="#become-member">Become a member, it's free</Button>
+              <Button href="/member" variant="light">
+                I'm already a member
               </Button>
             </>
           ) : (
-            <Button href="#newsletter" variant="secondary" size="sm">
-              Tell me when it opens
-            </Button>
+            <>
+              <Button href="#newsletter">Hear when membership opens</Button>
+              <Button href="/events" variant="light">
+                See our events
+              </Button>
+            </>
           )}
         </div>
-      </li>
-      <li
-        id="whatsapp"
-        class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card"
+      </div>
+      <nav
+        aria-label="Ways to join"
+        class="rounded-card border border-paper/15 bg-paper/5 p-2 backdrop-blur"
       >
-        <Icon name="whatsapp" class="size-8 text-brand" />
-        <h2 class="mt-4 text-xl">The WhatsApp community</h2>
-        <p class="mt-3 text-muted">
-          Where members share jobs, questions, introductions and event news day to day.{' '}
-          {open
-            ? 'The group is for members: the invitation is in your welcome email and on your member page.'
-            : 'The group is for members: ask to join and the team will send you the invitation.'}
-        </p>
-        <div class="mt-auto pt-6">
-          {open ? (
-            <Button href="#become-member" variant="secondary" size="sm">
-              Join to get the invitation
-            </Button>
-          ) : (
-            <Button href="?topic=whatsapp#contact" variant="secondary" size="sm">
-              Ask to join the group
-            </Button>
-          )}
-        </div>
-      </li>
-      <li
-        id="directory"
-        class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card"
-      >
-        <Icon name="building" class="size-8 text-brand" />
-        <h2 class="mt-4 text-xl">List your company</h2>
-        <p class="mt-3 text-muted">
-          French startups and companies, service providers, investors, incubators, schools and
-          institutions in Thailand: get a free listing in the ecosystem directory.
-        </p>
-        <div class="mt-auto flex flex-wrap gap-2 pt-6">
-          <Button href="/ecosystem/submit" variant="secondary" size="sm">
-            Get listed
-          </Button>
-          <Button href="/ecosystem" variant="ghost" size="sm">
-            See the directory
-          </Button>
-        </div>
-      </li>
-    </ul>
-  </Section>
+        <ol>
+          {ways.map((w, i) => (
+            <li>
+              <a
+                href={w.href}
+                class="group flex items-center gap-4 rounded-xl px-4 py-3.5 text-paper no-underline transition-colors hover:bg-paper/10"
+              >
+                <span class="font-display text-sm font-bold text-accent-soft tabular-nums">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block font-semibold">{w.title}</span>
+                  <span class="block text-sm text-paper/65">{w.text}</span>
+                </span>
+                <Icon
+                  name="arrow"
+                  class="size-4 text-paper/50 transition-transform group-hover:translate-x-1 group-hover:text-paper"
+                />
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </div>
+  </section>
 
-  {open && (
-    <Section
-      id="become-member"
-      title="Become a member"
-      intro="Free, for anyone who is part of or close to the French tech community in Thailand."
-    >
-      <div class="max-w-2xl">
-        {member.sent ? (
+  <section id="membership" class="scroll-mt-20 bg-paper py-16 md:py-24">
+    <div class="container-page grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+      <div class="lg:sticky lg:top-24 lg:self-start">
+        <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+          Free membership
+        </p>
+        <h2 id="become-member" class="scroll-mt-24 text-3xl md:text-4xl">
+          Become a member
+        </h2>
+        <div class="prose mt-5 text-muted" set:html={membership} />
+        {open && (
+          <>
+            <ul class="mt-8 grid gap-3">
+              {perks.map((p) => (
+                <li class="flex gap-3">
+                  <span class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">
+                    <Icon name="check" class="size-3.5" />
+                  </span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+            <ol class="mt-10 grid gap-5 border-t border-line pt-8 text-sm">
+              {[
+                ['Fill in the form', 'Two minutes, no password.'],
+                ['Confirm your email', 'One click in the email we send you.'],
+                ["You're in", 'Welcome email, WhatsApp invitation and your member page.'],
+              ].map(([t, d], i) => (
+                <li class="flex gap-4">
+                  <span class="font-display text-2xl leading-none font-bold text-accent">
+                    {i + 1}
+                  </span>
+                  <span>
+                    <span class="block font-semibold text-ink">{t}</span>
+                    <span class="text-muted">{d}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+      </div>
+
+      <div class="rounded-card border border-line bg-paper p-6 shadow-card md:p-10">
+        {!open ? (
+          <div class="grid gap-4">
+            <span class="grid size-12 place-items-center rounded-full bg-surface text-navy">
+              <Icon name="users" class="size-6" />
+            </span>
+            <h3 class="text-xl">Membership opens soon</h3>
+            <p class="text-muted">
+              Leave your email for the newsletter and we'll tell you when you can join.
+            </p>
+            <div>
+              <Button href="#newsletter">Tell me when it opens</Button>
+            </div>
+          </div>
+        ) : member.sent ? (
           <Alert tone="success">
             Almost done: we've sent you an email. Click the link in it to confirm your membership.
             Already a member? The email has the link to your member page.
           </Alert>
         ) : (
-          <form method="post" action="/join#become-member" class="grid gap-4">
+          <form method="post" action="/join#become-member" class="grid gap-5">
             <input type="hidden" name="form" value="member" />
+            <div class="mb-1">
+              <h3 class="text-xl">Your details</h3>
+              <p class="mt-1 text-sm text-muted">
+                Only the team sees them. Fields marked * are required.
+              </p>
+            </div>
             {member.errors.form && <Alert tone="danger">{member.errors.form}</Alert>}
             <MemberSignupFields values={member.values} errors={member.errors} />
             <Turnstile />
-            <div>
+            <div class="flex flex-wrap items-center gap-4 border-t border-line pt-6">
               <Button type="submit">Become a member</Button>
+              <a href="/member" class="text-sm">
+                Already a member? Get your link
+              </a>
             </div>
           </form>
         )}
       </div>
-    </Section>
-  )}
+    </div>
+  </section>
 
-  <Section tone="surface" title="Get involved" intro="The community is run by volunteers.">
-    <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {involved.map((i) => (
-        <li class="relative rounded-card border border-line bg-paper p-5 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-navy">
-          <h3 class="text-lg">
-            <a
-              href={`?topic=${i.topic}#contact`}
-              class="text-ink no-underline after:absolute after:inset-0 hover:text-brand focus-visible:outline-none"
-            >
-              {i.title}
+  <section class="bg-surface py-16 md:py-24">
+    <div class="container-page">
+      <div class="grid gap-6 md:grid-cols-2">
+        <article
+          id="whatsapp"
+          class="relative isolate flex scroll-mt-20 flex-col overflow-hidden rounded-card bg-navy p-8 text-paper md:p-10"
+        >
+          <div
+            aria-hidden="true"
+            class="absolute -right-24 -bottom-24 -z-10 size-72 rounded-full bg-accent/30 blur-3xl"
+          ></div>
+          <Icon name="whatsapp" class="size-9 text-accent-soft" />
+          <h2 class="mt-6 text-2xl text-paper">The WhatsApp community</h2>
+          <p class="mt-3 text-paper/80">
+            Where members share jobs, questions, introductions and event news day to day.{' '}
+            {open
+              ? 'The group is for members: the invitation is in your welcome email and on your member page.'
+              : 'The group is for members: ask to join and the team will send you the invitation.'}
+          </p>
+          <div class="mt-auto pt-8">
+            {open ? (
+              <Button href="#become-member" variant="light">
+                Join to get the invitation
+              </Button>
+            ) : (
+              <Button href="?topic=whatsapp#contact" variant="light">
+                Ask to join the group
+              </Button>
+            )}
+          </div>
+        </article>
+        <article
+          id="directory"
+          class="flex scroll-mt-20 flex-col rounded-card border border-line bg-paper p-8 md:p-10"
+        >
+          <Icon name="building" class="size-9 text-brand" />
+          <h2 class="mt-6 text-2xl">List your company</h2>
+          <p class="mt-3 text-muted">
+            French startups and companies, service providers, investors, incubators, schools and
+            institutions in Thailand: get a free listing in the ecosystem directory.
+          </p>
+          <div class="mt-auto flex flex-wrap items-center gap-4 pt-8">
+            <Button href="/ecosystem/submit" variant="secondary">
+              Get listed
+            </Button>
+            <a href="/ecosystem" class="font-semibold">
+              See the directory
             </a>
-          </h3>
-          <p class="mt-2 text-sm text-muted">{i.text}</p>
-          <Icon name="arrow" class="mt-4 size-5 text-brand" />
-        </li>
-      ))}
-    </ul>
-  </Section>
+          </div>
+        </article>
+      </div>
 
-  <Section
-    id="newsletter"
-    title="The newsletter"
-    intro="Upcoming events, community news and new members of the ecosystem, about once a month."
-  >
-    <div class="max-w-2xl">
+      <div id="involved" class="mt-20 scroll-mt-20">
+        <div class="max-w-2xl">
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            Get involved
+          </p>
+          <h2 class="text-3xl">The community is run by volunteers</h2>
+          <p class="mt-3 text-lg text-muted">Pick what suits you and tell us in one message.</p>
+        </div>
+        <ul class="mt-10 grid gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+          {involved.map((i, n) => (
+            <li class="group relative bg-paper p-6 transition-colors hover:bg-surface has-[a:focus-visible]:outline-2 has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-navy">
+              <span class="font-display text-sm font-bold text-brand tabular-nums">
+                {String(n + 1).padStart(2, '0')}
+              </span>
+              <h3 class="mt-4 text-lg">
+                <a
+                  href={`?topic=${i.topic}#contact`}
+                  class="text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none"
+                >
+                  {i.title}
+                </a>
+              </h3>
+              <p class="mt-2 text-sm text-muted">{i.text}</p>
+              <Icon
+                name="arrow"
+                class="mt-6 size-5 text-brand transition-transform group-hover:translate-x-1"
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="newsletter" class="scroll-mt-20 bg-navy py-16 text-paper md:py-20">
+    <div class="container-page grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center lg:gap-16">
+      <div>
+        <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase">
+          The newsletter
+        </p>
+        <h2 class="text-3xl text-paper">Stay in the loop</h2>
+        <p class="mt-3 text-paper/80">
+          Upcoming events, community news and new members of the ecosystem, about once a month.
+        </p>
+      </div>
       {news.sent ? (
         <Alert tone="success">
           Almost done: we've sent you an email. Click the link in it to confirm your subscription.
         </Alert>
       ) : (
-        <form method="post" action="/join#newsletter" class="grid gap-4">
+        <form
+          method="post"
+          action="/join#newsletter"
+          class="grid gap-4 rounded-card bg-paper p-6 text-ink md:p-8"
+        >
           <input type="hidden" name="form" value="newsletter" />
           {news.errors.form && <Alert tone="danger">{news.errors.form}</Alert>}
           <div class="grid gap-4 sm:grid-cols-2">
@@ -294,43 +421,63 @@ const involved = [
               autocomplete="email"
             />
           </div>
-          <p class="text-sm text-muted">
-            We'll email you a link to confirm. Unsubscribe at any time. See our{' '}
-            <a href="/privacy">privacy notice</a>.
-          </p>
           <Turnstile script={!memberForm} />
-          <div>
+          <div class="flex flex-wrap items-center gap-4">
             <Button type="submit">Subscribe</Button>
+            <p class="text-sm text-muted">
+              We'll email you a link to confirm. Unsubscribe at any time.{' '}
+              <a href="/privacy">Privacy notice</a>.
+            </p>
           </div>
         </form>
       )}
     </div>
-  </Section>
+  </section>
 
-  <Section
-    id="contact"
-    tone="surface"
-    title="Contact us"
-    intro={`Questions, ideas, partnerships: write to us here or at ${settings.contactEmail}.`}
-  >
-    <div class="max-w-2xl">
-      <ContactForm
-        action="/join#contact"
-        {...contact}
-        topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
-        turnstileScript={news.sent && !memberForm}
-      />
+  <section id="contact" class="scroll-mt-20 bg-paper py-16 md:py-24">
+    <div class="container-page grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+      <div>
+        <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+          Contact us
+        </p>
+        <h2 class="text-3xl">Questions, ideas, partnerships</h2>
+        <p class="mt-3 text-lg text-muted">Write to us here, or directly by email.</p>
+        <ul class="mt-8 grid gap-4">
+          <li>
+            <a
+              href={`mailto:${settings.contactEmail}`}
+              class="inline-flex items-center gap-3 font-semibold"
+            >
+              <span class="grid size-10 place-items-center rounded-full bg-surface text-navy">
+                <Icon name="mail" class="size-5" />
+              </span>
+              {settings.contactEmail}
+            </a>
+          </li>
+          {settings.socials.linkedin && (
+            <li>
+              <a
+                href={settings.socials.linkedin}
+                rel="noopener"
+                class="inline-flex items-center gap-3 font-semibold"
+              >
+                <span class="grid size-10 place-items-center rounded-full bg-surface text-navy">
+                  <Icon name="linkedin" class="size-5" />
+                </span>
+                Follow us on LinkedIn
+              </a>
+            </li>
+          )}
+        </ul>
+      </div>
+      <div class="rounded-card border border-line bg-paper p-6 shadow-card md:p-10">
+        <ContactForm
+          action="/join#contact"
+          {...contact}
+          topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
+          turnstileScript={news.sent && !memberForm}
+        />
+      </div>
     </div>
-    {settings.socials.linkedin && (
-      <p class="mt-8">
-        <a
-          href={settings.socials.linkedin}
-          rel="noopener"
-          class="inline-flex items-center gap-2 font-semibold"
-        >
-          <Icon name="linkedin" class="size-5" /> Follow us on LinkedIn
-        </a>
-      </p>
-    )}
-  </Section>
+  </section>
 </BaseLayout>
