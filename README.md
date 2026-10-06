@@ -62,8 +62,19 @@ Public pages:
 
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
 events, registrations, check-in, stats), **Community** (contacts, messages, board and speakers),
-**Ecosystem** (to review, all listings, renewals), **Content** (posts, files, site texts) and
-**Team** (team and roles, settings). See [docs/admin.md](docs/admin.md).
+**Ecosystem** (to review, all listings, renewals), **Content** (posts, files, site texts, emails)
+and **Team** (team and roles, settings). See [docs/admin.md](docs/admin.md).
+
+**Emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
+Community, Privacy), each with who receives it, when it goes out and whether its text is the
+default or edited (when, by whom). Opening one edits its subject, message and button label, with
+placeholders such as `{name}`, `{event}`, `{date}` and `{venue}`, a preview in the real email
+layout with sample values, **Send me a test** and **Back to the default text**. Only the words
+are editable: dates, venue, logos, the ticket, links and attachments stay in the code. Edits are
+rows in the `email_templates` table; without a row (or if the table can't be read) the built-in
+default from `src/lib/email-templates.ts` is used. Templated so far: registration confirmed,
+waitlist, seat freed, reminder, event cancelled, feedback request, newsletter confirmation and the
+"your data" link. "Email registrants" is written each time, so it is listed but not a template.
 
 **Who owns what.** Team and roles lists the organising team (name, the email they sign in with,
 roles: event lead, board go/no-go, communication, check-in at the door, directory reviews,

@@ -514,6 +514,21 @@ export const blockedSenders = sqliteTable('blocked_senders', {
   createdBy: text('created_by'),
 });
 
+/**
+ * Wording of the site's emails, edited in /admin/emails. One row per edited email, keyed by its id
+ * in lib/email-templates.ts; no row = the built-in default text.
+ */
+export const emailTemplates = sqliteTable('email_templates', {
+  key: text('key').primaryKey(),
+  subject: text('subject').notNull(),
+  /** Plain text; a blank line between paragraphs. */
+  body: text('body').notNull(),
+  /** Null when the email has no button. */
+  buttonLabel: text('button_label'),
+  updatedBy: text('updated_by'),
+  updatedAt: updatedAt(),
+});
+
 // ---------- team and ownership ----------
 
 /** The organising team: who signs in to the admin, and the roles that make them a step's owner. */
@@ -565,3 +580,4 @@ export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type EventTask = typeof eventTasks.$inferSelect;
+export type EmailTemplateRow = typeof emailTemplates.$inferSelect;

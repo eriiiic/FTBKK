@@ -7,6 +7,7 @@ import { TZ } from './format';
 import { sendReminders } from './registrations';
 import { sendEmailBatch } from './email';
 import { feedbackEmail } from './feedback';
+import { loadTemplateText } from './email-templates';
 
 /** Bangkok calendar date (YYYY-MM-DD) of an instant. */
 export function bangkokDay(d: Date) {
@@ -91,7 +92,8 @@ export async function sendFeedbackRequests(now: Date) {
     )
       .bind(e.id)
       .all<{ name: string; email: string; token: string }>();
-    const res = await sendEmailBatch(results.map((r) => feedbackEmail(e, r)));
+    const text = await loadTemplateText('event.feedback');
+    const res = await sendEmailBatch(results.map((r) => feedbackEmail(e, r, text)));
     if (!res.ok) {
       // Unmark the people the batch didn't reach so tomorrow's run retries them.
       const unsent = results.slice(res.sent).map((r) => r.token);

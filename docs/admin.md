@@ -6,7 +6,7 @@ pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
 (Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
-**Content** (Posts, Files, Site texts) and **Team** (Team and roles, Settings). On a phone, open it
+**Content** (Posts, Files, Site texts, Emails) and **Team** (Team and roles, Settings). On a phone, open it
 with the **Menu** button.
 
 ## Team, roles and event checklists
@@ -283,6 +283,28 @@ them in Settings > Directory moderators.
   example if you start sharing attendee lists with a sponsor, it must say so and ask first).
   `{contactEmail}` becomes a mail link; emptying the field brings the default back. It is linked
   in the footer and under every registration form.
+
+## Emails
+
+**Content > Emails** lists the emails the site sends by itself (registration confirmed, waitlist,
+seat freed, the reminder the day before, event cancelled, the feedback request, the newsletter
+confirmation, the "your data" link), grouped, with who gets each one and when. A **Default** badge
+means the text the site came with; **Edited** shows when and by whom.
+
+Open an email to change its **subject**, **message** (plain text, an empty line between
+paragraphs) and **button label**. Placeholders in braces are replaced in each email: `{name}`
+(the person's name), `{event}` (the event title), `{date}` (day and time), `{venue}` (venue and
+address). The list under the form shows which ones that email knows; click one to insert it. A
+placeholder the email doesn't know is sent as typed, and the page warns you.
+
+- **Preview** shows the email in its real layout with sample values, without saving.
+- **Send me a test** emails that preview to you, subject starting with "[Test]".
+- **Save** applies it to every email sent from then on.
+- **Back to the default text** drops your changes (it asks first).
+
+The date and venue rows, logos, the ticket, the calendar invite, the links and the "Manage or
+delete my data" footer are added by the site and can't be edited here. "Email registrants" (on an
+event's page) is written each time, so it is only listed. Every save and reset is in the history.
 
 ## For developers
 

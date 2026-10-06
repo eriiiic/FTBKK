@@ -1,0 +1,330 @@
+---
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FormField from '../../../components/FormField.astro';
+import Button from '../../../components/Button.astro';
+import Alert from '../../../components/Alert.astro';
+import Badge from '../../../components/Badge.astro';
+import { getDb } from '../../../db';
+import { emailTemplates, type EmailTemplateRow } from '../../../db/schema';
+import {
+  EMAIL_TEMPLATES,
+  TEMPLATE_KEYS,
+  checkPlaceholders,
+  defaultText,
+  sampleEmail,
+  templateSchema,
+  type EmailText,
+  type TemplateKey,
+} from '../../../lib/email-templates';
+import { renderEmail, sendEmail } from '../../../lib/email';
+import { fieldErrors } from '../../../lib/forms';
+import { audit } from '../../../lib/orgs';
+import { formatDate, formatTime } from '../../../lib/format';
+
+// Edit the wording of one email, preview it with sample values, send a test, or go back to the
+// default text. Admin only (middleware).
+const keyParsed = z
+  .enum(TEMPLATE_KEYS as [TemplateKey, ...TemplateKey[]])
+  .safeParse(Astro.params.key);
+if (!keyParsed.success) return Astro.redirect('/admin/emails');
+const key = keyParsed.data;
+const def = EMAIL_TEMPLATES[key];
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+
+const loadRow = async (): Promise<EmailTemplateRow | undefined> => {
+  try {
+    const [row] = await db.select().from(emailTemplates).where(eq(emailTemplates.key, key));
+    return row;
+  } catch {
+    return undefined; // Table not migrated yet.
+  }
+};
+let row = await loadRow();
+const toText = (r: EmailTemplateRow): EmailText => ({
+  subject: r.subject,
+  body: r.body,
+  buttonLabel: r.buttonLabel,
+});
+const saved = row ? toText(row) : defaultText(def);
+const isDefault = (t: EmailText) => {
+  const d = defaultText(def);
+  return t.subject === d.subject && t.body === d.body && (t.buttonLabel ?? null) === d.buttonLabel;
+};
+
+let values: EmailText = saved;
+let errors: Record<string, string> = {};
+let notice = '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? 'save');
+  if (action === 'reset') {
+    if (row) {
+      await db.delete(emailTemplates).where(eq(emailTemplates.key, key));
+      await audit(actor, 'email_template_reset', 'email_template', null, toText(row), { key });
+    }
+    return Astro.redirect('/admin/emails?reset=1');
+  }
+  const raw = {
+    subject: String(form.get('subject') ?? ''),
+    body: String(form.get('body') ?? ''),
+    buttonLabel: form.has('buttonLabel') ? String(form.get('buttonLabel')) : undefined,
+  };
+  values = { subject: raw.subject, body: raw.body, buttonLabel: raw.buttonLabel ?? null };
+  const parsed = templateSchema(def).safeParse(raw);
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  else {
+    const t = parsed.data;
+    values = t;
+    if (action === 'save') {
+      if (isDefault(t)) {
+        // Same words as the default: no override, so later changes to the default apply.
+        if (row) await db.delete(emailTemplates).where(eq(emailTemplates.key, key));
+      } else {
+        const set = { ...t, updatedBy: actor, updatedAt: new Date() };
+        await db
+          .insert(emailTemplates)
+          .values({ key, ...set })
+          .onConflictDoUpdate({ target: emailTemplates.key, set });
+      }
+      await audit(
+        actor,
+        'email_template_update',
+        'email_template',
+        null,
+        row ? toText(row) : null,
+        {
+          key,
+          ...t,
+        },
+      );
+      return Astro.redirect(`/admin/emails/${key}?saved=1`);
+    } else if (action === 'test') {
+      const to = Astro.locals.adminEmail;
+      const msg = sampleEmail(def, t, to ?? '');
+      const res = to
+        ? await sendEmail({ ...msg, subject: `[Test] ${msg.subject}` })
+        : { ok: false, error: 'No admin email (are you signed in through Cloudflare Access?)' };
+      if (res.ok) notice = `Test sent to ${to}, with the sample values. It is not saved yet.`;
+      else error = `The test could not be sent: ${res.error ?? 'unknown error'}.`;
+    } else if (action === 'preview') {
+      notice = 'Preview updated below. Not saved yet.';
+    }
+  }
+  row = await loadRow();
+}
+
+const check = checkPlaceholders(def, values);
+const preview = renderEmail(sampleEmail(def, values)).html;
+const hasButton = def.buttonLabel !== undefined;
+---
+
+<AdminLayout title={`Email: ${def.label}`}>
+  <div class="mb-4 text-sm">
+    <a href="/admin/emails">← All emails</a>
+  </div>
+  <dl class="mb-6 grid max-w-3xl gap-1 text-sm sm:grid-cols-[8rem_1fr]">
+    <dt class="text-muted">Sent to</dt>
+    <dd>{def.audience}</dd>
+    <dt class="text-muted">When</dt>
+    <dd>{def.trigger}</dd>
+    <dt class="text-muted">Text</dt>
+    <dd class="flex flex-wrap items-center gap-2">
+      {row ? (
+        <>
+          <Badge tone="accent">Edited</Badge>
+          <span class="text-muted">
+            {formatDate(row.updatedAt)}
+            {formatTime(row.updatedAt)}
+            {row.updatedBy && <> by {row.updatedBy}</>}
+          </span>
+        </>
+      ) : (
+        <Badge tone="neutral">Default</Badge>
+      )}
+    </dd>
+  </dl>
+
+  {notice && (
+    <Alert tone="success" class="mb-6">
+      {notice}
+    </Alert>
+  )}
+  {error && (
+    <Alert tone="danger" class="mb-6">
+      {error}
+    </Alert>
+  )}
+  {Object.keys(errors).length > 0 && (
+    <Alert tone="danger" class="mb-6">
+      Please fix the highlighted fields.
+    </Alert>
+  )}
+  {check.unknown.length > 0 && (
+    <Alert tone="warning" class="mb-6">
+      This email doesn't know {check.unknown.map((k) => `{${k}}`).join(', ')}: it will be sent as
+      typed. Check the spelling against the list of placeholders.
+    </Alert>
+  )}
+
+  <div class="grid gap-6 xl:grid-cols-2">
+    <div class="grid content-start gap-6">
+      <form
+        method="post"
+        class="admin-panel grid content-start gap-5"
+        data-warn-unsaved
+        data-template-form
+      >
+        <FormField
+          name="subject"
+          label="Subject"
+          required
+          maxlength={200}
+          value={values.subject}
+          error={errors.subject}
+        />
+        <FormField
+          name="body"
+          label="Message"
+          required
+          rows={10}
+          maxlength={5000}
+          value={values.body}
+          error={errors.body}
+          hint="Plain text. Leave a blank line between paragraphs."
+        />
+        {hasButton && (
+          <FormField
+            name="buttonLabel"
+            label="Button label"
+            required
+            maxlength={60}
+            value={values.buttonLabel ?? ''}
+            error={errors.buttonLabel}
+            hint={def.buttonNote}
+          />
+        )}
+        <div class="flex flex-wrap gap-3">
+          <Button type="submit" name="action" value="save">
+            Save
+          </Button>
+          <Button type="submit" name="action" value="preview" variant="secondary">
+            Preview
+          </Button>
+          <Button type="submit" name="action" value="test" variant="secondary">
+            Send me a test
+          </Button>
+        </div>
+        <p class="text-sm text-muted">
+          The test goes only to {Astro.locals.adminEmail ?? 'you'}, with the sample values below.
+        </p>
+      </form>
+
+      <section class="admin-panel" aria-labelledby="placeholders">
+        <h2 id="placeholders" class="text-lg">
+          Placeholders
+        </h2>
+        {def.placeholders.length ? (
+          <>
+            <p class="mt-1 text-sm text-muted">
+              Replaced by the real value in each email. Click one to add it where the cursor is.
+            </p>
+            <ul class="mt-3 grid gap-2">
+              {def.placeholders.map((p) => (
+                <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                  <button
+                    type="button"
+                    data-insert={`{${p.key}}`}
+                    class="rounded-md bg-surface px-2 py-0.5 font-mono text-navy hover:bg-accent/10"
+                  >
+                    {`{${p.key}}`}
+                  </button>
+                  <span>{p.description}</span>
+                  <span class="text-muted">e.g. {p.sample}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p class="mt-1 text-sm text-muted">This email has no placeholders.</p>
+        )}
+        <p class="mt-4 text-sm text-muted">
+          <span class="font-semibold text-ink">Added by the site:</span>
+          {def.added}
+        </p>
+      </section>
+
+      {row && (
+        <form method="post" class="admin-panel">
+          <h2 class="text-lg">Default text</h2>
+          <p class="mt-1 text-sm text-muted">
+            Drop your changes and use the text the site came with.
+          </p>
+          <details class="mt-3 text-sm">
+            <summary class="cursor-pointer">See the default text</summary>
+            <p class="mt-2 font-semibold">{def.subject}</p>
+            <p class="mt-1 whitespace-pre-line">{def.body}</p>
+            {hasButton && <p class="mt-1">Button: {def.buttonLabel}</p>}
+          </details>
+          <div class="mt-4">
+            <Button
+              type="submit"
+              name="action"
+              value="reset"
+              variant="secondary"
+              data-confirm="Go back to the default text? Your changes to this email will be lost."
+            >
+              Back to the default text
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
+
+    <section class="admin-panel content-start" aria-labelledby="preview">
+      <h2 id="preview" class="text-lg">
+        Preview
+      </h2>
+      <p class="mt-1 text-sm text-muted">
+        With sample values. Click Preview to see your changes before saving.
+      </p>
+      <p class="mt-3 text-sm">
+        <span class="text-muted">Subject:</span>
+        <span class="font-semibold">{sampleEmail(def, values).subject}</span>
+      </p>
+      <iframe
+        title={`Preview of the email: ${def.label}`}
+        srcdoc={preview}
+        sandbox=""
+        loading="lazy"
+        class="mt-3 h-[40rem] w-full rounded-lg border border-line bg-paper"
+      ></iframe>
+    </section>
+  </div>
+</AdminLayout>
+
+<script>
+  // Placeholder buttons add {key} at the cursor of the last focused field (the message by default).
+  const form = document.querySelector<HTMLFormElement>('[data-template-form]');
+  let target: HTMLInputElement | HTMLTextAreaElement | null =
+    form?.querySelector<HTMLTextAreaElement>('textarea[name=body]') ?? null;
+  form?.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) target = el;
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-insert]').forEach((b) => {
+    b.addEventListener('click', () => {
+      if (!target) return;
+      const text = b.dataset.insert ?? '';
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? start;
+      target.setRangeText(text, start, end, 'end');
+      target.focus();
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+</script>

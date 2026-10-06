@@ -24,6 +24,7 @@ import { consumeToken, issueToken, peekToken } from '../lib/tokens';
 import { verifyTurnstile } from '../lib/turnstile';
 import { rateLimit } from '../lib/ratelimit';
 import { sendEmail } from '../lib/email';
+import { renderTemplate } from '../lib/email-templates';
 import { siteUrl } from '../lib/registrations';
 import Turnstile from '../components/Turnstile.astro';
 import FormField from '../components/FormField.astro';
@@ -61,15 +62,12 @@ if (Astro.request.method === 'POST') {
       const { email } = parsed.data;
       if (await loadContact(email, now)) {
         const link = siteUrl(myDataCodePath(await issueToken('data', email, { now })));
+        const w = await renderTemplate('privacy.data-request', {});
         await sendEmail({
           to: email,
-          subject: 'Your data at La French Tech Bangkok',
-          paragraphs: [
-            'Someone (hopefully you) asked to see or delete the data La French Tech Bangkok keeps about this email address.',
-            'Open the link below to see it, then delete it or unsubscribe from the newsletter. The link works for 24 hours. Nothing is deleted until you confirm on the page.',
-            "If you didn't ask for this, you can ignore this email: nothing changes.",
-          ],
-          action: { label: 'See or delete my data', url: link },
+          subject: w.subject,
+          paragraphs: w.paragraphs,
+          action: { label: w.buttonLabel, url: link },
         });
       }
       request = 'sent';
