@@ -6,12 +6,13 @@ import { CONTACT_EMAIL_TOKEN } from './code-of-conduct';
  * Default privacy notice (Thailand's PDPA), used until it is edited in /admin/site-texts. The same
  * text is seeded by migrations/0019_privacy_notice.sql and scripts/import.ts.
  */
-export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run community for French tech founders, employees, investors, students and friends in Thailand. This notice explains what we keep about you when you register for one of our events, why, and what you can do about it under Thailand's Personal Data Protection Act (PDPA).
+export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run community for French tech founders, employees, investors, students and friends in Thailand. This notice explains what we keep about you when you register for one of our events or become a member, why, and what you can do about it under Thailand's Personal Data Protection Act (PDPA).
 
 ## What we collect
 
 - What you type in the registration form: your name, email, phone, company, role, how you heard about us, and your answer to "Anything we should know?".
 - Whether you came: we check people in at the door, and the team may add you as a walk-in.
+- If you become a member: what you type in the membership form (your name, email, phone, company, job title, LinkedIn, what describes you best, your nationality if you give it, the sectors you're interested in and how you heard about us), when you confirmed, and whether the board has reviewed your membership.
 - Your newsletter choice, and the date you made it.
 - Your feedback after an event, if you give it.
 - Notes and tags the organising team adds to help run the community (for example "speaker" or "volunteer").
@@ -21,9 +22,10 @@ export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run
 - To run our events: your seat, your ticket, the waitlist, check-in at the door.
 - To email you about the events you registered for: confirmation, reminder, changes, the feedback request.
 - To count who comes, so we can plan better events and welcome newcomers and regulars.
+- To run your membership: your member page, the invitation to the members' WhatsApp community, and the board's review of new members.
 - To send you the newsletter, only if you said yes.
 
-We use your details for events because you asked to take part (and it is in our legitimate interest to run them well). We send the newsletter only with your consent, which you can withdraw at any time.
+We use your details for events and your membership because you asked to take part (and it is in our legitimate interest to run them well). We send the newsletter only with your consent, which you can withdraw at any time.
 
 ## Who sees it
 
@@ -31,7 +33,7 @@ Only the organising team of La French Tech Bangkok. Our website host and our ema
 
 ## How long we keep it
 
-We keep your event history while you take part in the community, so we know who came and can greet you as a regular. You can ask us to delete it at any time. Deleted data disappears from our weekly backups within 12 weeks.
+We keep your membership while you are a member and your event history while you take part in the community, so we know who came and can greet you as a regular. You can ask us to delete it at any time. Deleted data disappears from our weekly backups within 12 weeks.
 
 ## Your rights
 
@@ -39,7 +41,7 @@ Under the PDPA you can ask to see the data we hold about you, correct it, delete
 
 ## How to use them
 
-Every email we send about an event has a "Manage or delete my data" link: it shows what we hold about you and lets you delete it, or unsubscribe from the newsletter, yourself. No email to hand? Use "Delete my data" at the bottom of every page and we will email you a link. For anything else, write to us at ${CONTACT_EMAIL_TOKEN}.`;
+Every email we send about an event has a "Manage or delete my data" link: it shows what we hold about you and lets you delete it, or unsubscribe from the newsletter, yourself. Members can also update their profile or leave from their member page (the link is in every member email). No email to hand? Use "Delete my data" at the bottom of every page and we will email you a link. For anything else, write to us at ${CONTACT_EMAIL_TOKEN}.`;
 
 /**
  * The privacy notice Markdown with the contact email filled in (Markdown turns the bare address

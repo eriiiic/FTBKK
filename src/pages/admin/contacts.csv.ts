@@ -51,7 +51,8 @@ function csvResponse(contacts: Contact[]) {
     'Last event date',
     'Events attended',
     'Ecosystem listings',
-    'Member',
+    'Member company',
+    'Membership',
     'LinkedIn',
     'Notes',
   ];
@@ -81,6 +82,7 @@ function csvResponse(contacts: Contact[]) {
         .map((o) => `${o.name} (${o.relation === 'owner' ? 'manages' : 'contact'})`)
         .join('; '),
       c.organisations.some((o) => o.memberStatus === 'member') ? 'yes' : 'no',
+      c.member?.status ?? '',
       c.linkedin,
       c.notes,
     ]

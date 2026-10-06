@@ -126,13 +126,14 @@ uses any more.
   registered for and missed (registered for a past event where check-in was used, but not
   checked in), and the ecosystem listings their email manages or is the contact for. Filter by
   "came at least once", "came 2 times or more", "registered, never came", "linked to an
-  ecosystem listing", "suggest for membership", by tag or by event, then **Export CSV** (the export keeps the filters and has
+  ecosystem listing", "members", "regulars not yet members", by tag or by event, then **Export CSV** (the export keeps the filters and has
   a Tags column). Click a
   name to see their full event history. Details come from their latest registration.
-- **Suggest for membership** (in the Show filter) is for the board: people who came to 3 or more
-  events, have no ecosystem listing (their email doesn't manage and isn't the contact of any
-  listing) and whose company isn't a member organisation (matched by name, ignoring "Co., Ltd."
-  and the like). Copy their emails or export them to invite them to join.
+- **Members** (in the Show filter) lists people with an active individual membership; they carry a
+  **Member** badge next to their name, and their page has a Membership line linking to Members.
+  In the Ecosystem column, **Member company** marks a listing with company membership.
+- **Regulars not yet members**: people who came to 3 or more events and are not members yet. Copy
+  their emails or export them to invite them to join on the Join page.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
   **Call** buttons, and **Edit** for name, email, phone, company, role, tags, LinkedIn and team
   notes.
@@ -229,7 +230,8 @@ uses any more.
 ## Ecosystem
 
 - **To review**: new listing requests, owner changes to name, category, logo or website, claims and
-  membership applications, oldest first. Aim to answer within 5 days (the badge turns red after).
+  company membership applications (the Member badge in the directory; people join as individual
+  members on the Join page, see Members), oldest first. Aim to answer within 5 days (the badge turns red after).
   **Approve**, or write a short reason and **Reject**. The person gets an email either way.
 - **All listings**: search and open any organisation to edit it, set badges (Member, Sponsor,
   Board, Institutional partner), change its owners or hide it. Hiding is better than deleting.
@@ -259,6 +261,9 @@ emails only reach the Resend account owner.
   nationality. **Email their member link** sends confirmed members a fresh link to their page
   (for someone who lost it; they can also ask for it themselves at `/member`). **Delete**
   removes the membership only; to delete everything about a person, delete them from Contacts.
+- Confirming a membership creates the person's contact card if they don't have one, so every
+  member is in Contacts and can use My data. Active members get member priority on events (when
+  it is on in Settings), like owners of member companies.
 - **Notes** on each row are for the team only. The Dashboard shows the number of active members
   and how many wait for review.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
@@ -288,7 +293,7 @@ emails only reach the Resend account owner.
   on the site).
 - **Settings**: site name and description, contact email, directory moderators, social links (the
   WhatsApp invite link is kept here for the team and the welcome email to members), membership
-  switches (individual sign-up on the Join page, ecosystem membership applications, member
+  switches (individual sign-up on the Join page, company membership applications, member
   priority on events) and the analytics token.
 - **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
   and the membership block; empty = a default text), the About page, the code of conduct and the
