@@ -65,9 +65,11 @@ describe('privacy notice', () => {
         /SET value = '(.*)' WHERE key = 'privacyNotice' AND value = '(.*)';/s,
       )!;
     const first = update('0020_privacy_notice_request.sql');
-    const latest = update('0023_privacy_membership.sql');
+    const membership = update('0023_privacy_membership.sql');
+    const latest = update('0026_privacy_no_review.sql');
     expect(first[2]).toBe(seed);
-    expect(latest[2]).toBe(first[1]);
+    expect(membership[2]).toBe(first[1]);
+    expect(latest[2]).toBe(membership[1]);
     expect(JSON.parse(latest[1]!.replace(/''/g, "'"))).toBe(DEFAULT_PRIVACY_NOTICE);
   });
 });

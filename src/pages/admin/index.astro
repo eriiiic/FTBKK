@@ -1,5 +1,5 @@
 ---
-import { and, asc, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, sql } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
@@ -9,74 +9,44 @@ import { registrationCount } from '../../lib/registrations';
 import { loadContacts } from '../../lib/contacts';
 import { moderationQueue } from '../../lib/cron-directory';
 import { MODERATION_TARGET_DAYS, ageDays } from '../../lib/lifecycle';
-import { formatDate, formatEventDate } from '../../lib/format';
-import { loadTeam, openTasks } from '../../lib/ownership';
+import { formatEventDate } from '../../lib/format';
 
 const db = getDb();
 const now = new Date();
-const me = Astro.locals.adminEmail?.toLowerCase() ?? '';
-const [team, tasks, mine] = await Promise.all([
-  loadTeam(),
-  openTasks(now),
-  me
-    ? db
-        .select({ n: count() })
-        .from(submissions)
-        .where(and(eq(submissions.status, 'new'), eq(submissions.assignee, me)))
-    : Promise.resolve([{ n: 0 }]),
-]);
-const myMember = team.find((m) => m.email === me);
-const myTasks = tasks.filter((t) => t.owner === me && t.state !== 'later');
-const myLater = tasks.filter((t) => t.owner === me && t.state === 'later').length;
-const lateAll = tasks.filter((t) => t.state === 'late');
-const unowned = tasks.filter((t) => !t.owner && t.state !== 'later').length;
-const myMessages = mine[0]?.n ?? 0;
-const [
-  queue,
-  upcoming,
-  [drafts],
-  [unread],
-  [listed],
-  [renewSoon],
-  contacts,
-  [active],
-  [unreviewed],
-] = await Promise.all([
-  moderationQueue(),
-  db
-    .select({
-      id: events.id,
-      title: events.title,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      status: events.status,
-      capacity: events.capacity,
-      registered: registrationCount(['registered', 'attended']),
-      waitlist: registrationCount(['waitlist']),
-    })
-    .from(events)
-    .where(gte(events.startsAt, new Date(now.getTime() - 86400_000)))
-    .orderBy(asc(events.startsAt))
-    .limit(5),
-  db.select({ n: count() }).from(posts).where(eq(posts.status, 'draft')),
-  db.select({ n: count() }).from(submissions).where(eq(submissions.status, 'new')),
-  db.select({ n: count() }).from(organisations).where(eq(organisations.status, 'published')),
-  db
-    .select({ n: count() })
-    .from(organisations)
-    .where(
-      and(
-        inArray(organisations.status, ['published']),
-        sql`${organisations.renewalDueAt} < ${Math.floor(now.getTime() / 1000) + 30 * 86400}`,
+const [queue, upcoming, [drafts], [unread], [listed], [renewSoon], contacts, [active], [pending]] =
+  await Promise.all([
+    moderationQueue(),
+    db
+      .select({
+        id: events.id,
+        title: events.title,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+        status: events.status,
+        capacity: events.capacity,
+        registered: registrationCount(['registered', 'attended']),
+        waitlist: registrationCount(['waitlist']),
+      })
+      .from(events)
+      .where(gte(events.startsAt, new Date(now.getTime() - 86400_000)))
+      .orderBy(asc(events.startsAt))
+      .limit(5),
+    db.select({ n: count() }).from(posts).where(eq(posts.status, 'draft')),
+    db.select({ n: count() }).from(submissions).where(eq(submissions.status, 'new')),
+    db.select({ n: count() }).from(organisations).where(eq(organisations.status, 'published')),
+    db
+      .select({ n: count() })
+      .from(organisations)
+      .where(
+        and(
+          inArray(organisations.status, ['published']),
+          sql`${organisations.renewalDueAt} < ${Math.floor(now.getTime() / 1000) + 30 * 86400}`,
+        ),
       ),
-    ),
-  loadContacts(now),
-  db.select({ n: count() }).from(members).where(eq(members.status, 'active')),
-  db
-    .select({ n: count() })
-    .from(members)
-    .where(and(eq(members.status, 'active'), isNull(members.reviewedAt))),
-]);
+    loadContacts(now),
+    db.select({ n: count() }).from(members).where(eq(members.status, 'active')),
+    db.select({ n: count() }).from(members).where(eq(members.status, 'pending')),
+  ]);
 const queueAges = [
   ...queue.pendingOrgs.map((o) => o.submittedAt ?? o.updatedAt),
   ...queue.changes.map((c) => c.change.createdAt),
@@ -105,7 +75,7 @@ const stats = [
     label: 'Members',
     value: active!.n,
     href: '/admin/members',
-    note: unreviewed!.n ? `${unreviewed!.n} to review` : 'All reviewed',
+    note: `${pending!.n} not confirmed yet`,
   },
   {
     label: 'Contacts',
@@ -117,73 +87,6 @@ const stats = [
 ---
 
 <AdminLayout title="Dashboard">
-  <section class="admin-panel mb-6" aria-labelledby="my-tasks">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 id="my-tasks" class="text-lg">
-        My tasks{myMember ? ` · ${myMember.name}` : ''}
-      </h2>
-      <p class="text-sm text-muted">
-        {lateAll.length > 0 && (
-          <span class="text-danger">
-            {lateAll.length} step{lateAll.length === 1 ? '' : 's'} late across the team ·{' '}
-          </span>
-        )}
-        {unowned > 0 && `${unowned} without an owner this week · `}
-        <a href="/admin/team">Team and roles</a>
-      </p>
-    </div>
-    {!myMember && (
-      <p class="mt-3 text-sm text-muted">
-        {me
-          ? `${me} is not in the team yet. Add yourself with your roles in Team and roles to see the steps you own here.`
-          : 'Sign in through Cloudflare Access to see your tasks.'}
-      </p>
-    )}
-    {myMember && (
-      <>
-        {myTasks.length === 0 &&
-        myMessages === 0 &&
-        !(myMember.roles.includes('directory') && queueSize > 0) ? (
-          <p class="mt-3 text-sm text-muted">
-            Nothing due this week.
-            {myLater > 0 && ` ${myLater} later step${myLater === 1 ? '' : 's'}.`}
-          </p>
-        ) : (
-          <ul class="mt-3 grid gap-2">
-            {myTasks.map((t) => (
-              <li class="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2 text-sm last:border-0">
-                <span>
-                  <a href={`/admin/events/${t.eventId}/tasks`}>{t.eventTitle}</a>: {t.title}
-                </span>
-                <span class={t.state === 'late' ? 'font-semibold text-danger' : 'text-muted'}>
-                  {t.state === 'late' ? 'Late, was due ' : 'Due '}
-                  {formatDate(t.due, { weekday: 'short', year: undefined })}
-                </span>
-              </li>
-            ))}
-            {myMessages > 0 && (
-              <li class="text-sm">
-                <a href="/admin/submissions?mine=1">
-                  {myMessages} message{myMessages === 1 ? '' : 's'} assigned to you
-                </a>
-              </li>
-            )}
-            {myMember.roles.includes('directory') && queueSize > 0 && (
-              <li class="text-sm">
-                <a href="/admin/ecosystem">
-                  {queueSize} directory item{queueSize === 1 ? '' : 's'} to review
-                </a>
-              </li>
-            )}
-          </ul>
-        )}
-        {myTasks.length > 0 && myLater > 0 && (
-          <p class="mt-2 text-sm text-muted">And {myLater} later.</p>
-        )}
-      </>
-    )}
-  </section>
-
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
     {stats.map((s) => (
       <a href={s.href} class="admin-panel block no-underline hover:border-accent">

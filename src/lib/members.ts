@@ -1,8 +1,8 @@
 // Free individual membership: sign up on /join, confirm by email, then a member page reached by
-// email links (no passwords). Members are active as soon as they confirm; the board reviews new
-// members afterwards and can suspend them. See docs/admin.md.
+// email links (no passwords). Members are active as soon as they confirm; the team can suspend
+// them. See docs/admin.md.
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db';
 import { contacts, events, members, registrations, type Member } from '../db/schema';
 import { email, optionalText, optionalUrl } from './forms';
@@ -15,9 +15,8 @@ import { audit, siteUrl } from './orgs';
 import { confirmNewsletter } from './newsletter';
 import { getSettings } from './settings';
 import { upcomingEvents } from './queries';
-import { formatDate, formatEventDate } from './format';
+import { formatEventDate } from './format';
 import { DAY_MS } from './lifecycle';
-import { loadTeam } from './ownership';
 
 export const PROFILE_TYPES = {
   founder: 'Founder or co-founder',
@@ -32,7 +31,7 @@ export const PROFILE_TYPES = {
 export type ProfileType = keyof typeof PROFILE_TYPES;
 const PROFILE_KEYS = Object.keys(PROFILE_TYPES) as [ProfileType, ...ProfileType[]];
 
-/** For the board's reporting only; never shown publicly. */
+/** For the team's reporting only; never shown publicly. */
 export const NATIONALITY_GROUPS = {
   french: 'French or francophone',
   thai: 'Thai',
@@ -217,7 +216,7 @@ async function sendWelcome(m: Member, link: string) {
 
 /**
  * The team marks a contact as a member (the Member box on a contact's Edit form): they become an
- * active, already reviewed member, with the details from their contact card. Unticking ends an
+ * active member, with the details from their contact card. Unticking ends an
  * active membership (an unconfirmed sign-up is left alone). Suspended and lapsed memberships are changed in Members, not here. With
  * `welcome`, a new member gets the welcome email (WhatsApp invitation and member page link).
  */
@@ -248,8 +247,6 @@ export async function setMembershipByTeam(
     status: 'active' as const,
     memberSince: existing?.memberSince ?? now,
     renewalDueAt: renewalDate(now),
-    reviewedAt: now,
-    reviewedBy: actor,
     updatedAt: now,
   };
   const [m] = existing
@@ -357,7 +354,7 @@ export async function memberEvents(address: string) {
 
 export const MemberAdminAction = z.discriminatedUnion('action', [
   z.object({
-    action: z.enum(['review', 'reactivate', 'delete', 'link']),
+    action: z.enum(['reactivate', 'delete', 'link']),
     ids: z.array(z.coerce.number().int().positive()).min(1).max(500),
   }),
   z.object({
@@ -387,20 +384,12 @@ export async function applyMemberAction(
   const what = `${n} member${n === 1 ? '' : 's'}`;
   const where = inArray(members.id, input.ids);
   switch (input.action) {
-    case 'review':
-      await db
-        .update(members)
-        .set({ reviewedAt: now, reviewedBy: actor, updatedAt: now })
-        .where(where);
-      break;
     case 'suspend':
       await db
         .update(members)
         .set({
           status: 'suspended',
           suspendedReason: input.reason,
-          reviewedAt: now,
-          reviewedBy: actor,
           updatedAt: now,
         })
         .where(where);
@@ -425,48 +414,7 @@ export async function applyMemberAction(
   for (const id of input.ids)
     await audit(actor, `member_${input.action}`, 'member', id, null, null);
   return {
-    review: `${what} marked as reviewed.`,
     suspend: `${what} suspended.`,
     reactivate: `${what} reactivated.`,
   }[input.action];
-}
-
-/** Active members the board has not reviewed yet, oldest first. */
-export async function membersToReview() {
-  return getDb()
-    .select()
-    .from(members)
-    .where(and(eq(members.status, 'active'), isNull(members.reviewedAt)))
-    .orderBy(asc(members.confirmedAt));
-}
-
-/**
- * Monday: the board (team members with the Board role, or the contact email) gets the list of new
- * members to review. Returns 1 when sent.
- */
-export async function sendBoardMemberDigest() {
-  const todo = await membersToReview();
-  if (!todo.length) return 0;
-  const [team, settings] = await Promise.all([loadTeam(), getSettings()]);
-  const board = team.filter((m) => m.roles.includes('board')).map((m) => m.email);
-  const n = todo.length;
-  const w = await renderTemplate('admin.new-members', {
-    count: `${n} new member${n === 1 ? '' : 's'}`,
-    members: [
-      ...todo
-        .slice(0, 30)
-        .map(
-          (m) =>
-            `${m.name}${m.company ? `, ${m.company}` : ''} (${PROFILE_TYPES[m.profileType as ProfileType] ?? m.profileType}), joined ${formatDate(m.confirmedAt ?? m.createdAt, { year: undefined })}`,
-        ),
-      ...(n > 30 ? [`And ${n - 30} more.`] : []),
-    ],
-  });
-  await sendEmail({
-    to: board.length ? board : settings.contactEmail,
-    subject: w.subject,
-    paragraphs: w.paragraphs,
-    action: { label: w.buttonLabel, url: siteUrl('/admin/members') },
-  });
-  return 1;
 }

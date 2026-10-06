@@ -494,8 +494,6 @@ export const submissions = sqliteTable('submissions', {
     .default('new'),
   statusAt: ts('status_at'),
   statusBy: text('status_by'),
-  /** Team member (email) who owns the answer; null = nobody yet. */
-  assignee: text('assignee'),
 });
 
 /** The team's notes on a message, and a log of its moves between folders. */
@@ -542,7 +540,7 @@ export const emailTemplates = sqliteTable('email_templates', {
 
 /**
  * Free individual membership (lib/members.ts): one row per email, active once the email is
- * confirmed; the board reviews new members afterwards and can suspend them.
+ * confirmed; the team can suspend them.
  */
 export const members = sqliteTable(
   'members',
@@ -574,52 +572,13 @@ export const members = sqliteTable(
     confirmedAt: ts('confirmed_at'),
     memberSince: ts('member_since'),
     renewalDueAt: ts('renewal_due_at'),
-    reviewedAt: ts('reviewed_at'),
-    reviewedBy: text('reviewed_by'),
-    /** Why the board suspended them (team only). */
+    /** Why the team suspended them (team only). */
     suspendedReason: text('suspended_reason'),
     notes: text('notes'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [index('members_status').on(t.status)],
-);
-
-// ---------- team and ownership ----------
-
-/** The organising team: who signs in to the admin, and the roles that make them a step's owner. */
-export const teamMembers = sqliteTable('team_members', {
-  id: id(),
-  name: text('name').notNull(),
-  /** Lowercased; the address they sign in with through Cloudflare Access. */
-  email: text('email').notNull().unique(),
-  /** Role keys from TEAM_ROLES in lib/ownership.ts. */
-  roles: json<string[]>('roles').notNull().default([]),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
-
-/** One step of an event's checklist (EVENT_STEPS in lib/ownership.ts), with its owner. */
-export const eventTasks = sqliteTable(
-  'event_tasks',
-  {
-    id: id(),
-    eventId: integer('event_id')
-      .notNull()
-      .references(() => events.id, { onDelete: 'cascade' }),
-    step: text('step').notNull(),
-    /** Team member email; null = nobody yet. */
-    owner: text('owner'),
-    doneAt: ts('done_at'),
-    doneBy: text('done_by'),
-    note: text('note'),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    uniqueIndex('event_tasks_event_step').on(t.eventId, t.step),
-    index('event_tasks_owner').on(t.owner),
-  ],
 );
 
 export type Event = typeof events.$inferSelect;
@@ -634,7 +593,5 @@ export type EventSpeaker = typeof eventSpeakers.$inferSelect;
 export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;
-export type TeamMember = typeof teamMembers.$inferSelect;
 export type Member = typeof members.$inferSelect;
-export type EventTask = typeof eventTasks.$inferSelect;
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;

@@ -498,7 +498,6 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
           View on the site ↗
         </a>
       )}
-      <a href={`/admin/events/${event.id}/tasks`}>Checklist</a>
       <a href={`/admin/registrations?event=${event.id}`}>Registrations</a>
       <a href={`/admin/events/${event.id}/email`}>Email registrants</a>
       {event.startsAt < new Date() && <a href={`/admin/events/${event.id}/feedback`}>Feedback</a>}

@@ -61,13 +61,7 @@ const groups: { label: string; links: NavLink[] }[] = [
       { href: '/admin/emails', label: 'Emails' },
     ],
   },
-  {
-    label: 'Team',
-    links: [
-      { href: '/admin/team', label: 'Team and roles' },
-      { href: '/admin/settings', label: 'Settings' },
-    ],
-  },
+  { label: '', links: [{ href: '/admin/settings', label: 'Settings' }] },
 ];
 const path = Astro.url.pathname;
 const tab = Astro.url.searchParams.get('tab');

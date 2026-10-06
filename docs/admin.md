@@ -6,28 +6,9 @@ pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
 (Members, Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
-**Content** (Posts, Files, Site texts, Emails) and **Team** (Team and roles, Settings). On a phone, open it
-with the **Menu** button.
-
-## Team, roles and event checklists
-
-- **Team and roles**: add each organiser with their name, the email they sign in to the admin
-  with, and their roles: Event lead, Board go/no-go, Communication, Check-in at the door,
-  Directory reviews, Messages and contacts. A warning lists roles nobody has yet.
-- **Checklist** (on each event, and in the Checklist column of All events): the 13 steps of an
-  event, from "Propose the event" (D-45) to the debrief (D+14), each with its due date. When the
-  checklist is first opened, every step gets the first team member with the matching role as its
-  owner; change the owner with the menu next to the step (it saves at once). Adding someone or
-  giving them a role also hands them current steps nobody owned yet. **Mark done** records who
-  and when (**Not done** undoes it); a note field keeps short updates ("venue booked, waiting for
-  the logo"). Steps turn **This week** when due within 7 days and **Late** once the due day has
-  passed. The day-before reminder and the day-after feedback email are sent by the site, so they
-  are not on the list.
-- **My tasks** on the Dashboard: your steps that are late or due this week, messages assigned to
-  you and, if you review the directory, how many items wait. It also shows how many steps are
-  late across the team. Only events that started less than 15 days ago (and aren't cancelled)
-  count.
-- Every **Monday** each owner gets an email listing their late steps and those due that week.
+**Content** (Posts, Files, Site texts, Emails) and **Settings**. On a phone, open it with the
+**Menu** button. Everyone who can sign in to the admin can do everything: there are no roles,
+owners or approval steps.
 
 ## Posts
 
@@ -135,7 +116,7 @@ uses any more.
 - **Regulars not yet members**: people who came to 3 or more events and are not members yet. Copy
   their emails or export them to invite them to join on the Join page.
 - **Member** (in a contact's Edit form, and on New contact): tick it to make them a member at
-  once, already counted as reviewed, with the details from their card; tick **Send them the
+  once, with the details from their card; tick **Send them the
   welcome email** too to send the WhatsApp invitation and their member page link. Unticking ends
   an active membership. It needs an email. Suspended or lapsed memberships are changed in
   Members. Changing a contact's email moves their membership with it.
@@ -265,20 +246,17 @@ emails only reach the Resend account owner.
 - People sign up on `/join`, click the link in the confirmation email and are **active** at once:
   they get a welcome email with the WhatsApp invitation (the link from Settings > Social links)
   and a link to their member page, where they edit their profile, see their events and can leave.
-- **Members > To review**: active members the board hasn't looked at yet, newest first. Every
-  Monday the people with the **Board go/no-go** role (or the contact email if nobody has it) get
-  an email listing them. Tick members and **Mark as reviewed**, or write a reason and
-  **Suspend** (they keep their page but lose the WhatsApp button; remove them from the group by
-  hand). **Reactivate** undoes a suspension.
-- **All members**: search by name, email or company and filter by status, profile type and
-  nationality. **Email their member link** sends confirmed members a fresh link to their page
+- **Members** lists everyone, newest first: search by name, email or company and filter by
+  status, profile type and nationality. Tick members and write a reason to **Suspend** them (they
+  keep their page but lose the WhatsApp button; remove them from the group by hand).
+  **Reactivate** undoes a suspension. **Email their member link** sends confirmed members a fresh link to their page
   (for someone who lost it; they can also ask for it themselves at `/member`). **Delete**
   removes the membership only; to delete everything about a person, delete them from Contacts.
 - Confirming a membership creates the person's contact card if they don't have one, so every
   member is in Contacts and can use My data. Active members get member priority on events (when
   it is on in Settings), like owners of member companies.
 - **Notes** on each row are for the team only. The Dashboard shows the number of active members
-  and how many wait for review.
+  and how many haven't confirmed their email yet.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
   (for the yearly renewal, coming later).
 
@@ -298,9 +276,8 @@ emails only reach the Resend account owner.
   Tick several messages to move them at once; search covers every field and the team notes.
   **Add a note** records what was done (who answered, what was said, why it is spam) with your
   name and the time; "Save and mark answered" files the message in the same click. Every move
-  between folders is logged under the message too. Each message has an **owner** (the menu next
-  to its date): new messages go to the person with the Messages role, who also gets the email.
-  **Assigned to me** shows only yours. Messages from the Join page carry its topics (Join the
+  between folders is logged under the message too. New messages are emailed to the contact
+  email from Settings. Messages from the Join page carry its topics (Join the
   WhatsApp group, Volunteer, Host an event, Partnership, Speak at an event…): for "Join the
   WhatsApp group", reply with the invite link (the link itself is in Settings and never shown
   on the site).
@@ -341,10 +318,8 @@ and when:
   the link to the member page (asked for, or sent by an admin) and the link sent when a member
   signs up again.
 - **Community**: the newsletter confirmation. **Privacy**: the "your data" link.
-- **Team**: the Monday email with each member's tasks.
 - **Admin notifications** (to the team): a contact form message, a new listing, a claim, a
-  listing change and a membership application to review, the Monday directory summary, and the
-  Monday list of new members for the board.
+  listing change and a membership application to review, and the Monday directory summary.
 
 A **Default** badge means the text the site came with; **Edited** shows when and by whom.
 
@@ -356,8 +331,7 @@ others per email. The list under the form shows which ones that email knows; cli
 it. A placeholder the email doesn't know is sent as typed, and the page warns you. Some must stay
 in the message (marked "must stay"; not only in the subject or the button, where a long value
 doesn't fit): the reason of a refusal, the contact form message, the membership motivation, the
-domain check of a claim, and the lists the site builds (`{tasks}` in the weekly tasks,
-`{renewals}` in the directory summary, `{members}` in the board's new members email). In the
+domain check of a claim, and the list the site builds (`{renewals}` in the directory summary). In the
 welcome email, `{whatsapp}` is the invitation to the WhatsApp community (empty when Settings has
 no WhatsApp link) and `{next-events}` is "Coming up next:" with the next three events (empty when
 none is planned); when one is empty, its paragraph is simply left out. Put a list on a line of its own to get one paragraph per

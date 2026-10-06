@@ -12,7 +12,7 @@ export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run
 
 - What you type in the registration form: your name, email, phone, company, role, how you heard about us, and your answer to "Anything we should know?".
 - Whether you came: we check people in at the door, and the team may add you as a walk-in.
-- If you become a member: what you type in the membership form (your name, email, phone, company, job title, LinkedIn, what describes you best, your nationality if you give it, the sectors you're interested in and how you heard about us), when you confirmed, and whether the board has reviewed your membership.
+- If you become a member: what you type in the membership form (your name, email, phone, company, job title, LinkedIn, what describes you best, your nationality if you give it, the sectors you're interested in and how you heard about us) and when you confirmed.
 - Your newsletter choice, and the date you made it.
 - Your feedback after an event, if you give it.
 - Notes and tags the organising team adds to help run the community (for example "speaker" or "volunteer").
@@ -22,7 +22,7 @@ export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run
 - To run our events: your seat, your ticket, the waitlist, check-in at the door.
 - To email you about the events you registered for: confirmation, reminder, changes, the feedback request.
 - To count who comes, so we can plan better events and welcome newcomers and regulars.
-- To run your membership: your member page, the invitation to the members' WhatsApp community, and the board's review of new members.
+- To run your membership: your member page and the invitation to the members' WhatsApp community.
 - To send you the newsletter, only if you said yes.
 
 We use your details for events and your membership because you asked to take part (and it is in our legitimate interest to run them well). We send the newsletter only with your consent, which you can withdraw at any time.
