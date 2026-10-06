@@ -10,7 +10,8 @@ Public pages:
 
 - **Home** and **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the
-  contact form. Texts are edited in the admin (Site texts).
+  contact form. About opens with a navy hero and an "On this page" index of its sections, in the
+  same style as `/join`. Texts are edited in the admin (Site texts).
 - **Join the community** at `/join`, opened by the header's button and linked from Home and the
   footer: a navy hero with a "Ways to join" index, the free membership (perks, three steps and the
   form side by side), the WhatsApp community, listing a company in the directory,

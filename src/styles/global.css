@@ -113,30 +113,37 @@
   }
 }
 
-/* The /join hero intro (Markdown from Site texts): bullets become check marks. */
+/* Hero intros on navy (/join, /about; Markdown from Site texts): bullets become check marks,
+   `.lead` makes the first paragraph larger. */
 @layer components {
-  .join-intro p {
+  .hero-intro p {
     @apply text-lg leading-relaxed text-paper/85;
   }
-  .join-intro ul {
+  .hero-intro p + p {
+    @apply mt-5;
+  }
+  .hero-intro ul {
     @apply mt-8 grid gap-4 p-0;
     list-style: none;
   }
-  .join-intro li {
+  .hero-intro li {
     @apply relative pl-9 leading-relaxed text-paper/85;
   }
-  .join-intro li::before {
+  .hero-intro li::before {
     content: '';
     @apply absolute top-0.5 left-0 size-6 rounded-full bg-paper/10;
   }
-  .join-intro li::after {
+  .hero-intro li::after {
     content: '';
     @apply absolute top-[0.55rem] left-[0.45rem] h-1.5 w-2.5 -rotate-45 border-b-2 border-l-2 border-accent-soft;
   }
-  .join-intro strong {
+  .hero-intro.lead p:first-child {
+    @apply text-xl text-paper md:text-2xl md:leading-snug;
+  }
+  .hero-intro strong {
     @apply font-semibold text-paper;
   }
-  .join-intro a {
+  .hero-intro a {
     @apply text-paper underline;
   }
 }
