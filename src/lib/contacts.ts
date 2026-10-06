@@ -768,19 +768,167 @@ export async function deleteContacts(keys: string[], actor: string, now = new Da
     freedEvents.forEach((id) => freed.add(id));
     deleted++;
   }
-  if (freed.size) {
-    const settings = await getSettings();
-    const rows = await getDb()
-      .select()
-      .from(events)
-      .where(inArray(events.id, [...freed]));
-    for (const event of rows) {
-      if ((event.endsAt ?? event.startsAt) < now) continue;
-      const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
-      if (row) await sendPromotion(event, row);
-    }
-  }
+  await fillFreedSeats(freed, now);
   return deleted;
+}
+
+/** Gives seats freed on upcoming events to the next people on the waitlist. */
+async function fillFreedSeats(freed: Set<number>, now: Date) {
+  if (!freed.size) return;
+  const settings = await getSettings();
+  const rows = await getDb()
+    .select()
+    .from(events)
+    .where(inArray(events.id, [...freed]));
+  for (const event of rows) {
+    if ((event.endsAt ?? event.startsAt) < now) continue;
+    const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+    if (row) await sendPromotion(event, row);
+  }
+}
+
+/** Which of two registrations for the same event to keep when merging: the one that counts most. */
+const STATUS_RANK = { attended: 3, registered: 2, waitlist: 1, cancelled: 0 } as const;
+
+/**
+ * Merges duplicate contacts into `keep`: one person in the end, with every registration, the
+ * saved card details (keep's first, gaps filled from the others; tags combined; notes put
+ * together), and the membership. The merged contact uses keep's email, or the first email among
+ * the others when keep is a walk-in without one. When two of them registered for the same event,
+ * the registration that counts most stays (came > registered > waitlist > cancelled) and a seat
+ * freed on an upcoming event goes to the waitlist. Returns the merged contact's key.
+ */
+export async function mergeContacts(
+  keys: string[],
+  keep: string,
+  actor: string,
+  now = new Date(),
+): Promise<Result> {
+  const db = getDb();
+  const wanted = [...new Set([keep, ...keys])];
+  if (wanted.length < 2) return { error: 'Select at least two contacts to merge.' };
+  const all = await loadContacts(now);
+  const people = wanted.map((k) => all.find((c) => c.key === k));
+  if (people.some((c) => !c)) return { error: 'One of these contacts no longer exists.' };
+  const list = people as Contact[];
+  const main = list[0]!;
+  const others = list.slice(1);
+  const email = main.email ?? others.find((c) => c.email)?.email ?? null;
+  if (!email && list.some((c) => c.key.startsWith('id:')))
+    return { error: 'Add an email to one of them first, then merge.' };
+
+  // Registrations: every one moves under the merged email (or the kept walk-in's name).
+  const regs = await db
+    .select({
+      id: registrations.id,
+      eventId: registrations.eventId,
+      email: registrations.email,
+      name: registrations.name,
+      status: registrations.status,
+    })
+    .from(registrations);
+  const mine = (key: string) =>
+    regs.filter((r) =>
+      key.startsWith('id:') ? false : contactKey({ email: r.email, name: r.name }) === key,
+    );
+  const moving = list.flatMap((c) => mine(c.key));
+  const byEvent = new Map<number, typeof moving>();
+  for (const r of moving) byEvent.set(r.eventId, [...(byEvent.get(r.eventId) ?? []), r]);
+  const freed = new Set<number>();
+  for (const [eventId, rs] of byEvent) {
+    const [best, ...dupes] = [...rs].sort((a, b) => STATUS_RANK[b.status] - STATUS_RANK[a.status]);
+    if (dupes.length) {
+      const ids = dupes.map((d) => d.id);
+      // Feedback given on a duplicate moves to the registration kept, unless it has its own.
+      const [own] = await db
+        .select({ id: eventFeedback.id })
+        .from(eventFeedback)
+        .where(eq(eventFeedback.registrationId, best!.id));
+      if (!own) {
+        const [given] = await db
+          .select({ id: eventFeedback.id })
+          .from(eventFeedback)
+          .where(inArray(eventFeedback.registrationId, ids))
+          .limit(1);
+        if (given)
+          await db
+            .update(eventFeedback)
+            .set({ registrationId: best!.id })
+            .where(eq(eventFeedback.id, given.id));
+      }
+      await db.delete(registrations).where(inArray(registrations.id, ids));
+      if (dupes.some((d) => d.status === 'registered')) freed.add(eventId);
+    }
+    await db
+      .update(registrations)
+      .set(email ? { email } : { name: main.name })
+      .where(eq(registrations.id, best!.id));
+  }
+
+  // The saved card: keep's details first, gaps filled from the others.
+  const cards = list.filter((c) => c.savedId);
+  const first = <K extends 'phone' | 'company' | 'role' | 'linkedin'>(k: K) =>
+    list.find((c) => c[k])?.[k] ?? null;
+  const notes = list
+    .map((c) => c.notes?.trim())
+    .filter(Boolean)
+    .join('\n\n');
+  const tags = [...new Set(list.flatMap((c) => c.tags))];
+  const told = list
+    .flatMap((c) => (c.newsletterCard ? [c.newsletterCard] : []))
+    .sort((a, b) => b.at.getTime() - a.at.getTime())[0];
+  const extra = cards.filter((c) => c.savedId !== main.savedId).map((c) => c.savedId!);
+  if (extra.length) await db.delete(contacts).where(inArray(contacts.id, extra));
+  const card = {
+    email,
+    name: main.name,
+    phone: first('phone'),
+    company: first('company'),
+    role: first('role'),
+    linkedin: first('linkedin'),
+    notes: notes || null,
+    tags,
+    newsletter: told?.choice ?? null,
+    newsletterAt: told?.at ?? null,
+  };
+  if (main.savedId)
+    await db
+      .update(contacts)
+      .set({ ...card, updatedAt: now })
+      .where(eq(contacts.id, main.savedId));
+  else if (email && (cards.length > 0 || others.some((c) => c.name !== main.name)))
+    await db.insert(contacts).values(card);
+
+  // Membership: one row, under the merged email; an active one wins over the others.
+  const memberRows = list.flatMap((c) => (c.member ? [c.member] : []));
+  if (email && memberRows.length) {
+    const rank = { active: 3, suspended: 2, lapsed: 1, pending: 0 } as const;
+    const [best, ...rest] = [...memberRows].sort(
+      (a, b) =>
+        rank[b.status] - rank[a.status] ||
+        (a.memberSince?.getTime() ?? Infinity) - (b.memberSince?.getTime() ?? Infinity),
+    );
+    if (rest.length)
+      await db.delete(members).where(
+        inArray(
+          members.id,
+          rest.map((m) => m.id),
+        ),
+      );
+    if (best!.email !== email)
+      await db.update(members).set({ email, updatedAt: now }).where(eq(members.id, best!.id));
+  }
+
+  await audit(
+    actor,
+    'contact_merge',
+    'contact',
+    null,
+    { keys: wanted },
+    { key: email ?? contactKey({ email: null, name: main.name }), registrations: moving.length },
+  );
+  await fillFreedSeats(freed, now);
+  return { key: email ?? contactKey({ email: null, name: main.name }) };
 }
 
 /**
