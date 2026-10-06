@@ -8,7 +8,13 @@ import { getDb } from '../../db';
 import { teamMembers } from '../../db/schema';
 import { email, fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
-import { EVENT_STEPS, ROLE_KEYS, TEAM_ROLES, loadTeam } from '../../lib/ownership';
+import {
+  EVENT_STEPS,
+  ROLE_KEYS,
+  TEAM_ROLES,
+  fillUnownedTasks,
+  loadTeam,
+} from '../../lib/ownership';
 
 // The organising team and their roles. A role makes someone the default owner of the matching
 // steps on new event checklists, of new messages (Messages role) and of directory reviews.
@@ -53,6 +59,7 @@ if (Astro.request.method === 'POST') {
           .returning({ id: teamMembers.id });
         await audit(actor, 'create', 'team', ins!.id, null, parsed.data);
       }
+      await fillUnownedTasks();
       return Astro.redirect('/admin/team?saved=done');
     }
   }
@@ -67,9 +74,10 @@ const newRoles = Array.isArray(draft.roles) && !draft.id ? (draft.roles as strin
 <AdminLayout title="Team and roles">
   <p class="mb-6 max-w-3xl text-sm text-muted">
     Who runs what. Each role makes that person the default owner of the matching steps when an
-    event's checklist is created, so every step has a name. Use the email they sign in to the admin
-    with: their tasks then show on their Dashboard, and every Monday they get an email with what is
-    late or due that week. Steps can be handed to anyone on the event's Checklist.
+    event's checklist is created (and of current steps nobody owns yet), so every step has a name.
+    Use the email they sign in to the admin with: their tasks then show on their Dashboard, and
+    every Monday they get an email with what is late or due that week. Steps can be handed to anyone
+    on the event's Checklist.
   </p>
   {error && (
     <Alert tone="danger" class="mb-4">

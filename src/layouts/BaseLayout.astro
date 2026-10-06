@@ -73,7 +73,7 @@ const ld = [orgLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
     )}
   </head>
   <body class="flex min-h-screen flex-col">
-    <Header whatsapp={settings.socials.whatsapp} />
+    <Header />
     <main id="main" class="flex-1">
       <slot />
     </main>

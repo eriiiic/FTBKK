@@ -4,6 +4,31 @@ The admin lives at `/admin`. Cloudflare Access asks for your email and sends a o
 only emails on the Access policy get in. Every change is saved straight to the live site (public
 pages refresh within a minute) and recorded in Ecosystem > History.
 
+The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
+(Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
+**Content** (Posts, Files, Site texts) and **Team** (Team and roles, Settings). On a phone, open it
+with the **Menu** button.
+
+## Team, roles and event checklists
+
+- **Team and roles**: add each organiser with their name, the email they sign in to the admin
+  with, and their roles: Event lead, Board go/no-go, Communication, Check-in at the door,
+  Directory reviews, Messages and contacts. A warning lists roles nobody has yet.
+- **Checklist** (on each event, and in the Checklist column of All events): the 13 steps of an
+  event, from "Propose the event" (D-45) to the debrief (D+14), each with its due date. When the
+  checklist is first opened, every step gets the first team member with the matching role as its
+  owner; change the owner with the menu next to the step (it saves at once). Adding someone or
+  giving them a role also hands them current steps nobody owned yet. **Mark done** records who
+  and when (**Not done** undoes it); a note field keeps short updates ("venue booked, waiting for
+  the logo"). Steps turn **This week** when due within 7 days and **Late** once the due day has
+  passed. The day-before reminder and the day-after feedback email are sent by the site, so they
+  are not on the list.
+- **My tasks** on the Dashboard: your steps that are late or due this week, messages assigned to
+  you and, if you review the directory, how many items wait. It also shows how many steps are
+  late across the team. Only events that started less than 15 days ago (and aren't cancelled)
+  count.
+- Every **Monday** each owner gets an email listing their late steps and those due that week.
+
 ## Posts
 
 - **New post**: title, text (Markdown), then **Save**. Leave it as _Draft_ until it is ready.
@@ -216,9 +241,9 @@ uses any more.
 Moderators also get an email for each new request and a summary every Monday. Set who receives
 them in Settings > Directory moderators.
 
-## People, Messages, Settings
+## Board and speakers, Messages, Site texts, Settings
 
-- **People**: board and institutional partners on the About page, with their job title and
+- **Board and speakers** (formerly People): board and institutional partners on the About page, with their job title and
   company. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
   (added here or from an event's Speakers section); edit their photo, title or company here and
   every event page updates. Each person shows how many events they spoke at; removing a person
@@ -232,9 +257,18 @@ them in Settings > Directory moderators.
   Tick several messages to move them at once; search covers every field and the team notes.
   **Add a note** records what was done (who answered, what was said, why it is spam) with your
   name and the time; "Save and mark answered" files the message in the same click. Every move
-  between folders is logged under the message too.
-- **Settings**: home and about texts, code of conduct, social links, contact email, moderators, membership switches
-  and the analytics token. Long texts ("Who we are", "Official French Tech Community", the
+  between folders is logged under the message too. Each message has an **owner** (the menu next
+  to its date): new messages go to the person with the Messages role, who also gets the email.
+  **Assigned to me** shows only yours. Messages from the Join page carry its topics (Join the
+  WhatsApp group, Volunteer, Host an event, Partnership, Speak at an event…): for "Join the
+  WhatsApp group", reply with the invite link (the link itself is in Settings and never shown
+  on the site).
+- **Settings**: site name and description, contact email, directory moderators, social links (the
+  WhatsApp invite link is kept here for the team only), membership switches and the analytics
+  token.
+- **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
+  and the membership block; empty = a default text), the About page, the code of conduct and the
+  privacy notice. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
   appear on Home and About, one per line as `Title | text | link`, where the link is optional.

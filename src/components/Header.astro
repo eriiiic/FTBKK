@@ -3,10 +3,6 @@ import Logo from './Logo.astro';
 import Button from './Button.astro';
 import Icon from './Icon.astro';
 
-interface Props {
-  whatsapp?: string;
-}
-const { whatsapp } = Astro.props;
 const nav = [
   { href: '/', label: 'Home' },
   { href: '/ecosystem', label: 'Ecosystem' },
@@ -16,7 +12,7 @@ const nav = [
 ];
 const path = Astro.url.pathname;
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
-const join = whatsapp || '/about#join';
+const join = '/join';
 ---
 
 <header class="sticky top-0 z-40 border-b border-line bg-paper/95 backdrop-blur">

@@ -26,6 +26,7 @@ export const GET: APIRoute = async ({ site }) => {
     { loc: 'events' },
     { loc: 'blog' },
     { loc: 'about' },
+    { loc: 'join' },
     { loc: 'code-of-conduct' },
     { loc: 'privacy' },
     ...[...up, ...past].map((e) => ({ loc: `events/${e.slug}`, lastmod: e.updatedAt })),

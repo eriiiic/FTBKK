@@ -6,6 +6,25 @@ import { blockedSenders, messageNotes, submissions, type Submission } from '../d
 
 export type MessageStatus = Submission['status'];
 
+/** Topics of the public contact form (lib/contact.ts). */
+export const CONTACT_TOPICS = {
+  general: 'General question',
+  whatsapp: 'Join the WhatsApp group',
+  volunteer: 'Volunteer with the team',
+  host: 'Host an event at my office',
+  partnership: 'Partnership or sponsoring',
+  speaking: 'Speak at an event',
+  press: 'Press',
+  other: 'Other',
+} as const;
+export type ContactTopic = keyof typeof CONTACT_TOPICS;
+
+/** The topic's label, or the stored key for older messages. */
+export const topicLabel = (topic: unknown) =>
+  typeof topic === 'string' && topic in CONTACT_TOPICS
+    ? CONTACT_TOPICS[topic as ContactTopic]
+    : String(topic ?? '');
+
 export const FOLDERS: { status: MessageStatus; label: string }[] = [
   { status: 'new', label: 'Inbox' },
   { status: 'answered', label: 'Answered' },
@@ -226,7 +245,8 @@ export async function notesFor(ids: number[]) {
 export function replyLink(s: Pick<Submission, 'payload' | 'createdAt'>) {
   const p = s.payload;
   const name = typeof p.name === 'string' ? p.name : '';
-  const topic = typeof p.topic === 'string' && p.topic !== 'general' ? ` (${p.topic})` : '';
+  const topic =
+    typeof p.topic === 'string' && p.topic !== 'general' ? ` (${topicLabel(p.topic)})` : '';
   const quoted = String(p.message ?? '')
     .split('\n')
     .map((l) => `> ${l}`)

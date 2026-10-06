@@ -1,0 +1,75 @@
+---
+// The public contact form, posted to the page it sits on (About, Join); see lib/contact.ts.
+import FormField from './FormField.astro';
+import Button from './Button.astro';
+import Alert from './Alert.astro';
+import Turnstile from './Turnstile.astro';
+import { CONTACT_TOPICS } from '../lib/contact';
+
+interface Props {
+  action: string;
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+  sent: boolean;
+  /** Preselected topic when the form is empty. */
+  topic?: string;
+  /** False when another form on the page already loads the Turnstile script. */
+  turnstileScript?: boolean;
+}
+const { action, values, errors, sent, topic = 'general', turnstileScript = true } = Astro.props;
+---
+
+{sent ? (
+  <Alert tone="success">Thanks, your message was sent. We'll get back to you soon.</Alert>
+) : (
+  <form method="post" action={action} class="grid gap-4">
+    <input type="hidden" name="form" value="contact" />
+    {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+    <div class="grid gap-4 sm:grid-cols-2">
+      <FormField
+        name="name"
+        label="Name"
+        required
+        value={values.name as string}
+        error={errors.name}
+        autocomplete="name"
+      />
+      <FormField
+        name="email"
+        label="Email"
+        type="email"
+        required
+        value={values.email as string}
+        error={errors.email}
+        autocomplete="email"
+      />
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <FormField
+        name="company"
+        label="Company"
+        value={values.company as string}
+        autocomplete="organization"
+      />
+      <FormField
+        name="topic"
+        label="Topic"
+        value={(values.topic as string) ?? topic}
+        options={Object.entries(CONTACT_TOPICS).map(([value, label]) => ({ value, label }))}
+      />
+    </div>
+    <FormField
+      name="message"
+      label="Message"
+      rows={6}
+      required
+      value={values.message as string}
+      error={errors.message}
+      maxlength={4000}
+    />
+    <Turnstile script={turnstileScript} />
+    <div>
+      <Button type="submit">Send message</Button>
+    </div>
+  </form>
+)}

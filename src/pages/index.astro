@@ -62,11 +62,9 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
       )}
       <div class="mt-8 flex flex-wrap gap-3">
         <Button href="/events">See upcoming events</Button>
-        {settings.socials.whatsapp && (
-          <Button href={settings.socials.whatsapp} variant="light" rel="noopener">
-            <Icon name="whatsapp" /> Join our WhatsApp
-          </Button>
-        )}
+        <Button href="/join" variant="light">
+          Join the community
+        </Button>
       </div>
       {settings.values.length > 0 && (
         <ul class="mt-12 flex flex-col gap-3 border-t border-paper/15 pt-8 sm:flex-row sm:flex-wrap sm:gap-x-10">

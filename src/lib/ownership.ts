@@ -172,6 +172,34 @@ export async function ensureEventTasks(eventIds: number[], team?: TeamMember[]) 
       .onConflictDoNothing();
 }
 
+/**
+ * Gives open, unowned steps of current events to the default owner of their role. Run when the
+ * team changes, so checklists created before someone had the role get an owner.
+ */
+export async function fillUnownedTasks(now = new Date()) {
+  const db = getDb();
+  const owners = defaultOwners(await loadTeam());
+  const rows = await db
+    .select({ id: eventTasks.id, step: eventTasks.step })
+    .from(eventTasks)
+    .innerJoin(events, eq(events.id, eventTasks.eventId))
+    .where(
+      and(
+        isNull(eventTasks.owner),
+        isNull(eventTasks.doneAt),
+        gte(events.startsAt, new Date(now.getTime() - FOLLOW_DAYS * DAY_MS)),
+      ),
+    );
+  let n = 0;
+  for (const r of rows) {
+    const owner = owners.get(stepByKey(r.step)?.role as TeamRole);
+    if (!owner) continue;
+    await db.update(eventTasks).set({ owner, updatedAt: now }).where(eq(eventTasks.id, r.id));
+    n++;
+  }
+  return n;
+}
+
 export interface OpenTask {
   id: number;
   step: string;

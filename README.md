@@ -10,7 +10,19 @@ Public pages:
 
 - **Home** and **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the
-  contact form. Texts are edited in the admin.
+  contact form. Texts are edited in the admin (Site texts).
+- **Join the community** at `/join`, opened by the header's button and linked from Home and the
+  footer: why join, free membership (a "coming soon" text until individual membership is built),
+  the WhatsApp community, listing a company in the directory, ways to get involved (volunteer,
+  host an event, become a partner, speak), the newsletter and the contact form. The WhatsApp group
+  is for members, so its invite link is never shown publicly (not in the header, footer or Home
+  any more): people ask for it with the contact form's "Join the WhatsApp group" topic, and the
+  team sends it. Links like `/join?topic=host#contact` open the form with that topic picked. The
+  page's texts are edited in Site texts.
+- **Newsletter sign-up** on `/join` with double opt-in: name and email (Turnstile and rate limits)
+  send a confirmation link (a single-use `newsletter` code in `magic_tokens`, valid 7 days); the
+  `/newsletter` page asks for one click (so link scanners can't subscribe anyone) and records the
+  consent, dated, on the person's contact card (created if needed).
 - **Ecosystem**: a directory of French startups, companies, service providers, investors,
   incubators, schools and institutions in Thailand. Anyone can request a listing; owners manage
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
@@ -48,10 +60,22 @@ Public pages:
   page always answers the same way, so it doesn't reveal whether an address is known.
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
-Private admin at `/admin` (behind Cloudflare Access) for posts, events and registrations (stats,
-attendee feedback, CSV export), contacts, the ecosystem directory (review queue, listings,
-renewals, history), people, contact messages (folders, team notes, blocked senders), uploaded
-files and site settings. See [docs/admin.md](docs/admin.md).
+Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
+events, registrations, check-in, stats), **Community** (contacts, messages, board and speakers),
+**Ecosystem** (to review, all listings, renewals), **Content** (posts, files, site texts) and
+**Team** (team and roles, settings). See [docs/admin.md](docs/admin.md).
+
+**Who owns what.** Team and roles lists the organising team (name, the email they sign in with,
+roles: event lead, board go/no-go, communication, check-in at the door, directory reviews,
+messages and contacts). Every event has a **checklist** of the event circuit, from proposing it
+(45 days before) to the debrief (14 days after): 13 steps, each with an owner (by default the
+first team member with the step's role), a due date counted from the event date, a note, and
+"Mark done" with who and when. The reminder and feedback emails are automatic, so they are not
+steps. The Events list shows each upcoming event's progress, the Dashboard shows **My tasks**
+(the signed-in person's steps that are late or due this week, messages assigned to them, and the
+directory queue for directory reviewers), and every Monday each owner gets an email with what is
+late or due that week. Contact messages get an **assignee** (new ones go to the person with the
+Messages role, who is also emailed) and Messages has an "Assigned to me" filter.
 
 Check-in at the door works from a phone: volunteers bookmark `/checkin`, which opens a list of
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On

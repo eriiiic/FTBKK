@@ -8,6 +8,7 @@ import { getDb } from '../../db';
 import { blockedSenders, messageNotes, submissions } from '../../db/schema';
 import { formatDate } from '../../lib/format';
 import { loadTeam, teamName } from '../../lib/ownership';
+import { topicLabel } from '../../lib/contact';
 import {
   FOLDERS,
   MessageAction,
@@ -232,7 +233,7 @@ const moves = (
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
-              <Badge tone="accent">{str(p.topic) || s.type}</Badge>
+              <Badge tone="accent">{topicLabel(p.topic) || s.type}</Badge>
               {stamp(s.createdAt)}
               <form method="post" class="flex items-center gap-1">
                 <input type="hidden" name="action" value="assign" />

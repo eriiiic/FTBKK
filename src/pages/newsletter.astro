@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Section from '../components/Section.astro';
+import Alert from '../components/Alert.astro';
+import Button from '../components/Button.astro';
+import { confirmNewsletter } from '../lib/newsletter';
+import { consumeToken, peekToken } from '../lib/tokens';
+
+// Newsletter confirmation link (sent from the Join page). GET only shows a button, so email link
+// scanners can't subscribe anyone; the button POSTs.
+const params = Astro.url.searchParams;
+const token = (params.get('token') ?? '').slice(0, 100);
+const name = (params.get('name') ?? '').trim().slice(0, 120);
+let state: 'ask' | 'done' | 'invalid' = 'ask';
+
+if (Astro.request.method === 'POST') {
+  const row = await consumeToken(token, 'newsletter');
+  if (row) {
+    await confirmNewsletter(row.email, name);
+    state = 'done';
+  } else state = 'invalid';
+} else if (!(await peekToken(token, 'newsletter'))) state = 'invalid';
+---
+
+<BaseLayout title="Newsletter" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Newsletter</h1>
+      {state === 'ask' && (
+        <form method="post" class="mt-6 grid gap-4">
+          <p>One click to confirm you'd like to receive the La French Tech Bangkok newsletter.</p>
+          <div>
+            <Button type="submit">Confirm my subscription</Button>
+          </div>
+        </form>
+      )}
+      {state === 'done' && (
+        <Alert tone="success" class="mt-6">
+          You're subscribed. Thanks! You can unsubscribe at any time.
+        </Alert>
+      )}
+      {state === 'invalid' && (
+        <div class="mt-6 grid gap-4">
+          <Alert tone="warning">
+            This link has expired or was already used. If you're not subscribed yet, sign up again
+            on the Join page.
+          </Alert>
+          <div>
+            <Button href="/join#newsletter" variant="secondary">
+              Go to the Join page
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  </Section>
+</BaseLayout>
