@@ -2,7 +2,14 @@ import { env } from 'cloudflare:workers';
 import { eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db';
-import { contacts, eventFeedback, events, organisations, registrations } from '../db/schema';
+import {
+  contacts,
+  eventFeedback,
+  events,
+  members,
+  organisations,
+  registrations,
+} from '../db/schema';
 import { email as emailField, optionalText, optionalUrl } from './forms';
 import { promoteFromWaitlist, sendPromotion } from './registrations';
 import { getSettings } from './settings';
@@ -482,7 +489,13 @@ export async function contactExists(key: string) {
   if (await cardFor(key)) return true;
   if (key.startsWith('id:')) return false;
   if (key.startsWith('name:')) return (await walkInIds(key)).length > 0;
-  return registeredUnder(key);
+  if (await registeredUnder(key)) return true;
+  const [m] = await getDb()
+    .select({ id: members.id })
+    .from(members)
+    .where(eq(members.email, key))
+    .limit(1);
+  return Boolean(m);
 }
 
 async function registeredUnder(email: string) {
@@ -660,6 +673,9 @@ export async function deleteContact(key: string) {
     : [];
   const card = await cardFor(key);
   if (card) await db.delete(contacts).where(eq(contacts.id, card.id));
+  // Their membership goes too: deleting someone's data deletes all of it.
+  if (!key.startsWith('name:') && !key.startsWith('id:'))
+    await db.delete(members).where(eq(members.email, key));
   return {
     registrations: removed.length,
     freedEvents: [

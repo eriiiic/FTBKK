@@ -40,6 +40,7 @@ const Schema = z.object({
   linkedin: url,
   youtube: url,
   membershipOpen: z.boolean().optional().default(false),
+  memberSignupOpen: z.boolean().optional().default(false),
   memberPriority: z.boolean().optional().default(false),
   analyticsToken: z.string().max(100),
 });
@@ -126,6 +127,13 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
 
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Membership</h2>
+      <FormField
+        name="memberSignupOpen"
+        label="Open free individual membership on the Join page"
+        type="checkbox"
+        checked={!!values.memberSignupOpen}
+        hint="Shows the membership form on /join and the member page link. Keep it off until emails reach everyone (Resend domain verified)."
+      />
       <FormField
         name="membershipOpen"
         label="Accept membership applications"

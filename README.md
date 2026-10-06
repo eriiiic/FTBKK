@@ -12,13 +12,28 @@ Public pages:
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. Texts are edited in the admin (Site texts).
 - **Join the community** at `/join`, opened by the header's button and linked from Home and the
-  footer: why join, free membership (a "coming soon" text until individual membership is built),
-  the WhatsApp community, listing a company in the directory, ways to get involved (volunteer,
-  host an event, become a partner, speak), the newsletter and the contact form. The WhatsApp group
-  is for members, so its invite link is never shown publicly (not in the header, footer or Home
-  any more): people ask for it with the contact form's "Join the WhatsApp group" topic, and the
-  team sends it. Links like `/join?topic=host#contact` open the form with that topic picked. The
-  page's texts are edited in Site texts.
+  footer: why join, free membership, the WhatsApp community, listing a company in the directory,
+  ways to get involved (volunteer, host an event, become a partner, speak), the newsletter and the
+  contact form. The WhatsApp group is for members, so its invite link is never shown publicly
+  (not in the header, footer or Home): members get it in their welcome email and on their member
+  page; until sign-up opens, people ask for it with the contact form's "Join the WhatsApp group"
+  topic. Links like `/join?topic=host#contact` open the form with that topic picked. The page's
+  texts are edited in Site texts.
+- **Free individual membership** (shown on `/join` once Settings > "Open free individual
+  membership" is ticked): email, name, profile type, company, job title, LinkedIn, sectors of
+  interest, optional phone and nationality (for the board's figures), how they heard of us, the
+  code of conduct and privacy consent, and an optional newsletter box (Turnstile and rate limits).
+  We email a single-use `member_confirm` link (7 days); `/member/confirm` asks for one click and
+  the member is **active** at once, then gets a welcome email with the WhatsApp invitation, the
+  next three events and a button to their member page. Signing up again with a member's address
+  just emails their page link, and the page says the same thing either way. The board reviews new
+  members afterwards in the admin (and gets a Monday email listing them). Membership runs a year
+  (`renewal_due_at`; the yearly reminder comes later).
+- **Member page** at `/member?token=…` (a reusable `member` link, 30 days, sent in every member
+  email; no passwords): membership dates, the WhatsApp button, their events (coming up and past),
+  their profile to edit, and **Leave**, which deletes the member row (event history stays until
+  they use My data). `/member` without a link offers **Send me my link**. Deleting a contact (in
+  the admin or from My data) deletes their membership too.
 - **Newsletter sign-up** on `/join` with double opt-in: name and email (Turnstile and rate limits)
   send a confirmation link (a single-use `newsletter` code in `magic_tokens`, valid 7 days); the
   `/newsletter` page asks for one click (so link scanners can't subscribe anyone) and records the

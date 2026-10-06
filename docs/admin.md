@@ -5,7 +5,7 @@ only emails on the Access policy get in. Every change is saved straight to the l
 pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
-(Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
+(Members, Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
 **Content** (Posts, Files, Site texts) and **Team** (Team and roles, Settings). On a phone, open it
 with the **Menu** button.
 
@@ -241,6 +241,29 @@ uses any more.
 Moderators also get an email for each new request and a summary every Monday. Set who receives
 them in Settings > Directory moderators.
 
+## Members
+
+Free individual membership. It is off until you tick **Open free individual membership on the
+Join page** in Settings; keep it off until the Resend domain is verified, otherwise confirmation
+emails only reach the Resend account owner.
+
+- People sign up on `/join`, click the link in the confirmation email and are **active** at once:
+  they get a welcome email with the WhatsApp invitation (the link from Settings > Social links)
+  and a link to their member page, where they edit their profile, see their events and can leave.
+- **Members > To review**: active members the board hasn't looked at yet, newest first. Every
+  Monday the people with the **Board go/no-go** role (or the contact email if nobody has it) get
+  an email listing them. Tick members and **Mark as reviewed**, or write a reason and
+  **Suspend** (they keep their page but lose the WhatsApp button; remove them from the group by
+  hand). **Reactivate** undoes a suspension.
+- **All members**: search by name, email or company and filter by status, profile type and
+  nationality. **Email their member link** sends confirmed members a fresh link to their page
+  (for someone who lost it; they can also ask for it themselves at `/member`). **Delete**
+  removes the membership only; to delete everything about a person, delete them from Contacts.
+- **Notes** on each row are for the team only. The Dashboard shows the number of active members
+  and how many wait for review.
+- Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
+  (for the yearly renewal, coming later).
+
 ## Board and speakers, Messages, Site texts, Settings
 
 - **Board and speakers** (formerly People): board and institutional partners on the About page, with their job title and
@@ -264,8 +287,9 @@ them in Settings > Directory moderators.
   WhatsApp group", reply with the invite link (the link itself is in Settings and never shown
   on the site).
 - **Settings**: site name and description, contact email, directory moderators, social links (the
-  WhatsApp invite link is kept here for the team only), membership switches and the analytics
-  token.
+  WhatsApp invite link is kept here for the team and the welcome email to members), membership
+  switches (individual sign-up on the Join page, ecosystem membership applications, member
+  priority on events) and the analytics token.
 - **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
   and the membership block; empty = a default text), the About page, the code of conduct and the
   privacy notice. Long texts ("Who we are", "Official French Tech Community", the
