@@ -26,8 +26,8 @@ Public pages:
   We email a single-use `member_confirm` link (7 days); `/member/confirm` asks for one click and
   the member is **active** at once, then gets a welcome email with the WhatsApp invitation, the
   next three events and a button to their member page. Signing up again with a member's address
-  just emails their page link, and the page says the same thing either way. The board reviews new
-  members afterwards in the admin (and gets a Monday email listing them). Membership runs a year
+  just emails their page link, and the page says the same thing either way. The team can suspend
+  a member from the admin. Membership runs a year
   (`renewal_due_at`; the yearly reminder comes later).
 - **Member page** at `/member?token=…` (a reusable `member` link, 30 days, sent in every member
   email; no passwords): membership dates, the WhatsApp button, their events (coming up and past),
@@ -47,7 +47,7 @@ Public pages:
 - **Ecosystem**: a directory of French startups, companies, service providers, investors,
   incubators, schools and institutions in Thailand. Anyone can request a listing; owners manage
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
-  a Member badge, validated by the board (the "company membership", separate from individual
+  a Member badge, approved in the admin (the "company membership", separate from individual
   membership: Settings > "Accept company membership applications").
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
@@ -85,10 +85,11 @@ Public pages:
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
 events, registrations, check-in, stats), **Community** (contacts, messages, board and speakers),
 **Ecosystem** (to review, all listings, renewals), **Content** (posts, files, site texts, emails)
-and **Team** (team and roles, settings). See [docs/admin.md](docs/admin.md).
+and Settings. Anyone who can sign in to the admin can do everything; there are no roles. See
+[docs/admin.md](docs/admin.md).
 
 **Emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
-Ecosystem, Membership, Community, Privacy, Team, Admin notifications), each with who receives it, when it goes out and whether its text is the
+Ecosystem, Membership, Community, Privacy, Admin notifications), each with who receives it, when it goes out and whether its text is the
 default or edited (when, by whom). Opening one edits its subject, message and button label, with
 placeholders such as `{name}`, `{event}`, `{date}` and `{venue}`, a preview in the real email
 layout with sample values, **Send me a test** and **Back to the default text**. Only the words
@@ -100,28 +101,14 @@ the directory emails to listing owners (listing request, published, declined, ma
 check and last day, hidden, claim invitation, claim confirm/approved/declined, changes
 published/declined, membership approved/declined), the individual membership emails (sign-up
 confirmation, welcome, member page link, and the link sent on a repeat sign-up), the newsletter
-confirmation, the "your data" link, the team's weekly tasks, and the notifications to the team
-(contact form message, new listing, claim, listing change and membership application to review,
-weekly directory summary, the board's Monday list of new members). Lists built by the site (the
-steps of the weekly tasks, the renewals of the directory summary, the new members of the board
-email) are placeholders (`{tasks}`, `{renewals}`, `{members}`) that must stay in the message (not only the subject or
-button), like a rejection `{reason}`, the contact form `{message}` or a claim's `{domain-check}`. Optional
+confirmation, the "your data" link, and the notifications to the team (contact form message, new
+listing, claim, listing change and membership application to review, weekly directory summary).
+Lists built by the site (the renewals of the directory summary) are placeholders (`{renewals}`)
+that must stay in the message (not only the subject or button), like a rejection `{reason}`, the contact form `{message}` or a claim's `{domain-check}`. Optional
 parts of the welcome email are placeholders too: `{whatsapp}` (the WhatsApp sentence, empty
 without a link) and `{next-events}` ("Coming up next:" and the next events, empty when none); a
 placeholder left empty on its own line leaves no blank paragraph. "Email registrants" is written each time, so it is listed but not a
 template.
-
-**Who owns what.** Team and roles lists the organising team (name, the email they sign in with,
-roles: event lead, board go/no-go, communication, check-in at the door, directory reviews,
-messages and contacts). Every event has a **checklist** of the event circuit, from proposing it
-(45 days before) to the debrief (14 days after): 13 steps, each with an owner (by default the
-first team member with the step's role), a due date counted from the event date, a note, and
-"Mark done" with who and when. The reminder and feedback emails are automatic, so they are not
-steps. The Events list shows each upcoming event's progress, the Dashboard shows **My tasks**
-(the signed-in person's steps that are late or due this week, messages assigned to them, and the
-directory queue for directory reviewers), and every Monday each owner gets an email with what is
-late or due that week. Contact messages get an **assignee** (new ones go to the person with the
-Messages role, who is also emailed) and Messages has an "Assigned to me" filter.
 
 Check-in at the door works from a phone: volunteers bookmark `/checkin`, which opens a list of
 today's and upcoming events (after the Access login). Tapping one opens its check-in screen. On
@@ -144,7 +131,7 @@ came, linked to the ecosystem, by event, by tag, "Members" (active individual me
 "Regulars not yet members": people who came to 3 or more events and haven't joined, to invite) and exported to CSV, and "Copy emails" copies
 the filtered addresses for the Bcc field of an email. Contacts can carry tags (speaker, sponsor,
 volunteer, board, press), shown next to their name. Tick several contacts to copy their emails,
-export them to CSV, add or remove a tag, or delete them at once. A **Member** box in a contact's Edit form (and on New contact) makes them an active, reviewed
+export them to CSV, add or remove a tag, or delete them at once. A **Member** box in a contact's Edit form (and on New contact) makes them an active
 member, optionally with the welcome email; unticking ends the membership, and changing the email
 moves it. **Merge…** (2 to 10 selected)
 folds duplicates into one contact: you pick whose name and email stay, registrations,

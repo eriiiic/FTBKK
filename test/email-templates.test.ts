@@ -392,23 +392,6 @@ describe('directory, team and admin emails', () => {
       buttonLabel: 'See the listing',
     });
     expect(
-      d('team.weekly-digest', {
-        name: 'Ann',
-        count: '2',
-        late: ' (1 late)',
-        tasks: ['LATE: Connect: Book (due 2 Nov)', 'Connect: Invite (due 6 Nov)'],
-      }),
-    ).toEqual({
-      subject: 'Your French Tech Bangkok tasks this week: 2 (1 late)',
-      paragraphs: [
-        'Hi Ann, here is what is on your plate for the coming week.',
-        'LATE: Connect: Book (due 2 Nov)',
-        'Connect: Invite (due 6 Nov)',
-        'Tick a step as done on the event checklist in the admin, or hand it to someone else there.',
-      ],
-      buttonLabel: 'Open my tasks',
-    });
-    expect(
       d('admin.contact-form', { name: 'Ann', topic: 'Events', message: 'Hello {name}\n\nBye' }),
     ).toEqual({
       subject: 'Website contact (Events): Ann',
@@ -469,9 +452,10 @@ describe('directory, team and admin emails', () => {
   });
 
   it('keep the lists and reasons required', () => {
-    const def = EMAIL_TEMPLATES['team.weekly-digest'];
+    const def = EMAIL_TEMPLATES['admin.directory-digest'];
     expect(
-      templateSchema(def).safeParse({ subject: 'S', body: 'Hi {name}', buttonLabel: 'Go' }).success,
+      templateSchema(def).safeParse({ subject: 'S', body: '{items} to review', buttonLabel: 'Go' })
+        .success,
     ).toBe(false);
     expect(EMAIL_TEMPLATES['directory.claim-rejected'].required).toEqual(['reason']);
     const claim = EMAIL_TEMPLATES['admin.claim-to-review'];
@@ -544,63 +528,40 @@ describe('membership emails', () => {
       ],
       buttonLabel: 'Open my member page',
     });
-    expect(
-      d('admin.new-members', {
-        count: '1 new member',
-        members: ['Ann, Acme (Investor), joined 2 Nov'],
-      }),
-    ).toEqual({
-      subject: 'Members: 1 new member to review',
-      paragraphs: [
-        'New members are active as soon as they confirm their email. Have a look, mark them as reviewed, or suspend anyone who should not be in the community.',
-        'Ann, Acme (Investor), joined 2 Nov',
-      ],
-      buttonLabel: 'Review new members',
-    });
   });
 
-  it('keep the list of new members required', () => {
-    const def = EMAIL_TEMPLATES['admin.new-members'];
-    expect(def.required).toEqual(['members']);
-    expect(
-      templateSchema(def).safeParse({ subject: 'S', body: '{count} to review', buttonLabel: 'Go' })
-        .success,
-    ).toBe(false);
-  });
-
-  it('are in the Membership group, the board digest with the admin notifications', () => {
+  it('are in the Membership group', () => {
     for (const k of ['member.confirm', 'member.welcome', 'member.link', 'member.already-member'])
       expect(EMAIL_TEMPLATES[k as keyof typeof EMAIL_TEMPLATES].group).toBe('Membership');
-    expect(EMAIL_TEMPLATES['admin.new-members'].group).toBe('Admin notifications');
   });
 });
 
 describe('list placeholders', () => {
-  const def = EMAIL_TEMPLATES['team.weekly-digest'];
-  const vars = { name: 'Ann', count: '2', late: '', tasks: ['One', 'Two'] };
+  const def = EMAIL_TEMPLATES['admin.directory-digest'];
+  const vars = { items: '2 items', oldest: '', target: '5', renewals: ['One', 'Two'] };
 
   it('become one paragraph per item on a line of their own', () => {
     const w = applyTemplate(
       def,
-      { subject: 'Tasks: {tasks}', body: 'A\n\n{tasks}\n\nB', buttonLabel: 'Go' },
+      { subject: 'Due: {renewals}', body: 'A\n\n{renewals}\n\nB', buttonLabel: 'Go' },
       vars,
     );
-    expect(w.subject).toBe('Tasks: One, Two');
+    expect(w.subject).toBe('Due: One, Two');
     expect(w.paragraphs).toEqual(['A', 'One', 'Two', 'B']);
   });
 
   it('are joined with line breaks inside a sentence', () => {
     const w = applyTemplate(
       def,
-      { subject: 'S', body: 'Your steps: {tasks}', buttonLabel: 'Go' },
+      { subject: 'S', body: 'Due: {renewals}', buttonLabel: 'Go' },
       vars,
     );
-    expect(w.paragraphs).toEqual(['Your steps: One\nTwo']);
+    expect(w.paragraphs).toEqual(['Due: One\nTwo']);
   });
 
   it('use the sample items in the admin preview', () => {
     const m = sampleEmail(def, defaultText(def));
-    expect(m.paragraphs.length).toBe(5);
-    expect(m.paragraphs[1]).toMatch(/^LATE: /);
+    expect(m.paragraphs.length).toBe(3);
+    expect(m.paragraphs[1]).toMatch(/^Renewal due: /);
   });
 });

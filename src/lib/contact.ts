@@ -10,7 +10,6 @@ import { rateLimit } from './ratelimit';
 import { sendEmail } from './email';
 import { renderTemplate } from './email-templates';
 import { CONTACT_TOPICS, blockedBy, topicLabel, type ContactTopic } from './messages';
-import { defaultOwners, loadTeam } from './ownership';
 import type { Settings } from './settings';
 
 /** A topic from a link (?topic=whatsapp), to preselect it in the form. */
@@ -35,8 +34,7 @@ export interface ContactResult {
 
 /**
  * Handles a contact form post: anti-spam check, rate limit, validation, then the message lands in
- * Messages (assigned to the team member with the Messages role) and is emailed to the contact
- * address. A blocked sender sees the usual thank-you; the message is kept in Spam, unannounced.
+ * Messages and is emailed to the contact address. A blocked sender sees the usual thank-you; the message is kept in Spam, unannounced.
  */
 export async function handleContactForm(
   request: Request,
@@ -63,13 +61,11 @@ export async function handleContactForm(
 
   const data = { ...parsed.data, page };
   const blocked = await blockedBy(data.email);
-  const assignee = blocked ? null : (defaultOwners(await loadTeam()).get('messages') ?? null);
   const [saved] = await getDb()
     .insert(submissions)
     .values({
       type: 'contact',
       payload: data,
-      assignee,
       ...(blocked
         ? {
             status: 'spam' as const,
@@ -96,7 +92,7 @@ export async function handleContactForm(
       message: data.message,
     });
     await sendEmail({
-      to: [...new Set([settings.contactEmail, ...(assignee ? [assignee] : [])])],
+      to: settings.contactEmail,
       replyTo: data.email,
       subject: w.subject,
       paragraphs: w.paragraphs,
@@ -105,7 +101,6 @@ export async function handleContactForm(
         ['Company', data.company ?? '-'],
         ['Topic', topicLabel(data.topic)],
         ['Sent from', page],
-        ...(assignee ? ([['Assigned to', assignee]] as [string, string][]) : []),
       ],
       footer: 'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
     });

@@ -11,14 +11,13 @@ import type { EmailMessage } from './email';
 import { formatEventDate } from './format';
 
 export type TemplateGroup =
-  'Events' | 'Ecosystem' | 'Membership' | 'Community' | 'Privacy' | 'Team' | 'Admin notifications';
+  'Events' | 'Ecosystem' | 'Membership' | 'Community' | 'Privacy' | 'Admin notifications';
 export const TEMPLATE_GROUPS: TemplateGroup[] = [
   'Events',
   'Ecosystem',
   'Membership',
   'Community',
   'Privacy',
-  'Team',
   'Admin notifications',
 ];
 
@@ -166,14 +165,12 @@ export type TemplateKey =
   | 'member.welcome'
   | 'member.link'
   | 'member.already-member'
-  | 'team.weekly-digest'
   | 'admin.contact-form'
   | 'admin.listing-to-review'
   | 'admin.claim-to-review'
   | 'admin.change-to-review'
   | 'admin.membership-application'
-  | 'admin.directory-digest'
-  | 'admin.new-members';
+  | 'admin.directory-digest';
 
 /** Every email built from a template, in the order of the admin list. */
 export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
@@ -597,40 +594,11 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     preview: { buttonUrl: `${SITE}/member`, footer: 'The link works for 30 days.' },
   },
 
-  // ---------- Team ----------
-  'team.weekly-digest': {
-    label: 'Weekly tasks',
-    group: 'Team',
-    audience: 'Each team member with steps late or due in the coming week',
-    trigger: 'Every Monday at 9:00',
-    subject: 'Your French Tech Bangkok tasks this week: {count}{late}',
-    body: 'Hi {name}, here is what is on your plate for the coming week.\n\n{tasks}\n\nTick a step as done on the event checklist in the admin, or hand it to someone else there.',
-    buttonLabel: 'Open my tasks',
-    placeholders: [
-      { key: 'name', description: "The team member's first name", sample: 'Camille' },
-      { key: 'count', description: 'How many steps are listed', sample: '3' },
-      {
-        key: 'late',
-        description: '" (1 late)" when some are late, otherwise empty',
-        sample: ' (1 late)',
-      },
-      {
-        key: 'tasks',
-        description: 'The steps, one per paragraph when on a line of its own',
-        sample: `LATE: ${SAMPLE_EVENT}: Book the venue (due 2 Nov)\n${SAMPLE_EVENT}: Send the invitations (due 6 Nov)\n${SAMPLE_EVENT}: Order the drinks (due 8 Nov)`,
-        list: true,
-      },
-    ],
-    required: ['tasks'],
-    added: 'The link to the admin (the button).',
-    preview: { buttonUrl: `${SITE}/admin` },
-  },
-
   // ---------- Admin notifications: emails to the team ----------
   'admin.contact-form': {
     label: 'Contact form message',
     group: 'Admin notifications',
-    audience: 'The contact address in Settings, and whoever handles messages',
+    audience: 'The contact address in Settings',
     trigger: 'When someone sends the contact form (not when the sender is blocked)',
     subject: 'Website contact ({topic}): {name}',
     body: '{message}',
@@ -645,7 +613,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     ],
     required: ['message'],
     added:
-      'The sender, company, topic, page and assignee, and a footer: "Sent from the contact form… Reply to answer directly." Replying answers the sender.',
+      'The sender, company, topic and page, and a footer: "Sent from the contact form… Reply to answer directly." Replying answers the sender.',
     preview: {
       details: [
         ['From', 'Camille Martin <camille@example.com>'],
@@ -776,33 +744,6 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
         ['Renewals due this month', '2 (1 unclaimed)'],
       ],
     },
-  },
-  'admin.new-members': {
-    label: 'Members: new members to review',
-    group: 'Admin notifications',
-    audience: 'The board (team members with the Board role, or the contact address)',
-    trigger: 'Every Monday at 9:00, when new members have not been reviewed yet',
-    subject: 'Members: {count} to review',
-    body: 'New members are active as soon as they confirm their email. Have a look, mark them as reviewed, or suspend anyone who should not be in the community.\n\n{members}',
-    buttonLabel: 'Review new members',
-    placeholders: [
-      {
-        key: 'count',
-        description: 'How many new members wait, e.g. "3 new members"',
-        sample: '3 new members',
-      },
-      {
-        key: 'members',
-        description:
-          'The new members (name, company, profile, date joined), one per paragraph when on a line of its own; "And 5 more." after the first 30',
-        sample:
-          'Camille Martin, Siam Robotics (Founder or co-founder), joined 2 Nov\nNiran Chai (Investor), joined 3 Nov\nLucie Bernard, Lotus Labs (Student), joined 4 Nov',
-        list: true,
-      },
-    ],
-    required: ['members'],
-    added: 'The link to the members admin (the button).',
-    preview: { buttonUrl: `${SITE}/admin/members` },
   },
 };
 
