@@ -265,8 +265,7 @@ const hasButton = def.buttonLabel !== undefined;
           <p class="mt-1 text-sm text-muted">This email has no placeholders.</p>
         )}
         <p class="mt-4 text-sm text-muted">
-          <span class="font-semibold text-ink">Added by the site:</span>
-          {def.added}
+          <span class="font-semibold text-ink">Added by the site:</span> {def.added}
         </p>
       </section>
 
@@ -305,7 +304,7 @@ const hasButton = def.buttonLabel !== undefined;
         With sample values. Click Preview to see your changes before saving.
       </p>
       <p class="mt-3 text-sm">
-        <span class="text-muted">Subject:</span>
+        <span class="text-muted">Subject:</span>{' '}
         <span class="font-semibold">{sampleEmail(def, values).subject}</span>
       </p>
       <iframe
