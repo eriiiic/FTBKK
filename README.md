@@ -120,7 +120,9 @@ came, linked to the ecosystem, by event, by tag, "Members" (active individual me
 "Regulars not yet members": people who came to 3 or more events and haven't joined, to invite) and exported to CSV, and "Copy emails" copies
 the filtered addresses for the Bcc field of an email. Contacts can carry tags (speaker, sponsor,
 volunteer, board, press), shown next to their name. Tick several contacts to copy their emails,
-export them to CSV, add or remove a tag, or delete them at once. **Merge…** (2 to 10 selected)
+export them to CSV, add or remove a tag, or delete them at once. A **Member** box in a contact's Edit form (and on New contact) makes them an active, reviewed
+member, optionally with the welcome email; unticking ends the membership, and changing the email
+moves it. **Merge…** (2 to 10 selected)
 folds duplicates into one contact: you pick whose name and email stay, registrations,
 attendance and feedback move over (same event twice: came > registered > waitlist > cancelled
 wins, and a freed seat goes to the waitlist), empty details are filled from the others, tags are

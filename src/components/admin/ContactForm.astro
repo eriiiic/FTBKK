@@ -11,8 +11,13 @@ interface Props {
   walkIn?: boolean;
   /** The newsletter answer that counts today, shown under the menu when editing. */
   newsletterNow?: string;
+  /** Their individual membership status, when they have one. */
+  memberStatus?: 'pending' | 'active' | 'suspended' | 'lapsed' | null;
 }
-const { values, errors, submit, walkIn = false, newsletterNow } = Astro.props;
+const { values, errors, submit, walkIn = false, newsletterNow, memberStatus = null } = Astro.props;
+const memberLocked = memberStatus === 'suspended' || memberStatus === 'lapsed';
+// After a post with errors, the box shows what was sent; otherwise their membership.
+const memberChecked = values.action === 'save' ? values.member === true : memberStatus === 'active';
 const v = (k: string) => (values[k] as string | null | undefined) ?? '';
 const newsletterOptions = [
   ['', 'As they chose when registering'],
@@ -122,6 +127,38 @@ const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
       hint="Leave empty for today."
     />
   </div>
+  <fieldset class="grid gap-2">
+    <legend class="text-sm font-semibold">Membership</legend>
+    {memberLocked ? (
+      <p class="text-sm text-muted">
+        Their membership is {memberStatus}: change it in{' '}
+        <a href={`/admin/members?tab=all&q=${encodeURIComponent(v('email'))}`}>Members</a>.
+      </p>
+    ) : (
+      <>
+        <FormField
+          name="member"
+          label="Member"
+          type="checkbox"
+          checked={memberChecked}
+          error={errors.member}
+          hint={
+            memberStatus === 'pending'
+              ? 'They signed up but never confirmed their email. Tick to make them a member now.'
+              : 'Free individual membership, active at once and counted as reviewed. Unticking ends it. Needs an email.'
+          }
+        />
+        {memberStatus !== 'active' && (
+          <FormField
+            name="welcome"
+            label="Send them the welcome email (WhatsApp invitation and member page link)"
+            type="checkbox"
+            checked={values.welcome === true}
+          />
+        )}
+      </>
+    )}
+  </fieldset>
   <FormField
     name="notes"
     label="Notes"

@@ -134,6 +134,11 @@ uses any more.
   In the Ecosystem column, **Member company** marks a listing with company membership.
 - **Regulars not yet members**: people who came to 3 or more events and are not members yet. Copy
   their emails or export them to invite them to join on the Join page.
+- **Member** (in a contact's Edit form, and on New contact): tick it to make them a member at
+  once, already counted as reviewed, with the details from their card; tick **Send them the
+  welcome email** too to send the WhatsApp invitation and their member page link. Unticking ends
+  an active membership. It needs an email. Suspended or lapsed memberships are changed in
+  Members. Changing a contact's email moves their membership with it.
 - **Merge duplicates**: tick 2 to 10 contacts (for example the same person with a work and a
   personal email, or a walk-in typed differently) and click **Merge…**. Pick the one to keep:
   its name and email stay. All registrations, attendance and feedback move to it; if two of them

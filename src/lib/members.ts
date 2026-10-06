@@ -218,6 +218,74 @@ async function sendWelcome(m: Member, link: string) {
   });
 }
 
+/**
+ * The team marks a contact as a member (the Member box on a contact's Edit form): they become an
+ * active, already reviewed member, with the details from their contact card. Unticking ends an
+ * active membership (an unconfirmed sign-up is left alone). Suspended and lapsed memberships are changed in Members, not here. With
+ * `welcome`, a new member gets the welcome email (WhatsApp invitation and member page link).
+ */
+export async function setMembershipByTeam(
+  person: {
+    email: string;
+    name: string;
+    phone: string | null;
+    company: string | null;
+    role: string | null;
+    linkedin: string | null;
+  },
+  on: boolean,
+  actor: string,
+  welcome = false,
+  now = new Date(),
+) {
+  const db = getDb();
+  const existing = await memberByEmail(person.email);
+  if (existing && (existing.status === 'suspended' || existing.status === 'lapsed')) return;
+  if (!on) {
+    // An unconfirmed sign-up stays: it is theirs to confirm.
+    if (existing?.status === 'active') await deleteMembers([existing.id], actor);
+    return;
+  }
+  if (existing?.status === 'active') return;
+  const set = {
+    status: 'active' as const,
+    memberSince: existing?.memberSince ?? now,
+    renewalDueAt: renewalDate(now),
+    reviewedAt: now,
+    reviewedBy: actor,
+    updatedAt: now,
+  };
+  const [m] = existing
+    ? await db.update(members).set(set).where(eq(members.id, existing.id)).returning()
+    : await db
+        .insert(members)
+        .values({
+          ...set,
+          email: person.email,
+          name: person.name,
+          phone: person.phone,
+          company: person.company,
+          jobTitle: person.role,
+          linkedin: person.linkedin,
+          termsAcceptedAt: now,
+          notes: `Added by the team from Contacts (${actor}).`,
+        })
+        .returning();
+  await audit(actor, 'member_add', 'member', m!.id, existing ? { status: existing.status } : null, {
+    status: 'active',
+  });
+  if (welcome) await sendWelcome(m!, await issueToken('member', m!.email, { refId: m!.id, now }));
+}
+
+/** A contact's email changed: their membership follows, unless the new email has one. */
+export async function moveMembership(from: string, to: string) {
+  if (from === to || (await memberByEmail(to))) return;
+  await getDb()
+    .update(members)
+    .set({ email: to, updatedAt: new Date() })
+    .where(eq(members.email, from));
+}
+
 /** Emails a link to the member page (from "Send me my link", or a repeat sign-up). */
 export async function sendMemberLink(m: Member, repeat = false) {
   const token = await issueToken('member', m.email, { refId: m.id });
