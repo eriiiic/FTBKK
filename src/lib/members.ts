@@ -1,6 +1,6 @@
 // Free individual membership: sign up on /join, confirm by email, then a member page reached by
-// email links (no passwords). Members are active as soon as they confirm; the team can suspend
-// them. See docs/admin.md.
+// email links (no passwords). Members are active as soon as they confirm; the team looks at new
+// members afterwards (Members > To review, never blocking) and can suspend them. See docs/admin.md.
 import { z } from 'zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db';
@@ -216,7 +216,7 @@ async function sendWelcome(m: Member, link: string) {
 
 /**
  * The team marks a contact as a member (the Member box on a contact's Edit form): they become an
- * active member, with the details from their contact card. Unticking ends an
+ * active, already reviewed member, with the details from their contact card. Unticking ends an
  * active membership (an unconfirmed sign-up is left alone). Suspended and lapsed memberships are changed in Members, not here. With
  * `welcome`, a new member gets the welcome email (WhatsApp invitation and member page link).
  */
@@ -247,6 +247,8 @@ export async function setMembershipByTeam(
     status: 'active' as const,
     memberSince: existing?.memberSince ?? now,
     renewalDueAt: renewalDate(now),
+    reviewedAt: now,
+    reviewedBy: actor,
     updatedAt: now,
   };
   const [m] = existing
@@ -354,7 +356,7 @@ export async function memberEvents(address: string) {
 
 export const MemberAdminAction = z.discriminatedUnion('action', [
   z.object({
-    action: z.enum(['reactivate', 'delete', 'link']),
+    action: z.enum(['review', 'reactivate', 'delete', 'link']),
     ids: z.array(z.coerce.number().int().positive()).min(1).max(500),
   }),
   z.object({
@@ -384,12 +386,20 @@ export async function applyMemberAction(
   const what = `${n} member${n === 1 ? '' : 's'}`;
   const where = inArray(members.id, input.ids);
   switch (input.action) {
+    case 'review':
+      await db
+        .update(members)
+        .set({ reviewedAt: now, reviewedBy: actor, updatedAt: now })
+        .where(where);
+      break;
     case 'suspend':
       await db
         .update(members)
         .set({
           status: 'suspended',
           suspendedReason: input.reason,
+          reviewedAt: now,
+          reviewedBy: actor,
           updatedAt: now,
         })
         .where(where);
@@ -414,6 +424,7 @@ export async function applyMemberAction(
   for (const id of input.ids)
     await audit(actor, `member_${input.action}`, 'member', id, null, null);
   return {
+    review: `${what} marked as reviewed.`,
     suspend: `${what} suspended.`,
     reactivate: `${what} reactivated.`,
   }[input.action];

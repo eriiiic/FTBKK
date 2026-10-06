@@ -26,8 +26,8 @@ Public pages:
   We email a single-use `member_confirm` link (7 days); `/member/confirm` asks for one click and
   the member is **active** at once, then gets a welcome email with the WhatsApp invitation, the
   next three events and a button to their member page. Signing up again with a member's address
-  just emails their page link, and the page says the same thing either way. The team can suspend
-  a member from the admin. Membership runs a year
+  just emails their page link, and the page says the same thing either way. The team sees new members
+  in Members > To review (it never blocks them), can add notes and can suspend a member. Membership runs a year
   (`renewal_due_at`; the yearly reminder comes later).
 - **Member page** at `/member?token=…` (a reusable `member` link, 30 days, sent in every member
   email; no passwords): membership dates, the WhatsApp button, their events (coming up and past),

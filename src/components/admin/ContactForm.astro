@@ -145,7 +145,7 @@ const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
           hint={
             memberStatus === 'pending'
               ? 'They signed up but never confirmed their email. Tick to make them a member now.'
-              : 'Free individual membership, active at once. Unticking ends it. Needs an email.'
+              : 'Free individual membership, active at once and counted as reviewed. Unticking ends it. Needs an email.'
           }
         />
         {memberStatus !== 'active' && (
