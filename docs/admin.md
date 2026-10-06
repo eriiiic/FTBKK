@@ -116,7 +116,7 @@ uses any more.
 - **Regulars not yet members**: people who came to 3 or more events and are not members yet. Copy
   their emails or export them to invite them to join on the Join page.
 - **Member** (in a contact's Edit form, and on New contact): tick it to make them a member at
-  once, with the details from their card; tick **Send them the
+  once (counted as reviewed), with the details from their card; tick **Send them the
   welcome email** too to send the WhatsApp invitation and their member page link. Unticking ends
   an active membership. It needs an email. Suspended or lapsed memberships are changed in
   Members. Changing a contact's email moves their membership with it.
@@ -246,8 +246,12 @@ emails only reach the Resend account owner.
 - People sign up on `/join`, click the link in the confirmation email and are **active** at once:
   they get a welcome email with the WhatsApp invitation (the link from Settings > Social links)
   and a link to their member page, where they edit their profile, see their events and can leave.
-- **Members** lists everyone, newest first: search by name, email or company and filter by
-  status, profile type and nationality. Tick members and write a reason to **Suspend** them (they
+- **Members > To review**: active members nobody has looked at yet, newest first. It never
+  blocks anyone (they are members already); it just helps the board keep track of who joined.
+  Add a **note** if useful, then tick them and **Mark as reviewed**. Members made from a contact's
+  Edit form, and suspended members, count as reviewed. There is no email about it.
+- **All members**: search by name, email or company and filter by status, profile type and
+  nationality. Tick members and write a reason to **Suspend** them (they
   keep their page but lose the WhatsApp button; remove them from the group by hand).
   **Reactivate** undoes a suspension. **Email their member link** sends confirmed members a fresh link to their page
   (for someone who lost it; they can also ask for it themselves at `/member`). **Delete**
@@ -256,7 +260,7 @@ emails only reach the Resend account owner.
   member is in Contacts and can use My data. Active members get member priority on events (when
   it is on in Settings), like owners of member companies.
 - **Notes** on each row are for the team only. The Dashboard shows the number of active members
-  and how many haven't confirmed their email yet.
+  and how many wait in To review.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
   (for the yearly renewal, coming later).
 

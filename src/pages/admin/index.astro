@@ -1,5 +1,5 @@
 ---
-import { and, asc, count, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
@@ -13,40 +13,52 @@ import { formatEventDate } from '../../lib/format';
 
 const db = getDb();
 const now = new Date();
-const [queue, upcoming, [drafts], [unread], [listed], [renewSoon], contacts, [active], [pending]] =
-  await Promise.all([
-    moderationQueue(),
-    db
-      .select({
-        id: events.id,
-        title: events.title,
-        startsAt: events.startsAt,
-        endsAt: events.endsAt,
-        status: events.status,
-        capacity: events.capacity,
-        registered: registrationCount(['registered', 'attended']),
-        waitlist: registrationCount(['waitlist']),
-      })
-      .from(events)
-      .where(gte(events.startsAt, new Date(now.getTime() - 86400_000)))
-      .orderBy(asc(events.startsAt))
-      .limit(5),
-    db.select({ n: count() }).from(posts).where(eq(posts.status, 'draft')),
-    db.select({ n: count() }).from(submissions).where(eq(submissions.status, 'new')),
-    db.select({ n: count() }).from(organisations).where(eq(organisations.status, 'published')),
-    db
-      .select({ n: count() })
-      .from(organisations)
-      .where(
-        and(
-          inArray(organisations.status, ['published']),
-          sql`${organisations.renewalDueAt} < ${Math.floor(now.getTime() / 1000) + 30 * 86400}`,
-        ),
+const [
+  queue,
+  upcoming,
+  [drafts],
+  [unread],
+  [listed],
+  [renewSoon],
+  contacts,
+  [active],
+  [unreviewed],
+] = await Promise.all([
+  moderationQueue(),
+  db
+    .select({
+      id: events.id,
+      title: events.title,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      status: events.status,
+      capacity: events.capacity,
+      registered: registrationCount(['registered', 'attended']),
+      waitlist: registrationCount(['waitlist']),
+    })
+    .from(events)
+    .where(gte(events.startsAt, new Date(now.getTime() - 86400_000)))
+    .orderBy(asc(events.startsAt))
+    .limit(5),
+  db.select({ n: count() }).from(posts).where(eq(posts.status, 'draft')),
+  db.select({ n: count() }).from(submissions).where(eq(submissions.status, 'new')),
+  db.select({ n: count() }).from(organisations).where(eq(organisations.status, 'published')),
+  db
+    .select({ n: count() })
+    .from(organisations)
+    .where(
+      and(
+        inArray(organisations.status, ['published']),
+        sql`${organisations.renewalDueAt} < ${Math.floor(now.getTime() / 1000) + 30 * 86400}`,
       ),
-    loadContacts(now),
-    db.select({ n: count() }).from(members).where(eq(members.status, 'active')),
-    db.select({ n: count() }).from(members).where(eq(members.status, 'pending')),
-  ]);
+    ),
+  loadContacts(now),
+  db.select({ n: count() }).from(members).where(eq(members.status, 'active')),
+  db
+    .select({ n: count() })
+    .from(members)
+    .where(and(eq(members.status, 'active'), isNull(members.reviewedAt))),
+]);
 const queueAges = [
   ...queue.pendingOrgs.map((o) => o.submittedAt ?? o.updatedAt),
   ...queue.changes.map((c) => c.change.createdAt),
@@ -75,7 +87,7 @@ const stats = [
     label: 'Members',
     value: active!.n,
     href: '/admin/members',
-    note: `${pending!.n} not confirmed yet`,
+    note: unreviewed!.n ? `${unreviewed!.n} to review` : 'All reviewed',
   },
   {
     label: 'Contacts',

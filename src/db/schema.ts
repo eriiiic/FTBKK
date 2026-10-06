@@ -572,6 +572,9 @@ export const members = sqliteTable(
     confirmedAt: ts('confirmed_at'),
     memberSince: ts('member_since'),
     renewalDueAt: ts('renewal_due_at'),
+    /** When someone in the admin looked at this new member (Members > To review); never blocks them. */
+    reviewedAt: ts('reviewed_at'),
+    reviewedBy: text('reviewed_by'),
     /** Why the team suspended them (team only). */
     suspendedReason: text('suspended_reason'),
     notes: text('notes'),
