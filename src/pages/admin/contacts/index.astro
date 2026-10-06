@@ -16,6 +16,8 @@ import {
   type ContactTag,
 } from '../../../lib/contacts';
 import { formatDate } from '../../../lib/format';
+import { getSettings } from '../../../lib/settings';
+import { inviteToJoin } from '../../../lib/members';
 
 const url = Astro.url;
 if (Astro.request.method === 'POST') {
@@ -25,6 +27,7 @@ if (Astro.request.method === 'POST') {
   const parsed = z
     .discriminatedUnion('action', [
       z.object({ action: z.literal('delete'), keys }),
+      z.object({ action: z.literal('invite'), keys }),
       z.object({
         action: z.enum(['tag-add', 'tag-remove']),
         keys,
@@ -33,12 +36,19 @@ if (Astro.request.method === 'POST') {
     ])
     .safeParse({ action: form.get('action'), keys: form.getAll('c'), tag: form.get('tag') });
   const back = new URLSearchParams(url.search);
-  for (const k of ['saved', 'tagged', 'n', 'skipped', 'which']) back.delete(k);
+  for (const k of ['saved', 'tagged', 'n', 'skipped', 'which', 'invited']) back.delete(k);
   const actor = Astro.locals.adminEmail ?? 'admin';
   if (parsed.success && parsed.data.action === 'delete') {
     await deleteContacts(parsed.data.keys, actor);
     back.set('saved', 'deleted');
-  } else if (parsed.success && parsed.data.action !== 'delete') {
+  } else if (parsed.success && parsed.data.action === 'invite') {
+    const wanted = new Set(parsed.data.keys);
+    const r = await inviteToJoin(
+      (await loadContacts()).filter((c) => wanted.has(c.key)),
+      actor,
+    );
+    back.set('invited', [r.sent, r.members, r.recent, r.noEmail].join('.'));
+  } else if (parsed.success && 'tag' in parsed.data) {
     const add = parsed.data.action === 'tag-add';
     const { changed, skipped } = await tagContacts(parsed.data.keys, parsed.data.tag, add, actor);
     back.set('tagged', add ? 'added' : 'removed');
@@ -84,6 +94,27 @@ if ((tagged === 'added' || tagged === 'removed') && isContactTag(which)) {
   }
 }
 
+// The result of "Invite to join", shown once after the redirect.
+const invited =
+  Astro.request.method === 'GET'
+    ? (url.searchParams.get('invited') ?? '').split('.').map((n) => Number(n) || 0)
+    : [];
+const nContacts = (k: number) => `${k} contact${k === 1 ? '' : 's'}`;
+const invitedText =
+  invited.length === 4
+    ? [
+        `“Claim your membership” sent to ${nContacts(invited[0]!)}.`,
+        invited[1]
+          ? `${nContacts(invited[1])} already ${invited[1] === 1 ? 'a member' : 'members'} (skipped).`
+          : '',
+        invited[2] ? `${nContacts(invited[2])} invited in the last 30 days (skipped).` : '',
+        invited[3] ? `${nContacts(invited[3])} without an email (skipped).` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : '';
+const membershipOpen = (await getSettings()).memberSignupOpen;
+
 // Events people registered for, newest first, for the event filter.
 const eventOptions = [
   ...new Map(all.flatMap((c) => c.history.map((r) => [r.event.id, r.event] as const))).values(),
@@ -119,6 +150,11 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
     ))}
   </dl>
 
+  {invitedText && (
+    <Alert tone="success" class="mb-4">
+      {invitedText}
+    </Alert>
+  )}
   {taggedText && (
     <Alert tone={taggedTone} class="mb-4">
       {taggedText}
@@ -275,6 +311,31 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
             type="submit"
             size="sm"
             variant="light"
+            formaction="/admin/community-email"
+            formmethod="post"
+            name="action"
+            value="compose"
+            title="Write one email to the selected contacts"
+          >
+            Email…
+          </Button>
+          {membershipOpen && (
+            <Button
+              type="submit"
+              size="sm"
+              variant="light"
+              name="action"
+              value="invite"
+              data-confirm="Send the selected contacts the “Claim your membership” email? Members and people invited in the last 30 days are skipped."
+              title="Email them a prefilled link to claim their free membership"
+            >
+              Invite to join
+            </Button>
+          )}
+          <Button
+            type="submit"
+            size="sm"
+            variant="light"
             formaction="/admin/contacts.csv"
             formmethod="post"
           >
@@ -331,6 +392,11 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
                     <Badge tone="accent" class="ml-1">
                       Member
                     </Badge>
+                  )}
+                  {!c.member && c.invitedAt && (
+                    <span class="ml-1 text-xs text-muted">
+                      Invited {formatDate(c.invitedAt, { year: undefined })}
+                    </span>
                   )}
                   {c.tags.map((t) => (
                     <Badge tone="brand" class="ml-1">

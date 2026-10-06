@@ -2,20 +2,26 @@
 // email links (no passwords). Members are active as soon as they confirm; the team looks at new
 // members afterwards (Members > To review, never blocking) and can suspend them. See docs/admin.md.
 import { z } from 'zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { getDb } from '../db';
-import { contacts, events, members, registrations, type Member } from '../db/schema';
+import { contacts, events, members, registrations, type Event, type Member } from '../db/schema';
 import { email, optionalText, optionalUrl } from './forms';
 import { SECTORS } from './directory';
-import { HOW_HEARD } from './registrations';
+import { HOW_HEARD, registerForEvent, type RegisterOutcome } from './registrations';
 import { consumeToken, issueToken, peekToken } from './tokens';
-import { sendEmail } from './email';
-import { renderTemplate } from './email-templates';
+import { sendEmail, sendEmailBatch, type EmailMessage } from './email';
+import {
+  EMAIL_TEMPLATES,
+  applyTemplate,
+  loadTemplateText,
+  renderTemplate,
+} from './email-templates';
 import { audit, siteUrl } from './orgs';
 import { confirmNewsletter } from './newsletter';
 import { getSettings } from './settings';
 import { upcomingEvents } from './queries';
-import { formatEventDate } from './format';
+import { formatDate, formatEventDate } from './format';
+import type { Contact } from './contacts';
 import { DAY_MS } from './lifecycle';
 
 export const PROFILE_TYPES = {
@@ -107,12 +113,32 @@ export async function memberByEmail(address: string) {
   return m ?? null;
 }
 
+/** A member's details as an event registration (members-only registration). */
+export function memberRegistration(m: Member, note = '') {
+  return {
+    name: m.name,
+    email: m.email,
+    company: m.company ?? '',
+    phone: m.phone ?? '',
+    role: m.jobTitle ?? '',
+    howHeard: m.howHeard ?? '',
+    note,
+    photoConsent: true as const,
+    newsletter: false,
+  };
+}
+
 /**
- * A sign-up from /join. New, unconfirmed and lapsed people get a confirmation link; an active or
- * suspended member gets their member page link instead. The page shows the same answer either
- * way, so it doesn't reveal who is a member.
+ * A sign-up from /join, or from an event page (`join`: the event they were registering for, and
+ * their note), in which case confirming the email also registers them. New, unconfirmed and
+ * lapsed people get a confirmation link; an active or suspended member gets their member page
+ * link instead. The page shows the same answer either way, so it doesn't reveal who is a member.
  */
-export async function requestMembership(data: MemberSignup, now = new Date()) {
+export async function requestMembership(
+  data: MemberSignup,
+  now = new Date(),
+  join: { event: { id: number; title: string }; note: string } | null = null,
+) {
   const db = getDb();
   const existing = await memberByEmail(data.email);
   if (existing && (existing.status === 'active' || existing.status === 'suspended')) {
@@ -124,13 +150,17 @@ export async function requestMembership(data: MemberSignup, now = new Date()) {
     ...profile,
     newsletterRequested: newsletter,
     termsAcceptedAt: now,
+    pendingEventId: join?.event.id ?? null,
+    pendingNote: join?.note || null,
     updatedAt: now,
   };
   const [saved] = existing
     ? await db.update(members).set(row).where(eq(members.id, existing.id)).returning()
     : await db.insert(members).values(row).returning();
   const token = await issueToken('member_confirm', data.email, { refId: saved!.id, now });
-  const w = await renderTemplate('member.confirm', { name: data.name });
+  const w = join
+    ? await renderTemplate('member.confirm-event', { name: data.name, event: join.event.title })
+    : await renderTemplate('member.confirm', { name: data.name });
   await sendEmail({
     to: data.email,
     subject: w.subject,
@@ -146,8 +176,10 @@ export async function requestMembership(data: MemberSignup, now = new Date()) {
 
 /**
  * Confirms a membership from the email link: the member becomes active (a lapsed one starts a
- * new year), their newsletter choice is recorded, and they get the welcome email. Returns the
- * member and a link token to their page, or null when the link is not valid any more.
+ * new year), their newsletter choice is recorded, and they get the welcome email. If they joined
+ * while registering for an event, they are registered now (or told it closed). Returns the
+ * member, a link token to their page and that registration, or null when the link is not valid
+ * any more.
  */
 export async function confirmMembership(token: string, now = new Date()) {
   const row = await consumeToken(token, 'member_confirm', now);
@@ -163,6 +195,9 @@ export async function confirmMembership(token: string, now = new Date()) {
       confirmedAt: now,
       memberSince: m.memberSince ?? now,
       renewalDueAt: fresh || !m.renewalDueAt ? renewalDate(now) : m.renewalDueAt,
+      renewalReminder: null,
+      pendingEventId: null,
+      pendingNote: null,
       updatedAt: now,
     })
     .where(eq(members.id, m.id))
@@ -184,7 +219,23 @@ export async function confirmMembership(token: string, now = new Date()) {
   await audit('self-service', 'member_confirm', 'member', m.id, { status: m.status }, null);
   const link = await issueToken('member', m.email, { refId: m.id, now });
   if (fresh) await sendWelcome(updated!, link);
-  return { member: updated!, link };
+  let registration: { event: Event; outcome: RegisterOutcome } | null = null;
+  if (m.pendingEventId) {
+    const [event] = await db.select().from(events).where(eq(events.id, m.pendingEventId));
+    if (event) {
+      const settings = await getSettings();
+      const outcome = await registerForEvent(
+        event,
+        memberRegistration(updated!, m.pendingNote ?? ''),
+        {
+          memberPriority: settings.memberPriority,
+          now,
+        },
+      );
+      registration = { event, outcome };
+    }
+  }
+  return { member: updated!, link, registration };
 }
 
 async function sendWelcome(m: Member, link: string) {
@@ -271,6 +322,50 @@ export async function setMembershipByTeam(
     status: 'active',
   });
   if (welcome) await sendWelcome(m!, await issueToken('member', m!.email, { refId: m!.id, now }));
+}
+
+/** Emails of active members (check-in's "Not a member" flag). */
+export async function activeMemberEmails() {
+  const rows = await getDb()
+    .select({ email: members.email })
+    .from(members)
+    .where(eq(members.status, 'active'));
+  return new Set(rows.map((r) => r.email));
+}
+
+/**
+ * A walk-in who wants to become a member, enrolled at the door: they get the usual confirmation
+ * email (they become a member when they click it). Nothing is sent to someone already active.
+ * Returns true when the email went out.
+ */
+export async function enrolAtDoor(
+  person: { email: string; name: string; phone: string | null; company: string | null },
+  newsletter: boolean,
+  actor: string,
+  now = new Date(),
+) {
+  const existing = await memberByEmail(person.email);
+  if (existing && existing.status !== 'pending' && existing.status !== 'lapsed') return false;
+  await requestMembership(
+    {
+      email: person.email,
+      name: person.name,
+      phone: person.phone,
+      company: person.company,
+      jobTitle: existing?.jobTitle ?? null,
+      linkedin: existing?.linkedin ?? null,
+      profileType: (existing?.profileType as ProfileType | undefined) ?? 'other',
+      nationality: (existing?.nationality as MemberProfile['nationality']) ?? null,
+      interests: (existing?.interests ?? []) as MemberProfile['interests'],
+      howHeard: existing?.howHeard ?? null,
+      terms: true,
+      newsletter,
+    },
+    now,
+  );
+  const m = await memberByEmail(person.email);
+  if (m) await audit(actor, 'member_enrol_door', 'member', m.id, null, null);
+  return true;
 }
 
 /** A contact's email changed: their membership follows, unless the new email has one. */
@@ -428,4 +523,241 @@ export async function applyMemberAction(
     suspend: `${what} suspended.`,
     reactivate: `${what} reactivated.`,
   }[input.action];
+}
+
+// ---------- claim campaign (Contacts > Invite to join) ----------
+
+/** Someone invited less than this many days ago is not invited again. */
+export const INVITE_AGAIN_DAYS = 30;
+
+/**
+ * "Claim your membership" invitations to selected contacts: each gets a link to a form prefilled
+ * with what we know about them. Skipped: contacts without an email, members (any status), and
+ * people invited in the last 30 days. The invitation date is kept on their contact card (created
+ * from their latest details if they had none).
+ */
+export async function inviteToJoin(
+  list: Pick<
+    Contact,
+    | 'key'
+    | 'email'
+    | 'name'
+    | 'phone'
+    | 'company'
+    | 'role'
+    | 'linkedin'
+    | 'savedId'
+    | 'member'
+    | 'invitedAt'
+  >[],
+  actor: string,
+  now = new Date(),
+) {
+  const db = getDb();
+  const recent = now.getTime() - INVITE_AGAIN_DAYS * DAY_MS;
+  const result = { sent: 0, noEmail: 0, members: 0, recent: 0 };
+  const todo: typeof list = [];
+  for (const c of list) {
+    if (!c.email) result.noEmail++;
+    else if (c.member) result.members++;
+    else if (c.invitedAt && c.invitedAt.getTime() > recent) result.recent++;
+    else todo.push(c);
+  }
+  const text = await loadTemplateText('member.claim');
+  const messages: EmailMessage[] = [];
+  for (const c of todo) {
+    const token = await issueToken('member_claim', c.email!, { now });
+    const w = applyTemplate(EMAIL_TEMPLATES['member.claim'], text, { name: c.name });
+    messages.push({
+      to: c.email!,
+      subject: w.subject,
+      paragraphs: w.paragraphs,
+      action: {
+        label: w.buttonLabel,
+        url: siteUrl(`/member/claim?token=${encodeURIComponent(token)}`),
+      },
+      footer: 'The link works for 60 days.',
+    });
+  }
+  const sent = await sendEmailBatch(messages);
+  if (!sent.ok) throw new Error('The invitations could not be sent. Try again later.');
+  for (const c of todo) {
+    if (c.savedId)
+      await db.update(contacts).set({ memberInvitedAt: now }).where(eq(contacts.id, c.savedId));
+    else
+      await db
+        .insert(contacts)
+        .values({
+          email: c.email,
+          name: c.name,
+          phone: c.phone,
+          company: c.company,
+          role: c.role,
+          linkedin: c.linkedin,
+          memberInvitedAt: now,
+        })
+        .onConflictDoUpdate({ target: contacts.email, set: { memberInvitedAt: now } });
+  }
+  result.sent = todo.length;
+  if (todo.length)
+    await audit(actor, 'member_invite', 'contact', null, null, { count: todo.length });
+  return result;
+}
+
+/** The email a claim link was sent to, or null when the link is not valid any more. */
+export async function claimEmail(token: string, now = new Date()) {
+  return (await peekToken(token, 'member_claim', now))?.email ?? null;
+}
+
+/**
+ * Claims a membership from an invitation link: the email is proven by the link, so the member is
+ * active at once and gets the welcome email. Returns a link token to their member page, or null
+ * when the link is not valid any more (or the membership is suspended).
+ */
+export async function claimMembership(token: string, data: MemberSignup, now = new Date()) {
+  const row = await consumeToken(token, 'member_claim', now);
+  if (!row) return null;
+  const db = getDb();
+  const existing = await memberByEmail(row.email);
+  if (existing?.status === 'suspended') return null;
+  if (existing?.status === 'active')
+    return issueToken('member', existing.email, { refId: existing.id, now });
+  const { terms: _terms, newsletter, email: _email, ...profile } = data;
+  const set = {
+    ...profile,
+    status: 'active' as const,
+    newsletterRequested: newsletter,
+    termsAcceptedAt: now,
+    confirmedAt: now,
+    memberSince: existing?.memberSince ?? now,
+    renewalDueAt: renewalDate(now),
+    renewalReminder: null,
+    updatedAt: now,
+  };
+  const [m] = existing
+    ? await db.update(members).set(set).where(eq(members.id, existing.id)).returning()
+    : await db
+        .insert(members)
+        .values({ ...set, email: row.email })
+        .returning();
+  if (newsletter) await confirmNewsletter(m!.email, m!.name, now);
+  await audit('self-service', 'member_claim', 'member', m!.id, null, null);
+  const link = await issueToken('member', m!.email, { refId: m!.id, now });
+  await sendWelcome(m!, link);
+  return link;
+}
+
+// ---------- yearly reconfirmation ----------
+
+/** Reminders this many days before the membership year ends. */
+export const RENEWAL_REMINDER_DAYS = [30, 7] as const;
+
+async function sendRenewalEmail(m: Member, key: 'member.renewal' | 'member.lapsed', now: Date) {
+  const token = await issueToken('member_renew', m.email, { refId: m.id, now });
+  const w = await renderTemplate(key, {
+    name: m.name,
+    due: m.renewalDueAt ? formatDate(m.renewalDueAt) : '',
+  });
+  await sendEmail({
+    to: m.email,
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: {
+      label: w.buttonLabel,
+      url: siteUrl(`/member/renew?token=${encodeURIComponent(token)}`),
+    },
+    footer: 'The link works for 60 days.',
+  });
+}
+
+/**
+ * Which yearly reminder is due for a membership ending on `due`, as stored in renewal_reminder
+ * ("30:2027-10-03"), or null when none is (too early, or already sent). One email per step; a
+ * 7-day reminder makes a missed 30-day one moot, and a new due date starts over.
+ */
+export function renewalReminderDue(due: Date, now: Date, last: string | null) {
+  const daysLeft = (due.getTime() - now.getTime()) / DAY_MS;
+  if (daysLeft <= 0) return null;
+  const step = [...RENEWAL_REMINDER_DAYS].reverse().find((d) => daysLeft <= d);
+  if (!step) return null;
+  const day = due.toISOString().slice(0, 10);
+  const [sentStep, sentDay] = last?.split(':') ?? [];
+  if (sentDay === day && Number(sentStep) <= step) return null;
+  return `${step}:${day}`;
+}
+
+/**
+ * Daily: active members get a reminder 30 and 7 days before their year ends (once each, tracked
+ * in renewal_reminder), and members whose year has ended become lapsed with one last email.
+ */
+export async function runMemberRenewals(now = new Date()) {
+  const db = getDb();
+  const active = await db
+    .select()
+    .from(members)
+    .where(and(eq(members.status, 'active'), isNotNull(members.renewalDueAt)));
+  let reminded = 0;
+  let lapsed = 0;
+  for (const m of active) {
+    const due = m.renewalDueAt!;
+    if (due.getTime() <= now.getTime()) {
+      await db
+        .update(members)
+        .set({ status: 'lapsed', updatedAt: now })
+        .where(and(eq(members.id, m.id), eq(members.status, 'active')));
+      await audit('cron', 'member_lapsed', 'member', m.id, null, null);
+      await sendRenewalEmail(m, 'member.lapsed', now);
+      lapsed++;
+      continue;
+    }
+    const kind = renewalReminderDue(due, now, m.renewalReminder);
+    if (!kind) continue;
+    await db.update(members).set({ renewalReminder: kind }).where(eq(members.id, m.id));
+    await sendRenewalEmail(m, 'member.renewal', now);
+    reminded++;
+  }
+  return { reminded, lapsed };
+}
+
+/** The member a renewal link belongs to, or null when the link is not valid any more. */
+export async function memberForRenewal(token: string, now = new Date()) {
+  const row = await peekToken(token, 'member_renew', now);
+  if (!row?.ref_id) return null;
+  const [m] = await getDb()
+    .select()
+    .from(members)
+    .where(and(eq(members.id, row.ref_id), eq(members.email, row.email)));
+  return m ?? null;
+}
+
+/**
+ * Another year from today (or from the current due date, if that is later). Used by the one-click
+ * link in the reminder and lapsed emails, and by the Renew button on a lapsed member's page.
+ */
+export async function renewMember(m: Member, now = new Date()) {
+  const from = m.renewalDueAt && m.renewalDueAt > now ? m.renewalDueAt : now;
+  await getDb()
+    .update(members)
+    .set({
+      status: 'active',
+      confirmedAt: now,
+      renewalDueAt: renewalDate(from),
+      renewalReminder: null,
+      updatedAt: now,
+    })
+    .where(eq(members.id, m.id));
+  await audit('self-service', 'member_renew', 'member', m.id, { status: m.status }, null);
+}
+
+/** One click from a reminder or the lapsed email. A suspended member can't renew. */
+export async function renewMembership(token: string, now = new Date()) {
+  const row = await consumeToken(token, 'member_renew', now);
+  if (!row?.ref_id) return null;
+  const [m] = await getDb()
+    .select()
+    .from(members)
+    .where(and(eq(members.id, row.ref_id), eq(members.email, row.email)));
+  if (!m || m.status === 'suspended' || m.status === 'pending') return null;
+  await renewMember(m, now);
+  return issueToken('member', m.email, { refId: m.id, now });
 }

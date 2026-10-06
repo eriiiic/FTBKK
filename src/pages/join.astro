@@ -7,7 +7,7 @@ import FormField from '../components/FormField.astro';
 import Icon from '../components/Icon.astro';
 import Turnstile from '../components/Turnstile.astro';
 import ContactForm from '../components/ContactForm.astro';
-import MemberProfileFields from '../components/MemberProfileFields.astro';
+import MemberSignupFields from '../components/MemberSignupFields.astro';
 import { getSettings } from '../lib/settings';
 import { renderMarkdown } from '../lib/markdown';
 import { handleContactForm, topicFromQuery, type ContactResult } from '../lib/contact';
@@ -17,7 +17,6 @@ import {
   DEFAULT_JOIN_MEMBERSHIP,
   DEFAULT_JOIN_MEMBERSHIP_OPEN,
 } from '../lib/join';
-import { HOW_HEARD } from '../lib/registrations';
 import { MemberSignupSchema, requestMembership, signupInput } from '../lib/members';
 import { clientIp, fieldErrors, formToObject } from '../lib/forms';
 import { verifyTurnstile } from '../lib/turnstile';
@@ -230,44 +229,7 @@ const involved = [
           <form method="post" action="/join#become-member" class="grid gap-4">
             <input type="hidden" name="form" value="member" />
             {member.errors.form && <Alert tone="danger">{member.errors.form}</Alert>}
-            <FormField
-              name="email"
-              id="m-email"
-              label="Email"
-              type="email"
-              required
-              autocomplete="email"
-              value={member.values.email as string}
-              error={member.errors.email}
-            />
-            <MemberProfileFields values={member.values} errors={member.errors} />
-            <FormField
-              name="howHeard"
-              id="m-howHeard"
-              label="How did you hear about us?"
-              value={member.values.howHeard as string}
-              options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
-            />
-            <FormField
-              name="newsletter"
-              id="m-newsletter"
-              type="checkbox"
-              checked={member.values.newsletter === true}
-              label="Send me the newsletter too (about once a month). You can unsubscribe at any time."
-            />
-            <FormField
-              name="terms"
-              id="m-terms"
-              type="checkbox"
-              required
-              checked={member.values.terms === true}
-              error={member.errors.terms}
-              label="I agree to the code of conduct and to La French Tech Bangkok keeping my details as described in the privacy notice."
-            />
-            <p class="text-sm text-muted">
-              Read the <a href="/code-of-conduct">code of conduct</a> and the{' '}
-              <a href="/privacy">privacy notice</a>. Your profile is not public.
-            </p>
+            <MemberSignupFields values={member.values} errors={member.errors} />
             <Turnstile />
             <div>
               <Button type="submit">Become a member</Button>

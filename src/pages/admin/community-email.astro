@@ -1,0 +1,322 @@
+---
+import { and, desc, eq, gt, lt } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import FormField from '../../components/FormField.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import Badge from '../../components/Badge.astro';
+import { getDb } from '../../db';
+import { communityEmails } from '../../db/schema';
+import {
+  COMMUNITY_AUDIENCES,
+  COMMUNITY_AUDIENCE_KEYS,
+  CommunityEmailSchema,
+  communityEmail,
+  communityRecipients,
+  type CommunityAudience,
+} from '../../lib/community-emails';
+import { sendEmail, sendEmailBatch } from '../../lib/email';
+import { fieldErrors, formToObject } from '../../lib/forms';
+import { audit } from '../../lib/orgs';
+import { getSettings } from '../../lib/settings';
+import { formatDate, formatTime } from '../../lib/format';
+
+// Email the community: one message to the active members, the newsletter subscribers, or the
+// contacts ticked in Contacts (their "Email…" button opens this page with the selection).
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+let keys: string[] = [];
+let errors: Record<string, string> = {};
+let error = '';
+let notice = '';
+let unreached: string[] = [];
+let values: Record<string, unknown> = { audience: 'members' };
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  keys = form
+    .getAll('c')
+    .map(String)
+    .filter((k) => k && k.length <= 320)
+    .slice(0, 2000);
+  if (action === 'compose') values = { audience: 'contacts' };
+  else {
+    values = formToObject(form, ['c']);
+    const parsed = CommunityEmailSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    else if (action === 'test') {
+      const settings = await getSettings();
+      const msg = communityEmail(
+        { name: 'there', email: actor },
+        parsed.data.audience,
+        parsed.data,
+        {
+          replyTo: settings.contactEmail,
+        },
+      );
+      const res = Astro.locals.adminEmail
+        ? await sendEmail({ ...msg, subject: `[Test] ${msg.subject}` })
+        : { ok: false, error: 'No admin email (are you signed in through Cloudflare Access?)' };
+      if (res.ok) notice = `Test sent to ${actor}. Check your inbox, then send it for real.`;
+      else error = `The test could not be sent: ${res.error ?? 'unknown error'}.`;
+    } else if (action === 'send') {
+      const d = parsed.data;
+      const to = (await communityRecipients(keys))[d.audience];
+      // A double click or a second tab must not email everyone twice (as on an event's Email page).
+      const recent = (before?: number) =>
+        db
+          .select({ id: communityEmails.id })
+          .from(communityEmails)
+          .where(
+            and(
+              eq(communityEmails.audience, d.audience),
+              eq(communityEmails.subject, d.subject),
+              gt(communityEmails.createdAt, new Date(Date.now() - 10 * 60_000)),
+              before ? lt(communityEmails.id, before) : undefined,
+            ),
+          )
+          .limit(1);
+      const dupeError =
+        'This email went to the same audience less than 10 minutes ago (or is being sent right now). Tick "Send it again" if you really mean to.';
+      if (!to.length) error = 'Nobody to send to: this audience has no one with an email address.';
+      else if (!values.resend && (await recent()).length) error = dupeError;
+      else {
+        const [row] = await db
+          .insert(communityEmails)
+          .values({
+            audience: d.audience,
+            subject: d.subject,
+            body: d.body,
+            actionLabel: d.actionLabel || null,
+            actionUrl: d.actionUrl,
+            recipients: 0,
+            sentBy: actor,
+          })
+          .returning({ id: communityEmails.id });
+        if (!values.resend && (await recent(row!.id)).length) {
+          await db.delete(communityEmails).where(eq(communityEmails.id, row!.id));
+          error = dupeError;
+        } else {
+          const settings = await getSettings();
+          const res = await sendEmailBatch(
+            to.map((r) => communityEmail(r, d.audience, d, { replyTo: settings.contactEmail })),
+          );
+          if (res.sent > 0) {
+            await db
+              .update(communityEmails)
+              .set({ recipients: res.sent })
+              .where(eq(communityEmails.id, row!.id));
+            await audit(actor, 'email_community', 'community_email', row!.id, null, {
+              audience: d.audience,
+              subject: d.subject,
+              recipients: res.sent,
+            });
+          } else await db.delete(communityEmails).where(eq(communityEmails.id, row!.id));
+          if (res.ok) return Astro.redirect(`/admin/community-email?sent=${res.sent}`, 303);
+          unreached = to.slice(res.sent).map((r) => r.email);
+          error = res.sent
+            ? `Sending stopped after ${res.sent} of ${to.length} emails. Sending again would email the first ${res.sent} people twice: once the email service works again, write to the ${unreached.length} people listed below instead.`
+            : 'The email service refused the message. Nothing was sent.';
+        }
+      }
+    } else error = 'Unknown action.';
+  }
+}
+
+const recipients = await communityRecipients(keys);
+const counts = Object.fromEntries(
+  COMMUNITY_AUDIENCE_KEYS.map((a) => [a, recipients[a].length]),
+) as Record<CommunityAudience, number>;
+const history = await db
+  .select()
+  .from(communityEmails)
+  .orderBy(desc(communityEmails.createdAt), desc(communityEmails.id))
+  .limit(50);
+const sent = Number(Astro.url.searchParams.get('sent'));
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+const audience = (COMMUNITY_AUDIENCE_KEYS as string[]).includes(str('audience'))
+  ? (str('audience') as CommunityAudience)
+  : 'members';
+const shownAudiences = COMMUNITY_AUDIENCE_KEYS.filter((a) => a !== 'contacts' || keys.length);
+const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+---
+
+<AdminLayout title="Email the community">
+  <p class="mb-6 max-w-3xl text-sm text-muted">
+    One email to the active members or the newsletter subscribers. To write to some contacts only,
+    tick them in <a href="/admin/contacts">Contacts</a> and click <strong>Email…</strong>. For one
+    event's registrants, use the Email page of that event.
+  </p>
+  {sent > 0 && (
+    <Alert tone="success" class="mb-6">
+      Sent to {plural(sent)}.
+    </Alert>
+  )}
+  {notice && (
+    <Alert tone="success" class="mb-6">
+      {notice}
+    </Alert>
+  )}
+  {error && (
+    <Alert tone="danger" class="mb-6">
+      {error}
+      {unreached.length > 0 && (
+        <details class="mt-2">
+          <summary class="cursor-pointer">Not reached ({unreached.length})</summary>
+          <p class="mt-1 text-sm break-all">{unreached.join(', ')}</p>
+        </details>
+      )}
+    </Alert>
+  )}
+  {Object.keys(errors).length > 0 && (
+    <Alert tone="danger" class="mb-6">
+      Please fix the highlighted fields.
+    </Alert>
+  )}
+
+  <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
+    <form
+      method="post"
+      action="/admin/community-email"
+      class="admin-panel grid content-start gap-5"
+      data-email-form
+      data-warn-unsaved
+    >
+      {keys.map((k) => (
+        <input type="hidden" name="c" value={k} />
+      ))}
+      <fieldset>
+        <legend class="text-sm font-semibold text-ink">Send to</legend>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+          {shownAudiences.map((a) => (
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 has-checked:border-accent has-checked:bg-accent/5">
+              <input
+                type="radio"
+                name="audience"
+                value={a}
+                checked={a === audience}
+                data-count={counts[a]}
+                class="mt-1 size-4 accent-brand"
+              />
+              <span class="text-sm">
+                <span class="font-semibold">{COMMUNITY_AUDIENCES[a].label}</span>
+                <span class="ml-1 text-muted">({counts[a]})</span>
+                <span class="block text-muted">{COMMUNITY_AUDIENCES[a].hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {errors.audience && <p class="mt-1 text-sm text-danger">{errors.audience}</p>}
+      </fieldset>
+      <FormField
+        name="subject"
+        label="Subject"
+        required
+        maxlength={150}
+        value={str('subject')}
+        error={errors.subject}
+        placeholder="Our next events"
+      />
+      <FormField
+        name="body"
+        label="Message"
+        required
+        rows={10}
+        maxlength={10000}
+        value={str('body')}
+        error={errors.body}
+        hint="Plain text. Leave a blank line between paragraphs. {name} becomes the person's first name."
+        placeholder={'Hi {name},\n\n…'}
+      />
+      <div class="grid gap-4 sm:grid-cols-[14rem_1fr]">
+        <FormField
+          name="actionLabel"
+          label="Button label (optional)"
+          maxlength={60}
+          value={str('actionLabel')}
+          error={errors.actionLabel}
+          placeholder="Register"
+        />
+        <FormField
+          name="actionUrl"
+          label="Button link"
+          value={str('actionUrl')}
+          error={errors.actionUrl}
+          placeholder="https://…"
+        />
+      </div>
+      {error.includes('10 minutes') && (
+        <FormField name="resend" label="Send it again anyway" type="checkbox" />
+      )}
+      <div class="flex flex-wrap gap-3">
+        <Button
+          type="submit"
+          name="action"
+          value="send"
+          data-send
+          data-confirm={`Send this email to ${plural(counts[audience])}?`}
+        >
+          Send
+        </Button>
+        <Button type="submit" name="action" value="test" variant="secondary">
+          Send me a test
+        </Button>
+      </div>
+      <p class="text-sm text-muted">
+        The test goes only to {Astro.locals.adminEmail ?? 'you'}. Replies go to the contact address
+        in Settings. Every email ends with a "Manage or delete my data" link.
+      </p>
+    </form>
+
+    <section class="admin-panel content-start" aria-labelledby="history">
+      <h2 id="history" class="text-lg">
+        Sent
+      </h2>
+      {history.length ? (
+        <ul class="mt-3 grid gap-3">
+          {history.map((h) => (
+            <li class="rounded-lg bg-surface p-3">
+              <details>
+                <summary class="cursor-pointer font-semibold">{h.subject}</summary>
+                <div class="mt-2 text-sm whitespace-pre-line">{h.body}</div>
+                {h.actionUrl && (
+                  <p class="mt-2 text-sm break-all">
+                    {h.actionLabel}: <a href={h.actionUrl}>{h.actionUrl}</a>
+                  </p>
+                )}
+              </details>
+              <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+                <Badge tone="neutral">{COMMUNITY_AUDIENCES[h.audience].label}</Badge>
+                {plural(h.recipients)} · {formatDate(h.createdAt)} {formatTime(h.createdAt)} ·{' '}
+                {h.sentBy}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="mt-3 text-sm text-muted">Nothing sent yet from this page.</p>
+      )}
+    </section>
+  </div>
+</AdminLayout>
+
+<script>
+  // Keep the confirm prompt's count in step with the chosen audience.
+  const form = document.querySelector<HTMLFormElement>('[data-email-form]');
+  const send = form?.querySelector<HTMLButtonElement>('[data-send]');
+  form?.addEventListener('change', () => {
+    const picked = form.querySelector<HTMLInputElement>('input[name=audience]:checked');
+    const n = Number(picked?.dataset.count ?? 0);
+    if (send) send.dataset.confirm = `Send this email to ${n} ${n === 1 ? 'person' : 'people'}?`;
+  });
+  // Sending to a large audience takes a few seconds: block a second click meanwhile.
+  form?.addEventListener('submit', (e) => {
+    if (e.submitter !== send || !send) return;
+    setTimeout(() => {
+      if (e.defaultPrevented) return;
+      send.disabled = true;
+      send.textContent = 'Sending…';
+    });
+  });
+</script>

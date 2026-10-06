@@ -88,6 +88,7 @@ export interface SavedContact {
   tags?: string[] | null;
   newsletter?: 'yes' | 'no' | null;
   newsletterAt?: Date | null;
+  memberInvitedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -147,6 +148,8 @@ export interface Contact {
   organisations: (ContactOrg & { relation: 'owner' | 'contact' })[];
   /** Their individual membership (Members), by email. */
   member: ContactMember | null;
+  /** Last "claim your membership" invitation (Contacts > Invite to join). */
+  invitedAt: Date | null;
 }
 
 export interface ContactMember {
@@ -261,6 +264,7 @@ export function buildContacts(
         history,
         organisations: key.includes(':') ? [] : (byEmail.get(key) ?? []),
         member: key.includes(':') ? null : (membersByEmail.get(key) ?? null),
+        invitedAt: card?.memberInvitedAt ?? null,
       };
     })
     .sort(
@@ -350,7 +354,7 @@ export type ContactFilter = keyof typeof CONTACT_FILTERS;
 /** A line explaining a filter, shown above the list while it is active. */
 export const CONTACT_FILTER_HINTS: Partial<Record<ContactFilter, string>> = {
   members: 'People with an active individual membership (see Members for the full list).',
-  membership: `People who came to ${REGULAR_MIN_EVENTS} or more events and are not members yet: invite them to join on /join.`,
+  membership: `People who came to ${REGULAR_MIN_EVENTS} or more events and are not members yet: select them and click Invite to join (once membership is open).`,
 };
 
 /** The list filters shared by the Contacts page and its CSV export. */

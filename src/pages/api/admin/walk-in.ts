@@ -8,6 +8,8 @@ import { audit } from '../../../lib/orgs';
 import { earlierAttendance, earlierFor, greeting } from '../../../lib/regulars';
 import { normalizeCode, ticketCode } from '../../../lib/ticket';
 import { randomToken } from '../../../lib/tokens';
+import { getSettings } from '../../../lib/settings';
+import { enrolAtDoor, memberByEmail } from '../../../lib/members';
 
 const WalkInSchema = z
   .object({
@@ -26,10 +28,16 @@ const WalkInSchema = z
     company: optionalText(120),
     /** They said yes to the newsletter at the door (opt-in: unticked means not asked). */
     newsletter: z.boolean().optional().default(false),
+    /** They want to become a member: the confirmation email goes out (membership open only). */
+    member: z.boolean().optional().default(false),
   })
   .refine((d) => !d.newsletter || d.email, {
     message: 'Add their email to sign them up for the newsletter.',
     path: ['newsletter'],
+  })
+  .refine((d) => !d.member || d.email, {
+    message: 'Add their email to make them a member.',
+    path: ['member'],
   });
 
 // Admin only (guarded in middleware). Adds someone who turns up without registering and checks
@@ -44,7 +52,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       { status: 400 },
     );
   }
-  const { eventId, name, email: mail, phone, company, newsletter } = parsed.data;
+  const { eventId, name, email: mail, phone, company, newsletter, member } = parsed.data;
   const db = getDb();
   const [event] = await db
     .select({ id: events.id, startsAt: events.startsAt })
@@ -117,6 +125,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return Response.json({ error: 'Someone else just checked this person in.' }, { status: 409 });
   }
 
+  const settings = await getSettings();
+  const enrolled =
+    member && mail && settings.memberSignupOpen
+      ? await enrolAtDoor(
+          { email: mail, name, phone, company },
+          newsletter,
+          locals.adminEmail ?? 'admin',
+          now,
+        )
+      : false;
   await audit(
     locals.adminEmail ?? 'admin',
     existing && existing.status !== 'cancelled' ? 'registration_attended' : 'registration_walk_in',
@@ -138,5 +156,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ),
     // True when the person had registered: the screen already lists them.
     existing: Boolean(existing && existing.status !== 'cancelled'),
+    // The membership confirmation email went out.
+    enrolled,
+    notMember:
+      settings.memberSignupOpen &&
+      !(row.email && (await memberByEmail(row.email))?.status === 'active'),
   });
 };

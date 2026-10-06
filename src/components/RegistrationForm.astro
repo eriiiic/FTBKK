@@ -3,6 +3,7 @@ import Alert from './Alert.astro';
 import Button from './Button.astro';
 import FormField from './FormField.astro';
 import Turnstile from './Turnstile.astro';
+import MemberSignupFields from './MemberSignupFields.astro';
 import { HOW_HEARD, NOTE_MAX, type RegistrationState } from '../lib/registrations';
 import { formatDate, formatTime } from '../lib/format';
 
@@ -11,16 +12,33 @@ interface Props {
   state: RegistrationState;
   errors?: Record<string, string>;
   values?: Record<string, unknown>;
-  result?: { status: 'registered' | 'waitlist' | 'duplicate'; email: string } | null;
+  result?: { status: 'registered' | 'waitlist' | 'duplicate' | 'joined'; email: string } | null;
+  /** Membership is open: members register with their email, newcomers join first (free). */
+  membersOnly?: boolean;
+  /** Members only: 'join' shows the membership form for an email that isn't a member yet. */
+  step?: 'email' | 'join';
 }
-const { event, state, errors = {}, values = {}, result } = Astro.props;
+const {
+  event,
+  state,
+  errors = {},
+  values = {},
+  result,
+  membersOnly = false,
+  step = 'email',
+} = Astro.props;
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 ---
 
 <div id="register" class="scroll-mt-24 rounded-card border border-line p-6">
   <h2 class="text-xl">Registration</h2>
   {result ? (
-    result.status === 'duplicate' ? (
+    result.status === 'joined' ? (
+      <Alert tone="success" class="mt-4">
+        Almost there: we've sent an email to {result.email}. Click the link in it to confirm your
+        email: you become a member and you're registered for this event.
+      </Alert>
+    ) : result.status === 'duplicate' ? (
       <Alert class="mt-4">
         {result.email} is already registered for this event. Check your inbox for the confirmation
         email, which has a link to cancel if needed.
@@ -41,6 +59,80 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         ? `Registration opens on ${formatDate(state.opensAt)} at ${formatTime(state.opensAt)}.`
         : 'Registration is closed for this event.'}
     </Alert>
+  ) : membersOnly && step === 'join' ? (
+    <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
+      <input type="hidden" name="step" value="join" />
+      <input type="hidden" name="note" value={str('note')} />
+      <input type="hidden" name="photoConsent" value="on" />
+      <Alert>
+        {str('email')} isn't a member yet. Our events are for members, and membership is free: fill
+        this in once and you're registered too. Wrong email?{' '}
+        <a href={`/events/${event.slug}#register`}>Use another one</a>.
+      </Alert>
+      {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+      <MemberSignupFields values={values} errors={errors} fixedEmail={str('email')} />
+      <Turnstile />
+      <div>
+        <Button type="submit">Become a member and register</Button>
+      </div>
+    </form>
+  ) : membersOnly ? (
+    <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
+      <input type="hidden" name="step" value="email" />
+      {state.spotsLeft !== null && (
+        <p class={`text-sm font-semibold ${state.full ? 'text-warning' : 'text-success'}`}>
+          {state.full
+            ? 'The event is full. You can join the waitlist.'
+            : `${state.spotsLeft} spot${state.spotsLeft === 1 ? '' : 's'} left`}
+        </p>
+      )}
+      <p class="text-sm text-muted">
+        Members register with their email. Not a member yet? Enter your email too: membership is
+        free and takes a minute.
+      </p>
+      {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+      <FormField
+        name="email"
+        label="Email"
+        type="email"
+        required
+        autocomplete="email"
+        value={str('email')}
+        error={errors.email}
+      />
+      <FormField
+        name="note"
+        label="Anything we should know, or something you're looking for?"
+        rows={2}
+        maxlength={NOTE_MAX}
+        value={str('note')}
+        error={errors.note}
+        hint="Optional. Only the organisers see it."
+      />
+      <FormField
+        name="photoConsent"
+        type="checkbox"
+        required
+        checked={!!values.photoConsent}
+        error={errors.photoConsent}
+        label="I understand photos and videos may be taken and shared by La French Tech Bangkok."
+      />
+      <Turnstile />
+      <div>
+        <Button type="submit">{state.full ? 'Join the waitlist' : 'Register'}</Button>
+      </div>
+      <p class="text-xs text-muted">
+        See our{' '}
+        <a href="/privacy" class="underline">
+          privacy notice
+        </a>{' '}
+        and our{' '}
+        <a href="/code-of-conduct" class="underline">
+          code of conduct
+        </a>
+        .
+      </p>
+    </form>
   ) : (
     <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
       {state.spotsLeft !== null && (

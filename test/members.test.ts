@@ -4,9 +4,12 @@ import {
   MemberProfileSchema,
   MemberSignupSchema,
   memberPagePath,
+  memberRegistration,
   renewalDate,
+  renewalReminderDue,
   signupInput,
 } from '../src/lib/members';
+import { MemberRegisterSchema } from '../src/lib/registrations';
 
 const form = {
   email: 'Jane@Example.com',
@@ -68,5 +71,60 @@ describe('membership helpers', () => {
     expect(MemberAdminAction.safeParse({ action: 'suspend', ids: ['3'] }).success).toBe(false);
     const ok = MemberAdminAction.parse({ action: 'suspend', ids: ['3'], reason: 'Spam' });
     expect(ok.ids).toEqual([3]);
+  });
+});
+
+describe('yearly reminders', () => {
+  const due = new Date('2027-10-03T00:00:00Z');
+  const daysBefore = (d: number) => new Date(due.getTime() - d * 86400_000);
+
+  it('waits until 30 days before', () => {
+    expect(renewalReminderDue(due, daysBefore(31), null)).toBeNull();
+    expect(renewalReminderDue(due, daysBefore(30), null)).toBe('30:2027-10-03');
+  });
+
+  it('sends each step once, then the 7-day one', () => {
+    expect(renewalReminderDue(due, daysBefore(20), '30:2027-10-03')).toBeNull();
+    expect(renewalReminderDue(due, daysBefore(7), '30:2027-10-03')).toBe('7:2027-10-03');
+    expect(renewalReminderDue(due, daysBefore(3), '7:2027-10-03')).toBeNull();
+  });
+
+  it('skips a missed 30-day reminder and starts over for a new due date', () => {
+    expect(renewalReminderDue(due, daysBefore(5), null)).toBe('7:2027-10-03');
+    expect(renewalReminderDue(due, daysBefore(25), '7:2026-10-03')).toBe('30:2027-10-03');
+  });
+
+  it('sends nothing once the year has ended (the lapsed email takes over)', () => {
+    expect(renewalReminderDue(due, due, null)).toBeNull();
+  });
+});
+
+describe('members-only registration', () => {
+  it('registers a member with the details of their membership', () => {
+    const m = {
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      company: 'Acme',
+      phone: null,
+      jobTitle: 'CTO',
+      howHeard: 'LinkedIn',
+    } as Parameters<typeof memberRegistration>[0];
+    expect(memberRegistration(m, 'Vegetarian')).toEqual({
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      company: 'Acme',
+      phone: '',
+      role: 'CTO',
+      howHeard: 'LinkedIn',
+      note: 'Vegetarian',
+      photoConsent: true,
+      newsletter: false,
+    });
+  });
+
+  it('asks only for the email, the note and the photo notice', () => {
+    const r = MemberRegisterSchema.safeParse({ email: 'A@B.co', note: '', photoConsent: true });
+    expect(r.success && r.data.email).toBe('a@b.co');
+    expect(MemberRegisterSchema.safeParse({ email: 'a@b.co' }).success).toBe(false);
   });
 });

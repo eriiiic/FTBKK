@@ -1,0 +1,81 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import Alert from '../../components/Alert.astro';
+import Button from '../../components/Button.astro';
+import MemberSignupFields from '../../components/MemberSignupFields.astro';
+import { loadContact } from '../../lib/contacts';
+import { fieldErrors, formToObject } from '../../lib/forms';
+import {
+  MemberSignupSchema,
+  claimEmail,
+  claimMembership,
+  memberPagePath,
+  signupInput,
+} from '../../lib/members';
+
+// "Claim your membership" from the invitation sent from Contacts: the form is prefilled with what
+// the contact card knows. The link proves the email, so the membership is active at once.
+const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
+const address = token ? await claimEmail(token) : null;
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let failed = false;
+if (address && Astro.request.method === 'POST') {
+  values = formToObject(await Astro.request.formData(), ['interests']);
+  const parsed = MemberSignupSchema.safeParse(signupInput({ ...values, email: address }));
+  if (!parsed.success) errors = fieldErrors(parsed.error);
+  else {
+    const link = await claimMembership(token, parsed.data);
+    if (link) return Astro.redirect(`${memberPagePath(link)}&welcome=1`, 303);
+    failed = true;
+  }
+} else if (address) {
+  const c = await loadContact(address);
+  values = c
+    ? {
+        name: c.name,
+        phone: c.phone ?? '',
+        company: c.company ?? '',
+        jobTitle: c.role ?? '',
+        linkedin: c.linkedin ?? '',
+      }
+    : {};
+}
+---
+
+<BaseLayout title="Claim your membership" noindex cache={false}>
+  <Section>
+    <div class="max-w-2xl">
+      <h1 class="text-3xl">Claim your membership</h1>
+      {address && !failed ? (
+        <form method="post" class="mt-6 grid gap-4">
+          <p>
+            Membership of La French Tech Bangkok is free. We've filled in what we know about you:
+            check it, accept the code of conduct and you're in.
+          </p>
+          {Object.keys(errors).length > 0 && (
+            <Alert tone="danger">Please fix the highlighted fields.</Alert>
+          )}
+          <MemberSignupFields values={values} errors={errors} fixedEmail={address} />
+          <div>
+            <Button type="submit">Claim my membership</Button>
+          </div>
+        </form>
+      ) : (
+        <div class="mt-6 grid gap-4">
+          <Alert tone="warning">
+            This link has expired or was already used. You can still join on the Join page; if
+            you're already a member, ask for a link to your member page.
+          </Alert>
+          <div class="flex flex-wrap gap-2">
+            <Button href="/join#become-member">Go to the Join page</Button>
+            <Button href="/member" variant="secondary">
+              Send me my member link
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  </Section>
+</BaseLayout>

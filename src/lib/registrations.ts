@@ -65,6 +65,17 @@ export const RegisterSchema = z.object({
   newsletter: z.boolean().optional().default(false),
 });
 
+/**
+ * Members-only registration (when membership is open): the first step only asks for the email,
+ * plus the note and the photo notice. A member is registered with the details of their membership.
+ */
+export const MemberRegisterSchema = RegisterSchema.pick({
+  email: true,
+  note: true,
+  photoConsent: true,
+});
+export type MemberRegister = z.infer<typeof MemberRegisterSchema>;
+
 export const HOW_HEARD = [
   'LinkedIn',
   'Instagram',
@@ -207,6 +218,38 @@ export async function isMemberEmail(addr: string, db: D1Database = env.DB) {
     .bind(addr.toLowerCase())
     .first();
   return !!r;
+}
+
+export type RegisterOutcome =
+  | { status: 'registered' | 'waitlist' | 'duplicate' }
+  | { status: 'closed'; state: RegistrationState };
+
+/**
+ * Registers someone for an event if it is open to them (member priority included), and sends the
+ * confirmation. Used by the event page and when a new member confirms the email they joined with
+ * while registering.
+ */
+export async function registerForEvent(
+  event: Event,
+  data: z.infer<typeof RegisterSchema>,
+  opts: { memberPriority: boolean; now?: Date },
+): Promise<RegisterOutcome> {
+  const member = opts.memberPriority && (await isMemberEmail(data.email));
+  const state = registrationState(event, await countTaken(event.id), opts.now ?? new Date(), {
+    memberPriority: opts.memberPriority,
+    isMember: member,
+  });
+  if (!state.open) return { status: 'closed', state };
+  const row = await insertRegistration(event.id, data, state.capacity);
+  if (!row) return { status: 'duplicate' };
+  // Only what the email needs: the note stays with the organisers.
+  await sendConfirmation(event, {
+    name: data.name,
+    email: data.email,
+    status: row.status,
+    token: row.token,
+  });
+  return { status: row.status };
 }
 
 /** Moves the first waitlisted person to registered when a seat is free. Returns them, or null. */

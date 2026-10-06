@@ -28,7 +28,22 @@ Public pages:
   next three events and a button to their member page. Signing up again with a member's address
   just emails their page link, and the page says the same thing either way. The team sees new members
   in Members > To review (it never blocks them), can add notes and can suspend a member. Membership runs a year
-  (`renewal_due_at`; the yearly reminder comes later).
+  (`renewal_due_at`): a daily cron job emails a one-click reminder 30 and 7 days before
+  (`member_renew` link, `/member/renew`), then marks the member **lapsed** with a last email;
+  a lapsed member renews in one click from that email or their member page.
+- **Members-only events** (once membership is open): the registration box asks only for the
+  email, the optional note and the photo notice. An active member is registered at once with the
+  details of their membership. Any other email gets the free membership form in the same box;
+  submitting it sends one email (`member.confirm-event`), and the click makes them a member and
+  registers them (`members.pending_event_id`), then the member page says how it went. While
+  membership is closed, the full registration form works as before.
+- **Claim your membership**: in Contacts, tick people and **Invite to join** to email them a
+  `member_claim` link (60 days) to `/member/claim`, a form prefilled from their contact card; the
+  link proves the email, so the membership is active at once. Members and people invited in the
+  last 30 days are skipped; the invitation date shows on the list.
+- **Email the community** (`/admin/community-email`): one message to the active members, the
+  newsletter subscribers, or the contacts ticked in Contacts (**Email…**), with a test send,
+  a duplicate guard and the list of what was sent (`community_emails`).
 - **Member page** at `/member?token=…` (a reusable `member` link, 30 days, sent in every member
   email; no passwords): membership dates, the WhatsApp button, their events (coming up and past),
   their profile to edit, and **Leave**, which deletes the member row (event history stays until
@@ -52,7 +67,8 @@ Public pages:
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
-  check-in screen and the contact's event history), confirmation email with a calendar invite, reminder the day before, QR
+  check-in screen and the contact's event history), check-in flags people who aren't members and
+  can enrol a walk-in as a member (they get the confirmation email), confirmation email with a calendar invite, reminder the day before, QR
   ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
   People and reused across events), **hosts, sponsors and partners** with their logo (linked to
   their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and
@@ -83,7 +99,7 @@ Public pages:
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
-events, registrations, check-in, stats), **Community** (contacts, messages, board and speakers),
+events, registrations, check-in, stats), **Community** (members, contacts, messages, email the community, board and speakers),
 **Ecosystem** (to review, all listings, renewals), **Content** (posts, files, site texts, emails)
 and Settings. Anyone who can sign in to the admin can do everything; there are no roles. See
 [docs/admin.md](docs/admin.md).
@@ -100,7 +116,9 @@ event emails (registration confirmed, waitlist, seat freed, reminder, cancelled,
 the directory emails to listing owners (listing request, published, declined, manage link, yearly
 check and last day, hidden, claim invitation, claim confirm/approved/declined, changes
 published/declined, membership approved/declined), the individual membership emails (sign-up
-confirmation, welcome, member page link, and the link sent on a repeat sign-up), the newsletter
+confirmation, welcome, member page link, the link sent on a repeat sign-up, the confirmation for
+a newcomer registering for an event, the claim invitation, the yearly reminder and the paused
+email), the newsletter
 confirmation, the "your data" link, and the notifications to the team (contact form message, new
 listing, claim, listing change and membership application to review, weekly directory summary).
 Lists built by the site (the renewals of the directory summary) are placeholders (`{renewals}`)

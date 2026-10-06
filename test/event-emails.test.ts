@@ -8,6 +8,7 @@ import {
   toParagraphs,
 } from '../src/lib/event-emails';
 import { renderEmail } from '../src/lib/email';
+import { communityEmail, uniqueRecipients } from '../src/lib/community-emails';
 
 const rows = [
   { name: 'Ann Lee', email: 'ann@x.com', status: 'registered' as const },
@@ -122,5 +123,31 @@ describe('eventBroadcast', () => {
       { subject: 's', body: 'b', actionLabel: '', actionUrl: null },
     );
     expect(plain.action).toBeUndefined();
+  });
+});
+
+describe('community emails', () => {
+  it('sends one copy per address and skips people without one', () => {
+    expect(
+      uniqueRecipients([
+        { name: 'Ann', email: 'Ann@x.io' },
+        { name: 'Ann again', email: 'ann@x.io ' },
+        { name: 'Walk-in', email: null },
+      ]),
+    ).toEqual([{ name: 'Ann', email: 'ann@x.io' }]);
+  });
+
+  it('says why the person gets it and links their data page', () => {
+    const m = communityEmail({ name: 'Ann Lee', email: 'ann@x.io' }, 'members', {
+      subject: 'Hi {name}',
+      body: 'Hello {name},\n\nSee you soon.',
+      actionLabel: '',
+      actionUrl: null,
+    });
+    expect(m.subject).toBe('Hi Ann');
+    expect(m.paragraphs).toEqual(['Hello Ann,', 'See you soon.']);
+    expect(m.footer).toMatch(/member of La French Tech Bangkok/);
+    expect(m.dataUrl).toMatch(/\/my-data$/);
+    expect(m.action).toBeUndefined();
   });
 });
