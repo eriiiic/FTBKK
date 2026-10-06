@@ -486,6 +486,95 @@ describe('directory, team and admin emails', () => {
   });
 });
 
+describe('membership emails', () => {
+  const d = (key: keyof typeof EMAIL_TEMPLATES, v: TemplateVars) =>
+    applyTemplate(EMAIL_TEMPLATES[key], null, v);
+  const intro =
+    "Welcome, Ann! You are now a member of La French Tech Bangkok. Membership is free; we'll ask you to confirm it once a year.";
+  const outro =
+    'Your member page lets you update your profile and see your events. Keep this email: the button opens it.';
+
+  it('reproduce the wording they had before they became editable', () => {
+    expect(d('member.confirm', { name: 'Ann' })).toEqual({
+      subject: 'Confirm your La French Tech Bangkok membership',
+      paragraphs: [
+        'Hi Ann, thanks for joining La French Tech Bangkok. One click to confirm your email and your free membership starts.',
+        "Didn't sign up? Ignore this email and nothing happens.",
+      ],
+      buttonLabel: 'Confirm my membership',
+    });
+    const wa =
+      "Join the members' WhatsApp community, where we share events, jobs, questions and introductions: https://chat.whatsapp.com/x";
+    expect(
+      d('member.welcome', {
+        name: 'Ann',
+        whatsapp: wa,
+        'next-events': ['Coming up next:', 'Connect, Thu 5 Nov: https://x/events/connect'],
+      }),
+    ).toEqual({
+      subject: 'Welcome to La French Tech Bangkok',
+      paragraphs: [
+        intro,
+        wa,
+        'Coming up next:',
+        'Connect, Thu 5 Nov: https://x/events/connect',
+        outro,
+      ],
+      buttonLabel: 'Open my member page',
+    });
+    // No WhatsApp link and no event planned: those paragraphs are left out, not blank.
+    expect(d('member.welcome', { name: 'Ann', whatsapp: '', 'next-events': [] })).toEqual({
+      subject: 'Welcome to La French Tech Bangkok',
+      paragraphs: [intro, outro],
+      buttonLabel: 'Open my member page',
+    });
+    expect(d('member.link', { name: 'Ann' })).toEqual({
+      subject: 'Your La French Tech Bangkok member page',
+      paragraphs: [
+        'Hi Ann, here is the link to your member page, as you asked.',
+        "Didn't ask for it? Ignore this email.",
+      ],
+      buttonLabel: 'Open my member page',
+    });
+    expect(d('member.already-member', { name: 'Ann' })).toEqual({
+      subject: 'Your La French Tech Bangkok member page',
+      paragraphs: [
+        'Hi Ann, you are already a member. Here is the link to your member page.',
+        "Didn't ask for it? Ignore this email.",
+      ],
+      buttonLabel: 'Open my member page',
+    });
+    expect(
+      d('admin.new-members', {
+        count: '1 new member',
+        members: ['Ann, Acme (Investor), joined 2 Nov'],
+      }),
+    ).toEqual({
+      subject: 'Members: 1 new member to review',
+      paragraphs: [
+        'New members are active as soon as they confirm their email. Have a look, mark them as reviewed, or suspend anyone who should not be in the community.',
+        'Ann, Acme (Investor), joined 2 Nov',
+      ],
+      buttonLabel: 'Review new members',
+    });
+  });
+
+  it('keep the list of new members required', () => {
+    const def = EMAIL_TEMPLATES['admin.new-members'];
+    expect(def.required).toEqual(['members']);
+    expect(
+      templateSchema(def).safeParse({ subject: 'S', body: '{count} to review', buttonLabel: 'Go' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('are in the Membership group, the board digest with the admin notifications', () => {
+    for (const k of ['member.confirm', 'member.welcome', 'member.link', 'member.already-member'])
+      expect(EMAIL_TEMPLATES[k as keyof typeof EMAIL_TEMPLATES].group).toBe('Membership');
+    expect(EMAIL_TEMPLATES['admin.new-members'].group).toBe('Admin notifications');
+  });
+});
+
 describe('list placeholders', () => {
   const def = EMAIL_TEMPLATES['team.weekly-digest'];
   const vars = { name: 'Ann', count: '2', late: '', tasks: ['One', 'Two'] };

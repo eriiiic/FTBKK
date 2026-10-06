@@ -319,10 +319,14 @@ and when:
   listing published or declined, the link to manage a listing, the yearly check (and its last
   day), listing hidden, invitation to claim, claim to confirm, claim approved or declined, changes
   published or declined, membership approved or declined.
+- **Membership** (the free individual membership): the sign-up confirmation, the welcome email,
+  the link to the member page (asked for, or sent by an admin) and the link sent when a member
+  signs up again.
 - **Community**: the newsletter confirmation. **Privacy**: the "your data" link.
 - **Team**: the Monday email with each member's tasks.
 - **Admin notifications** (to the team): a contact form message, a new listing, a claim, a
-  listing change and a membership application to review, and the Monday directory summary.
+  listing change and a membership application to review, the Monday directory summary, and the
+  Monday list of new members for the board.
 
 A **Default** badge means the text the site came with; **Edited** shows when and by whom.
 
@@ -335,7 +339,10 @@ it. A placeholder the email doesn't know is sent as typed, and the page warns yo
 in the message (marked "must stay"; not only in the subject or the button, where a long value
 doesn't fit): the reason of a refusal, the contact form message, the membership motivation, the
 domain check of a claim, and the lists the site builds (`{tasks}` in the weekly tasks,
-`{renewals}` in the directory summary). Put a list on a line of its own to get one paragraph per
+`{renewals}` in the directory summary, `{members}` in the board's new members email). In the
+welcome email, `{whatsapp}` is the invitation to the WhatsApp community (empty when Settings has
+no WhatsApp link) and `{next-events}` is "Coming up next:" with the next three events (empty when
+none is planned); when one is empty, its paragraph is simply left out. Put a list on a line of its own to get one paragraph per
 item. After Preview or a test, the page says "Not saved yet" and warns you before you leave.
 
 - **Preview** shows the email in its real layout with sample values, without saving.

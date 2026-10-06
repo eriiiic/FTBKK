@@ -11,10 +11,11 @@ import type { EmailMessage } from './email';
 import { formatEventDate } from './format';
 
 export type TemplateGroup =
-  'Events' | 'Ecosystem' | 'Community' | 'Privacy' | 'Team' | 'Admin notifications';
+  'Events' | 'Ecosystem' | 'Membership' | 'Community' | 'Privacy' | 'Team' | 'Admin notifications';
 export const TEMPLATE_GROUPS: TemplateGroup[] = [
   'Events',
   'Ecosystem',
+  'Membership',
   'Community',
   'Privacy',
   'Team',
@@ -161,13 +162,18 @@ export type TemplateKey =
   | 'directory.change-rejected'
   | 'membership.approved'
   | 'membership.rejected'
+  | 'member.confirm'
+  | 'member.welcome'
+  | 'member.link'
+  | 'member.already-member'
   | 'team.weekly-digest'
   | 'admin.contact-form'
   | 'admin.listing-to-review'
   | 'admin.claim-to-review'
   | 'admin.change-to-review'
   | 'admin.membership-application'
-  | 'admin.directory-digest';
+  | 'admin.directory-digest'
+  | 'admin.new-members';
 
 /** Every email built from a template, in the order of the admin list. */
 export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
@@ -522,6 +528,75 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     preview: { buttonUrl: sampleOrgUrl },
   },
 
+  // ---------- Membership: the free individual membership ----------
+  'member.confirm': {
+    label: 'Sign-up: confirm your membership',
+    group: 'Membership',
+    audience: 'The person who signed up',
+    trigger: 'When someone signs up on the Join page (or signs up again before confirming)',
+    subject: 'Confirm your La French Tech Bangkok membership',
+    body: "Hi {name}, thanks for joining La French Tech Bangkok. One click to confirm your email and your free membership starts.\n\nDidn't sign up? Ignore this email and nothing happens.",
+    buttonLabel: 'Confirm my membership',
+    placeholders: [P.name],
+    added: 'The confirmation link (the button) and a footer: "The link works for 7 days."',
+    preview: { buttonUrl: `${SITE}/member/confirm`, footer: 'The link works for 7 days.' },
+  },
+  'member.welcome': {
+    label: 'Welcome to the membership',
+    group: 'Membership',
+    audience: 'The new member',
+    trigger: 'When someone confirms their membership (not when an active member confirms again)',
+    subject: 'Welcome to La French Tech Bangkok',
+    body: "Welcome, {name}! You are now a member of La French Tech Bangkok. Membership is free; we'll ask you to confirm it once a year.\n\n{whatsapp}\n\n{next-events}\n\nYour member page lets you update your profile and see your events. Keep this email: the button opens it.",
+    buttonLabel: 'Open my member page',
+    placeholders: [
+      P.name,
+      {
+        key: 'whatsapp',
+        description:
+          'The invitation to the WhatsApp community with its link (empty when Settings has no WhatsApp link)',
+        sample: `Join the members' WhatsApp community, where we share events, jobs, questions and introductions: https://chat.whatsapp.com/sample`,
+      },
+      {
+        key: 'next-events',
+        description:
+          '"Coming up next:" and the next three events, one per paragraph when on a line of its own (empty when none is planned)',
+        sample: `Coming up next:\n${SAMPLE_EVENT}, ${SAMPLE_DATE}: ${sampleEventUrl}`,
+        list: true,
+      },
+    ],
+    added:
+      'The link to the member page (the button) and, when Settings has a WhatsApp link, a "Join the WhatsApp community" link.',
+    preview: {
+      buttonUrl: `${SITE}/member`,
+      links: [{ label: 'Join the WhatsApp community', url: 'https://chat.whatsapp.com/sample' }],
+    },
+  },
+  'member.link': {
+    label: 'Link to the member page',
+    group: 'Membership',
+    audience: 'A member who asked for their link',
+    trigger: 'When a member asks for their link on the member page, or an admin sends it',
+    subject: 'Your La French Tech Bangkok member page',
+    body: "Hi {name}, here is the link to your member page, as you asked.\n\nDidn't ask for it? Ignore this email.",
+    buttonLabel: 'Open my member page',
+    placeholders: [P.name],
+    added: 'The link to the member page (the button) and a footer: "The link works for 30 days."',
+    preview: { buttonUrl: `${SITE}/member`, footer: 'The link works for 30 days.' },
+  },
+  'member.already-member': {
+    label: 'Sign-up again: already a member',
+    group: 'Membership',
+    audience: 'A member who signs up again on the Join page',
+    trigger: 'When an active or suspended member signs up again with the same email',
+    subject: 'Your La French Tech Bangkok member page',
+    body: "Hi {name}, you are already a member. Here is the link to your member page.\n\nDidn't ask for it? Ignore this email.",
+    buttonLabel: 'Open my member page',
+    placeholders: [P.name],
+    added: 'The link to the member page (the button) and a footer: "The link works for 30 days."',
+    preview: { buttonUrl: `${SITE}/member`, footer: 'The link works for 30 days.' },
+  },
+
   // ---------- Team ----------
   'team.weekly-digest': {
     label: 'Weekly tasks',
@@ -702,6 +777,33 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
       ],
     },
   },
+  'admin.new-members': {
+    label: 'Members: new members to review',
+    group: 'Admin notifications',
+    audience: 'The board (team members with the Board role, or the contact address)',
+    trigger: 'Every Monday at 9:00, when new members have not been reviewed yet',
+    subject: 'Members: {count} to review',
+    body: 'New members are active as soon as they confirm their email. Have a look, mark them as reviewed, or suspend anyone who should not be in the community.\n\n{members}',
+    buttonLabel: 'Review new members',
+    placeholders: [
+      {
+        key: 'count',
+        description: 'How many new members wait, e.g. "3 new members"',
+        sample: '3 new members',
+      },
+      {
+        key: 'members',
+        description:
+          'The new members (name, company, profile, date joined), one per paragraph when on a line of its own; "And 5 more." after the first 30',
+        sample:
+          'Camille Martin, Siam Robotics (Founder or co-founder), joined 2 Nov\nNiran Chai (Investor), joined 3 Nov\nLucie Bernard, Lotus Labs (Student), joined 4 Nov',
+        list: true,
+      },
+    ],
+    required: ['members'],
+    added: 'The link to the members admin (the button).',
+    preview: { buttonUrl: `${SITE}/admin/members` },
+  },
 };
 
 export const TEMPLATE_KEYS = Object.keys(EMAIL_TEMPLATES) as TemplateKey[];
@@ -807,11 +909,13 @@ export function applyTemplate(
     const v = k && has(vars, k) ? vars[k] : undefined;
     return v !== undefined && typeof v !== 'string' ? [...v] : [fillPlaceholders(p, inBody)];
   });
+  // An optional placeholder left empty (e.g. {whatsapp} with no link) leaves no blank paragraph.
+  const filled = paragraphs.filter((p) => p.trim());
   return {
     subject:
       oneLine(fillPlaceholders(t.subject, inSubject)) ||
       oneLine(fillPlaceholders(def.subject, inSubject)),
-    paragraphs,
+    paragraphs: filled,
     buttonLabel:
       def.buttonLabel === undefined
         ? ''
