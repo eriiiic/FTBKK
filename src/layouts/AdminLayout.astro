@@ -14,7 +14,9 @@ const flashText =
     ? 'Deleted.'
     : flash === 'done'
       ? 'Done.'
-      : 'Saved. Public pages refresh within a minute.';
+      : flash === 'merged'
+        ? 'Merged into one contact.'
+        : 'Saved. Public pages refresh within a minute.';
 // The sidebar, in groups.
 interface NavLink {
   href: string;
