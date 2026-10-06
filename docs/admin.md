@@ -5,7 +5,7 @@ only emails on the Access policy get in. Every change is saved straight to the l
 pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
-(Members, Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
+(Members, Contacts, Messages, Email the community, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
 **Content** (Posts, Files, Site texts, Emails) and **Settings**. On a phone, open it with the
 **Menu** button. Everyone who can sign in to the admin can do everything: there are no roles,
 owners or approval steps.
@@ -74,8 +74,13 @@ uses any more.
 
 ## Registrations
 
-- People register on the event page (name, email, company, role, photo notice, and an optional
-  newsletter box, unticked by default). They get a
+- **Once membership is open, every event is for members.** The registration box asks only for
+  the email (plus the optional note and the photo notice). A member is registered straight away
+  with the details of their membership. Anyone else gets the free membership form right there;
+  they receive one email, and clicking it makes them a member and registers them (or puts them
+  on the waitlist if the event filled up meanwhile).
+- While membership is closed, people register on the event page with the full form (name, email,
+  company, role, photo notice, and an optional newsletter box, unticked by default). They get a
   confirmation with a calendar invite and a cancel link, and a reminder the day before.
 - The form also asks, optionally, **"Anything we should know, or something you're looking for?"**
   (up to 500 characters: dietary needs, accessibility, "looking for a CTO"...). Only the team sees
@@ -102,6 +107,10 @@ uses any more.
   Walk-ins are marked in Registrations and in the CSV export. Tick **They want the newsletter**
   only if the person said yes (it needs their email). This also works for someone already
   checked in: the screen says "already checked in" and records the yes.
+- **Membership at the door** (once membership is open): people who aren't members have a "Not a
+  member" flag on the check-in screen, so volunteers can invite them. In the walk-in form, tick
+  **They want to become a member** (only if they said yes; it needs their email): they get the
+  usual email to confirm.
 - **Contacts** lists everyone who ever registered or walked in, one line per person (by email;
   walk-ins without an email are grouped by name). It shows how many events each person attended,
   registered for and missed (registered for a past event where check-in was used, but not
@@ -146,7 +155,10 @@ uses any more.
 - **Bulk actions on Contacts**: tick the boxes in front of the names (or the box in the header to
   tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
   rows), **Add tag** / **Remove tag** (choose the tag in the menu first; walk-ins without an email
-  are skipped, and the message says how many) and **Delete** (asks first; removes those contacts and their registrations, and freed
+  are skipped, and the message says how many), **Email…** (write one email to them, see Email the
+  community), **Invite to join** (once membership is open: the "Claim your membership" email, with
+  a link to a form already filled in with what we know; members and people invited in the last 30
+  days are skipped, and "Invited 6 Oct" shows next to the name) and **Delete** (asks first; removes those contacts and their registrations, and freed
   seats on upcoming events go to the waitlist).
 - **Newsletter consent**: the law (Thailand's PDPA) wants a clear yes, given by the person, with
   a date. The registration form asks with an unticked box; a tick is kept with its date (leaving
@@ -239,9 +251,11 @@ them in Settings > Directory moderators.
 
 ## Members
 
-Free individual membership. It is off until you tick **Open free individual membership on the
-Join page** in Settings; keep it off until the Resend domain is verified, otherwise confirmation
-emails only reach the Resend account owner.
+Free individual membership. It is off until you tick **Open free individual membership** in
+Settings; keep it off until the Resend domain is verified, otherwise confirmation emails only
+reach the Resend account owner. Opening it also makes every event members only (see
+Registrations), turns on the yearly reminders, **Invite to join** in Contacts and member
+enrolment at check-in.
 
 - People sign up on `/join`, click the link in the confirmation email and are **active** at once:
   they get a welcome email with the WhatsApp invitation (the link from Settings > Social links)
@@ -261,8 +275,16 @@ emails only reach the Resend account owner.
   it is on in Settings), like owners of member companies.
 - **Notes** on each row are for the team only. The Dashboard shows the number of active members
   and how many wait in To review.
+- **Every year**: 30 days and 7 days before a member's year ends, they get a one-click email to
+  keep their membership. Without a click, the day after it ends they become _Lapsed_ and get a
+  last email; they can renew in one click from it or from their member page, and a lapsed member
+  who registers for an event fills the membership form again.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
-  (for the yearly renewal, coming later).
+  (didn't confirm their year).
+- **Email the community** (Community menu): one email to every active member, to the newsletter
+  subscribers, or to the contacts you ticked in Contacts (**Email…**). `{name}` becomes the
+  person's first name. **Send me a test** first; the same email can't go to the same audience
+  twice within 10 minutes unless you tick "Send it again". Sent emails are listed on the right.
 
 ## Board and speakers, Messages, Site texts, Settings
 
@@ -319,9 +341,11 @@ and when:
   day), listing hidden, invitation to claim, claim to confirm, claim approved or declined, changes
   published or declined, membership approved or declined.
 - **Membership** (the free individual membership): the sign-up confirmation, the welcome email,
-  the link to the member page (asked for, or sent by an admin) and the link sent when a member
-  signs up again.
-- **Community**: the newsletter confirmation. **Privacy**: the "your data" link.
+  the link to the member page (asked for, or sent by an admin), the link sent when a member
+  signs up again, the confirmation for a newcomer registering for an event, the "Claim your
+  membership" invitation, the yearly reminder and the "membership paused" email.
+- **Community**: the newsletter confirmation (Email the community is written each time).
+  **Privacy**: the "your data" link.
 - **Admin notifications** (to the team): a contact form message, a new listing, a claim, a
   listing change and a membership application to review, and the Monday directory summary.
 

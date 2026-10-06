@@ -7,6 +7,7 @@ import FormField from '../../components/FormField.astro';
 import Turnstile from '../../components/Turnstile.astro';
 import MemberProfileFields from '../../components/MemberProfileFields.astro';
 import { getSettings } from '../../lib/settings';
+import { eventBySlug } from '../../lib/queries';
 import { formatDate, formatEventDate } from '../../lib/format';
 import { clientIp, email, fieldErrors, formToObject } from '../../lib/forms';
 import { verifyTurnstile } from '../../lib/turnstile';
@@ -19,6 +20,7 @@ import {
   memberForLink,
   memberPagePath,
   sendMemberLink,
+  renewMember,
   updateProfile,
 } from '../../lib/members';
 
@@ -61,6 +63,9 @@ if (Astro.request.method === 'POST') {
       await updateProfile(member, parsed.data);
       return Astro.redirect(`${memberPagePath(token)}&saved=1`, 303);
     }
+  } else if (member && action === 'renew' && member.status === 'lapsed') {
+    await renewMember(member);
+    return Astro.redirect(`${memberPagePath(token)}&renewed=1`, 303);
   } else if (member && action === 'leave' && form.get('confirm') === 'on') {
     await deleteMembers([member.id], 'self-service');
     member = null;
@@ -82,6 +87,12 @@ const regLabel: Record<string, string> = {
 };
 const whatsapp = settings.socials.whatsapp;
 const welcome = Astro.url.searchParams.has('welcome');
+// Joined while registering for an event (from /member/confirm): how the registration went.
+const regStatus = Astro.url.searchParams.get('reg');
+const regEvent =
+  member && regStatus
+    ? await eventBySlug((Astro.url.searchParams.get('event') ?? '').slice(0, 200))
+    : null;
 ---
 
 <BaseLayout title="My membership" noindex cache={false}>
@@ -142,7 +153,49 @@ const welcome = Astro.url.searchParams.has('welcome');
               Welcome to La French Tech Bangkok! Your membership is active.
             </Alert>
           )}
+          {regEvent && (
+            <Alert
+              tone={regStatus === 'registered' || regStatus === 'duplicate' ? 'success' : 'warning'}
+            >
+              {regStatus === 'registered' || regStatus === 'duplicate' ? (
+                <>
+                  You're registered for <a href={`/events/${regEvent.slug}`}>{regEvent.title}</a>.
+                  The confirmation with your ticket is in your inbox.
+                </>
+              ) : regStatus === 'waitlist' ? (
+                <>
+                  <a href={`/events/${regEvent.slug}`}>{regEvent.title}</a> is full, so you are on
+                  the waitlist. We'll email you if a seat frees up.
+                </>
+              ) : (
+                <>
+                  Registration for <a href={`/events/${regEvent.slug}`}>{regEvent.title}</a> closed
+                  before you confirmed, sorry. See you at the next one!
+                </>
+              )}
+            </Alert>
+          )}
+          {Astro.url.searchParams.has('renewed') && active && (
+            <Alert tone="success">
+              Thank you! Your membership is confirmed until{' '}
+              {member.renewalDueAt ? formatDate(member.renewalDueAt) : 'next year'}.
+            </Alert>
+          )}
           {state === 'saved' && <Alert tone="success">Your profile is saved.</Alert>}
+          {member.status === 'lapsed' && (
+            <Alert tone="warning">
+              <form method="post" class="flex flex-wrap items-center gap-3">
+                <input type="hidden" name="action" value="renew" />
+                <span>
+                  Your membership is paused because it wasn't confirmed this year. One click brings
+                  it back.
+                </span>
+                <Button type="submit" size="sm">
+                  Renew my membership
+                </Button>
+              </form>
+            </Alert>
+          )}
           {member.status === 'suspended' && (
             <Alert tone="warning">
               Your membership is suspended. Write to us at {settings.contactEmail} if you think this

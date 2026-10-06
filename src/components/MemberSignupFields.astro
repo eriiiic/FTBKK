@@ -1,0 +1,61 @@
+---
+// The free membership form's fields (email, profile, how they heard, newsletter, terms), shared by
+// the Join page, the event registration of a newcomer and the "claim your membership" page.
+import FormField from './FormField.astro';
+import MemberProfileFields from './MemberProfileFields.astro';
+import { HOW_HEARD } from '../lib/registrations';
+
+interface Props {
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+  /** The email is already known (claim link, or typed in the first step): shown, not editable. */
+  fixedEmail?: string;
+}
+const { values, errors, fixedEmail } = Astro.props;
+---
+
+{fixedEmail ? (
+  <p class="text-sm">
+    Email: <strong>{fixedEmail}</strong>
+    <input type="hidden" name="email" value={fixedEmail} />
+  </p>
+) : (
+  <FormField
+    name="email"
+    id="m-email"
+    label="Email"
+    type="email"
+    required
+    autocomplete="email"
+    value={values.email as string}
+    error={errors.email}
+  />
+)}
+<MemberProfileFields values={values} errors={errors} />
+<FormField
+  name="howHeard"
+  id="m-howHeard"
+  label="How did you hear about us?"
+  value={values.howHeard as string}
+  options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
+/>
+<FormField
+  name="newsletter"
+  id="m-newsletter"
+  type="checkbox"
+  checked={values.newsletter === true}
+  label="Send me the newsletter too (about once a month). You can unsubscribe at any time."
+/>
+<FormField
+  name="terms"
+  id="m-terms"
+  type="checkbox"
+  required
+  checked={values.terms === true}
+  error={errors.terms}
+  label="I agree to the code of conduct and to La French Tech Bangkok keeping my details as described in the privacy notice."
+/>
+<p class="text-sm text-muted">
+  Read the <a href="/code-of-conduct">code of conduct</a> and the{' '}
+  <a href="/privacy">privacy notice</a>. Your profile is not public.
+</p>

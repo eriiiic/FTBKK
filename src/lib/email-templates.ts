@@ -165,6 +165,10 @@ export type TemplateKey =
   | 'member.welcome'
   | 'member.link'
   | 'member.already-member'
+  | 'member.confirm-event'
+  | 'member.claim'
+  | 'member.renewal'
+  | 'member.lapsed'
   | 'admin.contact-form'
   | 'admin.listing-to-review'
   | 'admin.claim-to-review'
@@ -593,6 +597,57 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     added: 'The link to the member page (the button) and a footer: "The link works for 30 days."',
     preview: { buttonUrl: `${SITE}/member`, footer: 'The link works for 30 days.' },
   },
+  'member.confirm-event': {
+    label: 'Register as a new member: confirm',
+    group: 'Membership',
+    audience: 'Someone who is not a member yet and registers for an event',
+    trigger:
+      'When membership is open and an unknown email registers for an event (they fill the free membership form)',
+    subject: 'Confirm your email to register for {event}',
+    body: "Hi {name}, one click to confirm your email: you become a member of La French Tech Bangkok (it's free) and you're registered for {event}.\n\nDidn't sign up? Ignore this email and nothing happens.",
+    buttonLabel: 'Confirm and register',
+    placeholders: [P.name, P.event],
+    added:
+      'The confirmation link (the button) and a footer: "The link works for 7 days." The event confirmation with the ticket follows once they click.',
+    preview: { buttonUrl: `${SITE}/member/confirm`, footer: 'The link works for 7 days.' },
+  },
+  'member.claim': {
+    label: 'Claim your membership (invitation)',
+    group: 'Membership',
+    audience: 'Past attendees the team invites from Contacts',
+    trigger: 'When the team clicks "Invite to join" on selected contacts',
+    subject: 'Your free La French Tech Bangkok membership',
+    body: "Hi {name}, thanks for coming to our events. La French Tech Bangkok now has a free membership: members register for events with just their email, get the invitation to the members' WhatsApp community and hear about what's coming first.\n\nWe've filled in what we know about you: check it, accept the code of conduct and you're in.\n\nNot interested? Ignore this email and we won't add you.",
+    buttonLabel: 'Claim my membership',
+    placeholders: [P.name],
+    added:
+      'The link to the prefilled form (the button) and a footer: "The link works for 60 days."',
+    preview: { buttonUrl: `${SITE}/member/claim`, footer: 'The link works for 60 days.' },
+  },
+  'member.renewal': {
+    label: 'Yearly reminder: confirm your membership',
+    group: 'Membership',
+    audience: 'Active members whose year ends soon',
+    trigger: '30 days and 7 days before the membership year ends',
+    subject: 'Keep your La French Tech Bangkok membership for another year',
+    body: "Hi {name}, your free membership comes up for renewal on {due}. One click keeps it for another year.\n\nIf you don't confirm, your membership pauses; you can come back any time.",
+    buttonLabel: 'Keep my membership',
+    placeholders: [P.name, { key: 'due', description: 'The renewal date', sample: '3 Nov 2027' }],
+    added: 'The one-click link (the button) and a footer: "The link works for 60 days."',
+    preview: { buttonUrl: `${SITE}/member/renew`, footer: 'The link works for 60 days.' },
+  },
+  'member.lapsed': {
+    label: 'Membership paused (not confirmed)',
+    group: 'Membership',
+    audience: "Members who didn't confirm their year",
+    trigger: 'The day after the membership year ended without a confirmation',
+    subject: 'Your La French Tech Bangkok membership is paused',
+    body: "Hi {name}, we didn't hear back, so your membership is paused: you need to be a member to register for our events and see the WhatsApp invitation. One click brings it back for a year.",
+    buttonLabel: 'Renew my membership',
+    placeholders: [P.name],
+    added: 'The one-click link (the button) and a footer: "The link works for 60 days."',
+    preview: { buttonUrl: `${SITE}/member/renew`, footer: 'The link works for 60 days.' },
+  },
 
   // ---------- Admin notifications: emails to the team ----------
   'admin.contact-form': {
@@ -759,6 +814,12 @@ export const WRITTEN_EACH_TIME = [
     group: 'Events' as TemplateGroup,
     audience: 'Registrants of one event (you choose who)',
     trigger: "Written each time on the event's Email page",
+  },
+  {
+    label: 'Email the community',
+    group: 'Community' as TemplateGroup,
+    audience: 'Active members, newsletter subscribers, or contacts you select',
+    trigger: 'Written each time on Community > Email the community',
   },
 ];
 

@@ -178,6 +178,8 @@ export const contacts = sqliteTable('contacts', {
   newsletter: text('newsletter', { enum: ['yes', 'no'] }),
   /** When they told us (see newsletter). */
   newsletterAt: ts('newsletter_at'),
+  /** Last "claim your membership" invitation sent from Contacts. */
+  memberInvitedAt: ts('member_invited_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -362,6 +364,8 @@ export const magicTokens = sqliteTable(
         'newsletter',
         'member_confirm',
         'member',
+        'member_claim',
+        'member_renew',
       ],
     }).notNull(),
     orgId: integer('org_id').references(() => organisations.id, { onDelete: 'cascade' }),
@@ -575,6 +579,14 @@ export const members = sqliteTable(
     /** When someone in the admin looked at this new member (Members > To review); never blocks them. */
     reviewedAt: ts('reviewed_at'),
     reviewedBy: text('reviewed_by'),
+    /** Last yearly reminder sent, e.g. "30:2027-10-03" (days before + the due date it was for). */
+    renewalReminder: text('renewal_reminder'),
+    /** Joined while registering for this event: registered once the email is confirmed. */
+    pendingEventId: integer('pending_event_id').references(() => events.id, {
+      onDelete: 'set null',
+    }),
+    /** The note typed with that registration. */
+    pendingNote: text('pending_note'),
     /** Why the team suspended them (team only). */
     suspendedReason: text('suspended_reason'),
     notes: text('notes'),
@@ -583,6 +595,21 @@ export const members = sqliteTable(
   },
   (t) => [index('members_status').on(t.status)],
 );
+
+/** "Email the community" (Community > Email the community): one row per email sent. */
+export const communityEmails = sqliteTable('community_emails', {
+  id: id(),
+  /** members = active members; newsletter = newsletter subscribers; contacts = a Contacts selection. */
+  audience: text('audience', { enum: ['members', 'newsletter', 'contacts'] }).notNull(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  actionLabel: text('action_label'),
+  actionUrl: text('action_url'),
+  /** How many emails went out. */
+  recipients: integer('recipients').notNull(),
+  sentBy: text('sent_by').notNull(),
+  createdAt: createdAt(),
+});
 
 export type Event = typeof events.$inferSelect;
 export type Registration = typeof registrations.$inferSelect;
@@ -597,4 +624,5 @@ export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type MessageNote = typeof messageNotes.$inferSelect;
 export type Member = typeof members.$inferSelect;
+export type CommunityEmail = typeof communityEmails.$inferSelect;
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;

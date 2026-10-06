@@ -12,7 +12,13 @@ const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
 let valid = true;
 if (Astro.request.method === 'POST') {
   const done = await confirmMembership(token);
-  if (done) return Astro.redirect(`${memberPagePath(done.link)}&welcome=1`, 303);
+  if (done) {
+    // Joined while registering for an event: the member page says how that went.
+    const reg = done.registration
+      ? `&event=${encodeURIComponent(done.registration.event.slug)}&reg=${done.registration.outcome.status}`
+      : '';
+    return Astro.redirect(`${memberPagePath(done.link)}&welcome=1${reg}`, 303);
+  }
   valid = false;
 } else valid = Boolean(token && (await peekToken(token, 'member_confirm')));
 ---

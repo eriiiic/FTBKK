@@ -24,13 +24,19 @@ import { verifyTurnstile } from '../../../lib/turnstile';
 import { rateLimit } from '../../../lib/ratelimit';
 import { getSettings } from '../../../lib/settings';
 import {
+  MemberRegisterSchema,
   RegisterSchema,
   countTaken,
-  insertRegistration,
-  isMemberEmail,
+  registerForEvent,
   registrationState,
-  sendConfirmation,
 } from '../../../lib/registrations';
+import {
+  MemberSignupSchema,
+  memberByEmail,
+  memberRegistration,
+  requestMembership,
+  signupInput,
+} from '../../../lib/members';
 
 const event = await eventBySlug(Astro.params.slug!);
 if (!event) return Astro.rewrite('/404');
@@ -64,36 +70,77 @@ let state = registrationState(event, await countTaken(event.id), now, {
 });
 
 const isPost = Astro.request.method === 'POST';
+// With membership open, every event is members only: members register with their email, and
+// someone new fills the free membership form once, which also registers them when they confirm.
+const membersOnly = settings.memberSignupOpen;
+let step: 'email' | 'join' = 'email';
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = {};
-let result: { status: 'registered' | 'waitlist' | 'duplicate'; email: string } | null = null;
+let result: {
+  status: 'registered' | 'waitlist' | 'duplicate' | 'joined';
+  email: string;
+} | null = null;
 if (isPost) {
   const form = await Astro.request.formData();
-  values = formToObject(form);
+  values = formToObject(form, ['interests']);
   const ip = clientIp(Astro.request);
-  const parsed = RegisterSchema.safeParse(values);
-  if (!parsed.success) {
-    errors = fieldErrors(parsed.error);
-  } else if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
-    errors.form = 'The anti-spam check failed. Please try again.';
-  } else if (!(await rateLimit(`register:${ip}`, 10, 3600))) {
-    errors.form = 'Too many registrations from your connection. Please try again later.';
-  } else {
-    const member = settings.memberPriority && (await isMemberEmail(parsed.data.email));
-    const mine = registrationState(event, await countTaken(event.id), now, {
+  const human = () => verifyTurnstile(form.get('cf-turnstile-response') as string, ip);
+  const register = async (data: Parameters<typeof registerForEvent>[1]) => {
+    const outcome = await registerForEvent(event, data, {
       memberPriority: settings.memberPriority,
-      isMember: member,
+      now,
     });
-    if (!mine.open) {
-      state = mine;
-    } else {
-      const row = await insertRegistration(event.id, parsed.data, mine.capacity);
-      if (!row) result = { status: 'duplicate', email: parsed.data.email };
+    if (outcome.status === 'closed') state = outcome.state;
+    else result = { status: outcome.status, email: data.email };
+  };
+  const suspended = `This membership is suspended. Write to us at ${settings.contactEmail} if you think this is a mistake.`;
+  if (!membersOnly) {
+    const parsed = RegisterSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    else if (!(await human())) errors.form = 'The anti-spam check failed. Please try again.';
+    else if (!(await rateLimit(`register:${ip}`, 10, 3600)))
+      errors.form = 'Too many registrations from your connection. Please try again later.';
+    else await register(parsed.data);
+  } else if (form.get('step') === 'join') {
+    // Second step for someone new: the membership form, with the note and photo notice carried over.
+    step = 'join';
+    const extra = MemberRegisterSchema.pick({ note: true, photoConsent: true }).safeParse(values);
+    const parsed = MemberSignupSchema.safeParse(signupInput(values));
+    if (!parsed.success || !extra.success)
+      errors = {
+        ...(parsed.success ? {} : fieldErrors(parsed.error)),
+        ...(extra.success ? {} : fieldErrors(extra.error)),
+      };
+    else if (!(await human())) errors.form = 'The anti-spam check failed. Please try again.';
+    else if (
+      !(await rateLimit(`member:${ip}`, 5, 3600)) ||
+      !(await rateLimit(`member:${parsed.data.email}`, 3, 86400))
+    )
+      errors.form = 'Too many sign-ups from here. Please try again later.';
+    else {
+      const existing = await memberByEmail(parsed.data.email);
+      if (existing?.status === 'active')
+        await register(memberRegistration(existing, extra.data.note));
+      else if (existing?.status === 'suspended') errors.form = suspended;
+      else if (state.open) {
+        await requestMembership(parsed.data, now, { event, note: extra.data.note });
+        result = { status: 'joined', email: parsed.data.email };
+      }
+    }
+  } else {
+    // First step: just the email (and the note and photo notice).
+    const parsed = MemberRegisterSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    else if (!(await human())) errors.form = 'The anti-spam check failed. Please try again.';
+    else if (!(await rateLimit(`register:${ip}`, 10, 3600)))
+      errors.form = 'Too many registrations from your connection. Please try again later.';
+    else {
+      const m = await memberByEmail(parsed.data.email);
+      if (m?.status === 'active') await register(memberRegistration(m, parsed.data.note));
+      else if (m?.status === 'suspended') errors.form = suspended;
       else {
-        // Only what the email needs: the note stays with the organisers.
-        const { name, email } = parsed.data;
-        await sendConfirmation(event, { name, email, status: row.status, token: row.token });
-        result = { status: row.status, email: parsed.data.email };
+        step = 'join';
+        values = { ...parsed.data, photoConsent: true };
       }
     }
   }
@@ -244,6 +291,8 @@ const jsonLd = {
           <RegistrationForm
             event={event}
             state={state}
+            membersOnly={membersOnly}
+            step={step}
             errors={errors}
             values={values}
             result={result}

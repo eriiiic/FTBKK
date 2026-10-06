@@ -1,0 +1,54 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import Alert from '../../components/Alert.astro';
+import Button from '../../components/Button.astro';
+import { memberForRenewal, memberPagePath, renewMembership } from '../../lib/members';
+import { formatDate } from '../../lib/format';
+
+// One-click yearly reconfirmation from the reminder (or the "paused" email). GET only shows a
+// button, so email link scanners can't renew anyone; the button POSTs, then opens the member page.
+const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
+let member = token ? await memberForRenewal(token) : null;
+if (Astro.request.method === 'POST') {
+  const link = await renewMembership(token);
+  if (link) return Astro.redirect(`${memberPagePath(link)}&renewed=1`, 303);
+  member = null;
+}
+const usable = member && member.status !== 'suspended' && member.status !== 'pending';
+---
+
+<BaseLayout title="Keep your membership" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Keep your membership</h1>
+      {usable && member ? (
+        <form method="post" class="mt-6 grid gap-4">
+          <p>
+            {member.status === 'lapsed'
+              ? `Hi ${member.name.split(' ')[0]}, one click brings your free membership back for a year.`
+              : `Hi ${member.name.split(' ')[0]}, your membership runs until ${member.renewalDueAt ? formatDate(member.renewalDueAt) : 'soon'}. One click keeps it for another year.`}
+          </p>
+          <div>
+            <Button type="submit">
+              {member.status === 'lapsed' ? 'Renew my membership' : 'Keep my membership'}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div class="mt-6 grid gap-4">
+          <Alert tone="warning">
+            This link has expired or was already used. Ask for a link to your member page, or join
+            again on the Join page.
+          </Alert>
+          <div class="flex flex-wrap gap-2">
+            <Button href="/member">Send me my member link</Button>
+            <Button href="/join#become-member" variant="secondary">
+              Go to the Join page
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  </Section>
+</BaseLayout>
