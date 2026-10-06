@@ -3,6 +3,7 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Alert from '../../../components/Alert.astro';
 import ContactForm from '../../../components/admin/ContactForm.astro';
 import { ContactSchema, contactInput, createContact } from '../../../lib/contacts';
+import { setMembershipByTeam } from '../../../lib/members';
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 
@@ -15,8 +16,10 @@ if (Astro.request.method === 'POST') {
   values = formToObject(await Astro.request.formData(), ['tags']);
   const parsed = ContactSchema.safeParse(values);
   const input = parsed.success ? contactInput(parsed.data, null) : null;
+  const member = values.member === true;
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
+  else if (member && !input.email) errors = { member: 'Add an email to make them a member.' };
   else {
     const result = await createContact(input);
     if ('error' in result) {
@@ -24,6 +27,13 @@ if (Astro.request.method === 'POST') {
       existing = result.key ?? '';
     } else {
       await audit(actor, 'contact_create', 'contact', null, null, input);
+      if (member && input.email)
+        await setMembershipByTeam(
+          { ...input, email: input.email },
+          true,
+          actor,
+          values.welcome === true,
+        );
       return Astro.redirect(`/admin/contacts/view?c=${encodeURIComponent(result.key)}&saved=done`);
     }
   }

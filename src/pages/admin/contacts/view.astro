@@ -19,7 +19,7 @@ import {
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { formatDate, formatEventDate } from '../../../lib/format';
-import { MEMBER_STATUSES } from '../../../lib/members';
+import { MEMBER_STATUSES, moveMembership, setMembershipByTeam } from '../../../lib/members';
 
 const key = Astro.url.searchParams.get('c') ?? '';
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -49,13 +49,24 @@ if (Astro.request.method === 'POST') {
         latestRegistrationAnswer(before?.history ?? []),
       )
     : null;
+  const member = values.member === true;
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
+  else if (member && !input.email) errors = { member: 'Add an email to make them a member.' };
   else {
     const result = await saveContact(key, input);
     if ('error' in result) errors = { email: result.error };
     else {
       await audit(actor, 'contact_update', 'contact', null, { key }, input);
+      if (input.email) {
+        if (!key.includes(':')) await moveMembership(key, input.email);
+        await setMembershipByTeam(
+          { ...input, email: input.email },
+          member,
+          actor,
+          values.welcome === true,
+        );
+      }
       return Astro.redirect(view(result.key));
     }
   }
@@ -191,6 +202,7 @@ const stats = [
               }
             }
             newsletterNow={newsletterText(c.newsletter)}
+            memberStatus={c.member?.status ?? null}
             errors={errors}
             submit="Save contact"
             walkIn={walkIn}
