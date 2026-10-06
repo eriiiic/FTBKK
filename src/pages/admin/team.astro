@@ -195,14 +195,18 @@ const newRoles = Array.isArray(draft.roles) && !draft.id ? (draft.roles as strin
           <dt class="font-semibold">{TEAM_ROLES[r]}</dt>
           <dd class="text-muted">
             {r === 'directory'
-              ? 'Listing requests, claims, owner changes and memberships in Ecosystem > To review (target: answered within 5 days).'
+              ? 'Listing requests, claims, owner changes and company memberships in Ecosystem > To review (target: answered within 5 days).'
               : r === 'messages'
                 ? 'New contact-form and Join page messages are assigned to them.'
                 : `${stepsFor(r)} step${stepsFor(r) === 1 ? '' : 's'} of each event: ${EVENT_STEPS.filter(
                     (s) => s.role === r,
                   )
                     .map((s) => s.title.split(':')[0])
-                    .join('; ')}.`}
+                    .join('; ')}.${
+                    r === 'board'
+                      ? ' Also reviews new members in Community > Members (list emailed every Monday).'
+                      : ''
+                  }`}
           </dd>
         </div>
       ))}

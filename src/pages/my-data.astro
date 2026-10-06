@@ -133,6 +133,14 @@ if (contact && key) {
 const self = token ? `/my-data?token=${encodeURIComponent(token)}` : myDataCodePath(code);
 
 const rows = contact ? describeMyData(contact) : [];
+const membership = contact?.member;
+if (membership)
+  rows.push([
+    'Membership',
+    membership.status === 'pending'
+      ? 'Signed up, email not confirmed'
+      : `${membership.status === 'active' ? 'Active member' : membership.status === 'suspended' ? 'Suspended' : 'Lapsed'}${membership.memberSince ? ` since ${formatDate(membership.memberSince)}` : ''}, with the profile you gave us`,
+  ]);
 if (contact?.tags.length)
   rows.push(['Tags the team added', contact.tags.map((t) => CONTACT_TAGS[t]).join(', ')]);
 const STATUS = {
@@ -149,10 +157,10 @@ const STATUS = {
       <h1 class="text-3xl">Your data</h1>
       {state === 'deleted' && (
         <Alert tone="success" class="mt-6">
-          Your data has been deleted: your registrations, your answers and feedback, any contact
-          card the team saved, and your details in our admin change history. Any seat you had at an
-          upcoming event goes to the next person on the waitlist. You are welcome back any time:
-          just register for an event again.
+          Your data has been deleted: your registrations, your answers and feedback, your membership
+          and member profile, any contact card the team saved, and your details in our admin change
+          history. Any seat you had at an upcoming event goes to the next person on the waitlist.
+          You are welcome back any time: just register for an event again.
         </Alert>
       )}
       {state === 'invalid' && (

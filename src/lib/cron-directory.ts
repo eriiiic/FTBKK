@@ -174,7 +174,7 @@ export async function sendModeratorDigest(now: Date) {
       ['New listings', String(q.pendingOrgs.length)],
       ['Owner changes', String(q.changes.length)],
       ['Claims', String(q.pendingClaims.length)],
-      ['Membership applications', String(q.applications.length)],
+      ['Company membership applications', String(q.applications.length)],
       ['Oldest item', `${oldest} days`],
       ['Renewals due this month', `${expiring.length} (${unclaimedDue} unclaimed)`],
     ],

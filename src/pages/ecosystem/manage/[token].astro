@@ -272,10 +272,12 @@ const ownersList = [
             org.status === 'published' &&
             ['none', 'lapsed'].includes(org.memberStatus) && (
               <form method="post" class="mt-12 grid gap-4 rounded-card border border-line p-6">
-                <h2 class="text-xl">Apply for the free membership</h2>
+                <h2 class="text-xl">Apply for the free company membership</h2>
                 <p class="text-sm text-muted">
-                  Members get the Member badge in the directory. The board validates applications
-                  within 5 days, and the membership renews with your yearly confirmation.
+                  Member companies get the Member badge in the directory. The board validates
+                  applications within 5 days, and the membership renews with your yearly
+                  confirmation. This is for the organisation; people join as individual members on
+                  the <a href="/join">Join page</a>.
                 </p>
                 <input type="hidden" name="action" value="membership" />
                 <FormField

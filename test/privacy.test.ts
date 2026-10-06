@@ -59,13 +59,16 @@ describe('privacy notice', () => {
       new URL('../migrations/0019_privacy_notice.sql', import.meta.url),
       'utf8',
     ).match(/VALUES \('privacyNotice', '(.*)'\);/s)![1];
-    const sql = readFileSync(
-      new URL('../migrations/0020_privacy_notice_request.sql', import.meta.url),
-      'utf8',
-    );
-    const m = sql.match(/SET value = '(.*)' WHERE key = 'privacyNotice' AND value = '(.*)';/s);
-    expect(JSON.parse(m![1]!.replace(/''/g, "'"))).toBe(DEFAULT_PRIVACY_NOTICE);
-    expect(m![2]).toBe(seed);
+    // Each update replaces only the text the previous migration left, untouched.
+    const update = (file: string) =>
+      readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8').match(
+        /SET value = '(.*)' WHERE key = 'privacyNotice' AND value = '(.*)';/s,
+      )!;
+    const first = update('0020_privacy_notice_request.sql');
+    const latest = update('0023_privacy_membership.sql');
+    expect(first[2]).toBe(seed);
+    expect(latest[2]).toBe(first[1]);
+    expect(JSON.parse(latest[1]!.replace(/''/g, "'"))).toBe(DEFAULT_PRIVACY_NOTICE);
   });
 });
 

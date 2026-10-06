@@ -82,7 +82,7 @@ export async function reviewItems(orgId?: number): Promise<ReviewItem[]> {
       id: app.id,
       org,
       at: app.createdAt,
-      title: `Membership: ${org.name}`,
+      title: `Company membership: ${org.name}`,
       details: [
         ['Contact', `${app.contactName} (${app.contactRole ?? '–'})`],
         ['Email', app.email],

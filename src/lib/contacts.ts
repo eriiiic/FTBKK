@@ -145,8 +145,15 @@ export interface Contact {
   lastEvent: ContactRegistration['event'] | null;
   history: ContactRegistration[];
   organisations: (ContactOrg & { relation: 'owner' | 'contact' })[];
-  /** Their company has the same name as a member organisation in the ecosystem directory. */
-  memberCompany: boolean;
+  /** Their individual membership (Members), by email. */
+  member: ContactMember | null;
+}
+
+export interface ContactMember {
+  id: number;
+  email: string;
+  status: 'pending' | 'active' | 'suspended' | 'lapsed';
+  memberSince: Date | null;
 }
 
 /** A company name for matching: lowercase, letters and digits only, without "Co., Ltd." etc. */
@@ -160,12 +167,11 @@ export const companyKey = (name: string | null | undefined) =>
     .replace(/\s+/g, '')
     .trim();
 
-/**
- * For the board: regulars (came to REGULAR_MIN_EVENTS events or more) with no ecosystem listing
- * of their own and not working for a member organisation.
- */
+export const isActiveMember = (c: Pick<Contact, 'member'>) => c.member?.status === 'active';
+
+/** Regulars (came to REGULAR_MIN_EVENTS events or more) who are not members yet: invite them. */
 export const suggestForMembership = (c: Contact) =>
-  c.attended >= REGULAR_MIN_EVENTS && c.organisations.length === 0 && !c.memberCompany;
+  c.attended >= REGULAR_MIN_EVENTS && !isActiveMember(c);
 
 /** The key that groups one person's registrations: their email, else their name (walk-ins). */
 export const contactKey = (r: { email: string | null; name: string }) =>
@@ -182,7 +188,9 @@ export function buildContacts(
   orgs: ContactOrg[],
   now: Date,
   saved: SavedContact[] = [],
+  memberRows: ContactMember[] = [],
 ): Contact[] {
+  const membersByEmail = new Map(memberRows.map((m) => [m.email.toLowerCase(), m]));
   // Past events where at least one person was checked in: there, "registered" means no-show.
   const checkInUsed = new Set(regs.filter((r) => r.status === 'attended').map((r) => r.event.id));
   const ended = (e: ContactRegistration['event']) => (e.endsAt ?? e.startsAt) < now;
@@ -198,11 +206,6 @@ export function buildContacts(
     for (const e of o.ownerEmails) link(e, o, 'owner');
     if (o.publicEmail) link(o.publicEmail, o, 'contact');
   }
-
-  const memberCompanies = new Set(
-    orgs.filter((o) => o.memberStatus === 'member').map((o) => companyKey(o.name)),
-  );
-  memberCompanies.delete('');
 
   const groups = new Map<string, ContactRegistration[]>();
   for (const r of regs) {
@@ -257,7 +260,7 @@ export function buildContacts(
         lastEvent: (lastAttended ?? history.find((r) => r.status !== 'cancelled'))?.event ?? null,
         history,
         organisations: key.includes(':') ? [] : (byEmail.get(key) ?? []),
-        memberCompany: memberCompanies.has(companyKey(company)),
+        member: key.includes(':') ? null : (membersByEmail.get(key) ?? null),
       };
     })
     .sort(
@@ -267,6 +270,18 @@ export function buildContacts(
         a.name.localeCompare(b.name),
     );
 }
+
+/** Individual memberships, as buildContacts wants them (all, or one email's). */
+const contactMembers = (email?: string) =>
+  getDb()
+    .select({
+      id: members.id,
+      email: members.email,
+      status: members.status,
+      memberSince: members.memberSince,
+    })
+    .from(members)
+    .where(email ? eq(members.email, email) : undefined);
 
 /** Registrations with their event, as buildContacts wants them. */
 const contactRegistrations = () =>
@@ -301,7 +316,7 @@ const contactRegistrations = () =>
 /** Loads every registration and listing and builds the contact list (admin only). */
 export async function loadContacts(now = new Date()) {
   const db = getDb();
-  const [regs, orgs, saved] = await Promise.all([
+  const [regs, orgs, saved, memberRows] = await Promise.all([
     contactRegistrations(),
     db
       .select({
@@ -315,8 +330,9 @@ export async function loadContacts(now = new Date()) {
       })
       .from(organisations),
     db.select().from(contacts),
+    contactMembers(),
   ]);
-  return buildContacts(regs, orgs, now, saved);
+  return buildContacts(regs, orgs, now, saved, memberRows);
 }
 
 export const CONTACT_FILTERS = {
@@ -324,15 +340,17 @@ export const CONTACT_FILTERS = {
   attended: 'Came at least once',
   regulars: 'Came 2 times or more',
   never: 'Registered, never came',
+  members: 'Members',
   ecosystem: 'Linked to an ecosystem listing',
   newsletter: 'Agreed to the newsletter',
-  membership: 'Suggest for membership',
+  membership: 'Regulars not yet members',
 } as const;
 export type ContactFilter = keyof typeof CONTACT_FILTERS;
 
 /** A line explaining a filter, shown above the list while it is active. */
 export const CONTACT_FILTER_HINTS: Partial<Record<ContactFilter, string>> = {
-  membership: `People who came to ${REGULAR_MIN_EVENTS} or more events and have no ecosystem listing yet.`,
+  members: 'People with an active individual membership (see Members for the full list).',
+  membership: `People who came to ${REGULAR_MIN_EVENTS} or more events and are not members yet: invite them to join on /join.`,
 };
 
 /** The list filters shared by the Contacts page and its CSV export. */
@@ -364,6 +382,7 @@ export function filterContacts(
     if (show === 'never') return c.attended === 0 && c.registrations > 0;
     if (show === 'ecosystem') return c.organisations.length > 0;
     if (show === 'newsletter') return c.newsletter.agreed;
+    if (show === 'members') return isActiveMember(c);
     if (show === 'membership') return suggestForMembership(c);
     return true;
   });
@@ -774,11 +793,15 @@ export async function loadContact(key: string, now = new Date()) {
     : key.startsWith('id:')
       ? undefined
       : eq(registrations.email, key);
-  const [regs, card] = await Promise.all([
+  const isEmail = !key.startsWith('name:') && !key.startsWith('id:');
+  const [regs, card, memberRows] = await Promise.all([
     where ? contactRegistrations().where(where) : [],
     cardFor(key),
+    isEmail ? contactMembers(key) : [],
   ]);
-  return buildContacts(regs, [], now, card ? [card] : []).find((c) => c.key === key) ?? null;
+  return (
+    buildContacts(regs, [], now, card ? [card] : [], memberRows).find((c) => c.key === key) ?? null
+  );
 }
 
 /**

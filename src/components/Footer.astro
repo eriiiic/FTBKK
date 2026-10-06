@@ -57,6 +57,13 @@ const labels = {
             Join the community
           </a>
         </li>
+        {settings.memberSignupOpen && (
+          <li>
+            <a href="/member" class="text-paper hover:text-accent-soft">
+              My membership
+            </a>
+          </li>
+        )}
         <li>
           <a href="/ecosystem/submit" class="text-paper hover:text-accent-soft">
             Get listed

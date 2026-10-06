@@ -191,12 +191,17 @@ export async function countTaken(eventId: number, db: D1Database = env.DB) {
   return r?.n ?? 0;
 }
 
-/** Is this email an owner of a published Member listing? */
+/**
+ * Does this email get member priority on events? Active individual members, and owners of a
+ * published member company listing.
+ */
 export async function isMemberEmail(addr: string, db: D1Database = env.DB) {
   const r = await db
     .prepare(
-      `SELECT 1 FROM organisations, json_each(organisations.owner_emails)
-       WHERE organisations.status = 'published' AND organisations.member_status = 'member' AND json_each.value = ?
+      `SELECT 1 FROM members WHERE email = ?1 AND status = 'active'
+       UNION ALL
+       SELECT 1 FROM organisations, json_each(organisations.owner_emails)
+       WHERE organisations.status = 'published' AND organisations.member_status = 'member' AND json_each.value = ?1
        LIMIT 1`,
     )
     .bind(addr.toLowerCase())

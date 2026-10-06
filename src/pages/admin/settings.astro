@@ -136,17 +136,17 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       />
       <FormField
         name="membershipOpen"
-        label="Accept membership applications"
+        label="Accept company membership applications"
         type="checkbox"
         checked={!!values.membershipOpen}
-        hint="Owners of listed organisations can apply from their update page. The board approves each one."
+        hint="Owners of listed organisations can apply from their update page for the Member badge in the directory. The board approves each one."
       />
       <FormField
         name="memberPriority"
         label="Member priority on events"
         type="checkbox"
         checked={!!values.memberPriority}
-        hint="Adds early registration days and reserved seats for members to each event's settings."
+        hint="Adds early registration days and reserved seats for members (active individual members and owners of member companies) to each event's settings."
       />
     </section>
 

@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
-import { events, members, registrations, type Member } from '../db/schema';
+import { contacts, events, members, registrations, type Member } from '../db/schema';
 import { email, optionalText, optionalUrl } from './forms';
 import { SECTORS } from './directory';
 import { HOW_HEARD } from './registrations';
@@ -168,6 +168,19 @@ export async function confirmMembership(token: string, now = new Date()) {
     })
     .where(eq(members.id, m.id))
     .returning();
+  // A contact card, so members show in Contacts and My data even before their first event (an
+  // existing card, which the team may have edited, is left alone).
+  await db
+    .insert(contacts)
+    .values({
+      email: m.email,
+      name: m.name,
+      phone: m.phone,
+      company: m.company,
+      role: m.jobTitle,
+      linkedin: m.linkedin,
+    })
+    .onConflictDoNothing({ target: contacts.email });
   if (m.newsletterRequested) await confirmNewsletter(m.email, m.name, now);
   await audit('self-service', 'member_confirm', 'member', m.id, { status: m.status }, null);
   const link = await issueToken('member', m.email, { refId: m.id, now });
