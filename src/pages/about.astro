@@ -1,11 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Section from '../components/Section.astro';
+import Icon from '../components/Icon.astro';
 import PersonCard from '../components/PersonCard.astro';
 import { getSettings } from '../lib/settings';
 import { hostedSpeakers, peopleByGroup } from '../lib/queries';
 import { HOSTED_SPEAKERS_LIMIT } from '../lib/speakers';
-import JoinUs from '../components/JoinUs.astro';
 import ContactForm from '../components/ContactForm.astro';
 import { handleContactForm, topicFromQuery, type ContactResult } from '../lib/contact';
 import { renderMarkdown } from '../lib/markdown';
@@ -16,13 +15,41 @@ const [board, institutional, speakers] = await Promise.all([
   peopleByGroup('institutional'),
   hostedSpeakers(HOSTED_SPEAKERS_LIMIT),
 ]);
-// Sections after "Join us" alternate backgrounds, whichever of them have content.
-const shown = [board.length > 0, speakers.length > 0, institutional.length > 0, true];
-let n = 0;
-const tones = shown.map((on) => (on && n++ % 2 === 1 ? 'surface' : 'paper') as 'paper' | 'surface');
-const [boardTone, speakersTone, institutionalTone, contactTone] = tones;
 const intro = renderMarkdown(settings.aboutIntro, { breaks: true });
 const community = renderMarkdown(settings.communityText, { breaks: true });
+const paths = settings.joinPaths;
+const external = (href: string) => /^https?:/.test(href);
+
+// The hero's "On this page" index lists only the sections that have content.
+const sections = [
+  community && { href: '#french-tech', title: 'La French Tech', text: 'An official community' },
+  paths.length > 0 && {
+    href: '#join',
+    title: 'You can join us',
+    text: 'Individuals, startups, partners',
+  },
+  board.length > 0 && { href: '#board', title: 'Meet the board', text: 'The volunteers behind it' },
+  speakers.length > 0 && {
+    href: '#speakers',
+    title: "Speakers we've hosted",
+    text: 'Who shared what they know',
+  },
+  institutional.length > 0 && {
+    href: '#partners',
+    title: 'Institutional partners',
+    text: 'Who we work with',
+  },
+  { href: '#contact', title: 'Contact us', text: 'Questions, ideas, partnerships' },
+].filter((s): s is { href: string; title: string; text: string } => !!s);
+
+// People sections alternate backgrounds, whichever of them have content.
+const shown = [board.length > 0, speakers.length > 0, institutional.length > 0];
+let n = 0;
+const [boardTone, speakersTone, partnersTone] = shown.map((on) =>
+  on && n++ % 2 === 1 ? 'bg-surface' : 'bg-paper',
+);
+const cardOn = (tone: string | undefined) =>
+  tone === 'bg-surface' ? 'border-line bg-paper' : 'border-line bg-surface/60';
 
 let contact: ContactResult = { errors: {}, values: {}, sent: false };
 const isPost = Astro.request.method === 'POST';
@@ -40,90 +67,246 @@ if (isPost)
   description="La French Tech Bangkok is a volunteer-run community connecting French and Thai tech entrepreneurs since 2019."
   cache={!isPost}
 >
-  <section class="bg-navy text-paper">
-    <div class="container-page py-16 md:py-24">
-      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">About us</p>
-      <h1 class="text-4xl text-paper uppercase md:text-5xl">Who we are</h1>
-      {intro && (
-        <div
-          class="prose prose-lg mt-8 max-w-3xl prose-invert prose-p:text-paper/90 prose-a:text-paper"
-          set:html={intro}
-        />
-      )}
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
+    <div
+      aria-hidden="true"
+      class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+    ></div>
+    <div class="container-page grid gap-12 py-16 md:py-24 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div>
+        <p class="mb-5 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase">
+          About us
+        </p>
+        <h1 class="text-4xl leading-[1.1] text-paper md:text-6xl">Who we are</h1>
+        {intro && <div class="hero-intro lead mt-8 max-w-2xl" set:html={intro} />}
+      </div>
+      <nav
+        aria-label="On this page"
+        class="rounded-card border border-paper/15 bg-paper/5 p-2 backdrop-blur lg:mt-14"
+      >
+        <ol>
+          {sections.map((s, i) => (
+            <li>
+              <a
+                href={s.href}
+                class="group flex items-center gap-4 rounded-xl px-4 py-3.5 text-paper no-underline transition-colors hover:bg-paper/10"
+              >
+                <span class="font-display text-sm font-bold text-accent-soft tabular-nums">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block font-semibold">{s.title}</span>
+                  <span class="block text-sm text-paper/65">{s.text}</span>
+                </span>
+                <Icon
+                  name="arrow"
+                  class="size-4 text-paper/50 transition-transform group-hover:translate-x-1 group-hover:text-paper"
+                />
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
     </div>
   </section>
 
   {community && (
-    <Section id="french-tech">
-      <div class="grid items-start gap-8 md:grid-cols-[auto_1fr] md:gap-12">
-        <img
-          src="/brand/logo.jpg"
-          alt="La French Tech Bangkok, official French Tech Community logo"
-          width="200"
-          height="200"
-          loading="lazy"
-          class="w-36 md:w-44"
+    <section id="french-tech" class="scroll-mt-20 bg-paper py-16 md:py-24">
+      <div class="container-page grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+        <div class="lg:sticky lg:top-24 lg:self-start">
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            The network
+          </p>
+          <div class="flex items-center gap-6 rounded-card border border-line bg-paper p-6 shadow-card md:p-8">
+            <img
+              src="/brand/logo.jpg"
+              alt="La French Tech Bangkok, official French Tech Community logo"
+              width="200"
+              height="200"
+              loading="lazy"
+              class="w-24 shrink-0 md:w-32"
+            />
+            <p class="text-sm text-muted">
+              <span class="block font-display text-base font-bold text-ink">
+                La French Tech Bangkok
+              </span>
+              An official French Tech Community, labelled by the Mission French Tech.
+            </p>
+          </div>
+        </div>
+        <div
+          class="prose max-w-none prose-headings:font-display prose-h2:text-3xl prose-h2:md:text-4xl prose-h3:mt-10 prose-h3:border-t prose-h3:border-line prose-h3:pt-10"
+          set:html={community}
         />
-        <div class="prose max-w-3xl prose-headings:font-display" set:html={community} />
       </div>
-    </Section>
+    </section>
   )}
 
-  <JoinUs id="join" paths={settings.joinPaths} />
+  {paths.length > 0 && (
+    <section id="join" class="scroll-mt-20 bg-surface py-16 md:py-24">
+      <div class="container-page">
+        <div class="max-w-2xl">
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            Get involved
+          </p>
+          <h2 class="text-3xl md:text-4xl">You can join us</h2>
+          <p class="mt-3 text-lg text-muted">
+            Free and open to everyone: French, Thai or any other nationality.
+          </p>
+        </div>
+        <ul class="mt-10 grid gap-px overflow-hidden rounded-card border border-line bg-line md:grid-cols-3">
+          {paths.map((p, i) => (
+            <li class="group relative flex flex-col bg-paper p-8 transition-colors has-[a:hover]:bg-surface has-[a:focus-visible]:outline-2 has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-navy md:p-10">
+              <span class="font-display text-sm font-bold text-brand tabular-nums">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <h3 class="mt-6 text-xl md:text-2xl">
+                {p.link ? (
+                  <a
+                    href={p.link}
+                    class="text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none"
+                    rel={external(p.link) ? 'noopener' : undefined}
+                  >
+                    {p.title}
+                  </a>
+                ) : (
+                  p.title
+                )}
+              </h3>
+              <p class="mt-3 text-muted">{p.text}</p>
+              {p.link && (
+                <span class="mt-auto pt-8">
+                  <Icon
+                    name="arrow"
+                    class="size-5 text-brand transition-transform group-hover:translate-x-1"
+                  />
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
 
   {board.length > 0 && (
-    <Section tone={boardTone} title="Meet the board">
-      <div class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
-        {board.map((p) => (
-          <PersonCard person={{ ...p, organisation: p.organisationName }} />
-        ))}
+    <section id="board" class={`scroll-mt-20 py-16 md:py-24 ${boardTone}`}>
+      <div class="container-page">
+        <div class="max-w-2xl">
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            The team
+          </p>
+          <h2 class="text-3xl md:text-4xl">Meet the board</h2>
+          <p class="mt-3 text-lg text-muted">
+            The volunteers who run the community and organise our events.
+          </p>
+        </div>
+        <ul class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-5">
+          {board.map((p) => (
+            <li class={`rounded-card border p-5 md:p-6 ${cardOn(boardTone)}`}>
+              <PersonCard person={{ ...p, organisation: p.organisationName }} />
+            </li>
+          ))}
+        </ul>
       </div>
-    </Section>
+    </section>
   )}
 
   {speakers.length > 0 && (
-    <Section
-      tone={speakersTone}
-      title="Speakers we've hosted"
-      intro="Founders, investors and experts who shared what they know at our events."
-    >
-      <ul class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
-        {speakers.map((p) => (
-          <li>
-            <PersonCard person={{ ...p, organisation: p.organisationName }}>
-              <a href={`/events/${p.eventSlug}`} class="mt-2 text-sm text-accent underline">
-                <span class="sr-only">Spoke at </span>
-                {p.eventTitle}
-              </a>
-            </PersonCard>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <section id="speakers" class={`scroll-mt-20 py-16 md:py-24 ${speakersTone}`}>
+      <div class="container-page">
+        <div class="max-w-2xl">
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            On stage
+          </p>
+          <h2 class="text-3xl md:text-4xl">Speakers we've hosted</h2>
+          <p class="mt-3 text-lg text-muted">
+            Founders, investors and experts who shared what they know at our events.
+          </p>
+        </div>
+        <ul class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-5">
+          {speakers.map((p) => (
+            <li class={`rounded-card border p-5 md:p-6 ${cardOn(speakersTone)}`}>
+              <PersonCard person={{ ...p, organisation: p.organisationName }}>
+                <a href={`/events/${p.eventSlug}`} class="mt-2 text-sm text-accent underline">
+                  <span class="sr-only">Spoke at </span>
+                  {p.eventTitle}
+                </a>
+              </PersonCard>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   )}
 
   {institutional.length > 0 && (
-    <Section tone={institutionalTone} title="Our institutional partners">
-      <div class="grid grid-cols-2 gap-8 md:grid-cols-3">
-        {institutional.map((p) => (
-          <PersonCard person={{ ...p, organisation: p.organisationName }} />
-        ))}
+    <section id="partners" class={`scroll-mt-20 py-16 md:py-24 ${partnersTone}`}>
+      <div class="container-page">
+        <div class="max-w-2xl">
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            Who we work with
+          </p>
+          <h2 class="text-3xl md:text-4xl">Our institutional partners</h2>
+        </div>
+        <ul class="mt-10 grid gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+          {institutional.map((p) => (
+            <li class={`rounded-card border p-6 md:p-8 ${cardOn(partnersTone)}`}>
+              <PersonCard person={{ ...p, organisation: p.organisationName }} />
+            </li>
+          ))}
+        </ul>
       </div>
-    </Section>
+    </section>
   )}
 
-  <Section
-    id="contact"
-    tone={contactTone}
-    title="Contact us"
-    intro={`Or write to ${settings.contactEmail}.`}
-  >
-    <div class="max-w-2xl">
-      <ContactForm
-        action="/about#contact"
-        {...contact}
-        topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
-      />
+  <section id="contact" class="scroll-mt-20 bg-paper py-16 md:py-24">
+    <div class="container-page grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+      <div>
+        <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+          Contact us
+        </p>
+        <h2 class="text-3xl md:text-4xl">Questions, ideas, partnerships</h2>
+        <p class="mt-3 text-lg text-muted">Write to us here, or directly by email.</p>
+        <ul class="mt-8 grid gap-4">
+          <li>
+            <a
+              href={`mailto:${settings.contactEmail}`}
+              class="inline-flex items-center gap-3 font-semibold"
+            >
+              <span class="grid size-10 place-items-center rounded-full bg-surface text-navy">
+                <Icon name="mail" class="size-5" />
+              </span>
+              {settings.contactEmail}
+            </a>
+          </li>
+          {settings.socials.linkedin && (
+            <li>
+              <a
+                href={settings.socials.linkedin}
+                rel="noopener"
+                class="inline-flex items-center gap-3 font-semibold"
+              >
+                <span class="grid size-10 place-items-center rounded-full bg-surface text-navy">
+                  <Icon name="linkedin" class="size-5" />
+                </span>
+                Follow us on LinkedIn
+              </a>
+            </li>
+          )}
+        </ul>
+      </div>
+      <div class="rounded-card border border-line bg-paper p-6 shadow-card md:p-10">
+        <ContactForm
+          action="/about#contact"
+          {...contact}
+          topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
+        />
+      </div>
     </div>
-  </Section>
+  </section>
 </BaseLayout>
