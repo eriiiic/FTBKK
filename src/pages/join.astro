@@ -1,0 +1,254 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Section from '../components/Section.astro';
+import Alert from '../components/Alert.astro';
+import Button from '../components/Button.astro';
+import FormField from '../components/FormField.astro';
+import Icon from '../components/Icon.astro';
+import Turnstile from '../components/Turnstile.astro';
+import ContactForm from '../components/ContactForm.astro';
+import { getSettings } from '../lib/settings';
+import { renderMarkdown } from '../lib/markdown';
+import { handleContactForm, topicFromQuery, type ContactResult } from '../lib/contact';
+import { NewsletterSchema, sendNewsletterConfirmation } from '../lib/newsletter';
+import { DEFAULT_JOIN_INTRO, DEFAULT_JOIN_MEMBERSHIP } from '../lib/join';
+import { clientIp, fieldErrors, formToObject } from '../lib/forms';
+import { verifyTurnstile } from '../lib/turnstile';
+import { rateLimit } from '../lib/ratelimit';
+
+// "Join the community", opened from the header button: membership, the WhatsApp group (members
+// only: until membership opens, people ask for it through the form), the directory, ways to get
+// involved, the newsletter and the contact form.
+const settings = await getSettings();
+const intro = renderMarkdown(settings.joinIntro || DEFAULT_JOIN_INTRO, { breaks: true });
+const membership = renderMarkdown(settings.joinMembership || DEFAULT_JOIN_MEMBERSHIP, {
+  breaks: true,
+});
+
+let contact: ContactResult = { errors: {}, values: {}, sent: false };
+let news: { errors: Record<string, string>; values: Record<string, unknown>; sent: boolean } = {
+  errors: {},
+  values: {},
+  sent: false,
+};
+const isPost = Astro.request.method === 'POST';
+if (isPost) {
+  const form = await Astro.request.formData();
+  if (form.get('form') === 'newsletter') {
+    const values = formToObject(form);
+    const ip = clientIp(Astro.request);
+    const parsed = NewsletterSchema.safeParse(values);
+    if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip)))
+      news = {
+        values,
+        sent: false,
+        errors: { form: 'The anti-spam check failed. Please try again.' },
+      };
+    else if (!parsed.success) news = { values, sent: false, errors: fieldErrors(parsed.error) };
+    else if (
+      !(await rateLimit(`newsletter:${ip}`, 5, 3600)) ||
+      !(await rateLimit(`newsletter:${parsed.data.email}`, 3, 86400))
+    )
+      news = {
+        values,
+        sent: false,
+        errors: { form: 'Too many sign-ups from here. Please try again later.' },
+      };
+    else {
+      await sendNewsletterConfirmation(parsed.data);
+      news = { values: {}, sent: true, errors: {} };
+    }
+  } else contact = await handleContactForm(Astro.request, form, settings, 'Join the community');
+}
+
+const involved = [
+  {
+    topic: 'volunteer',
+    title: 'Volunteer',
+    text: 'Help at the door, take photos, write a recap, run a workshop.',
+  },
+  {
+    topic: 'host',
+    title: 'Host an event',
+    text: 'Open your office or venue to the community for an evening.',
+  },
+  {
+    topic: 'partnership',
+    title: 'Become a partner',
+    text: 'Sponsor an event or the year, and meet the ecosystem.',
+  },
+  {
+    topic: 'speaking',
+    title: 'Speak at an event',
+    text: 'Share what you know: a talk, a panel, a founder story.',
+  },
+];
+---
+
+<BaseLayout
+  title="Join the community"
+  description="Join La French Tech Bangkok: free membership, the WhatsApp community, the ecosystem directory, volunteering, partnerships and the newsletter."
+  cache={!isPost}
+>
+  <section class="bg-navy text-paper">
+    <div class="container-page py-16 md:py-24">
+      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">
+        Join the community
+      </p>
+      <h1 class="max-w-3xl text-4xl text-paper md:text-5xl">
+        Meet the French tech community in Thailand
+      </h1>
+      <div
+        class="prose prose-lg mt-8 max-w-3xl prose-invert prose-p:text-paper/90 prose-a:text-paper prose-strong:text-paper"
+        set:html={intro}
+      />
+    </div>
+  </section>
+
+  <Section>
+    <ul class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <li
+        id="membership"
+        class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card"
+      >
+        <Icon name="users" class="size-8 text-brand" />
+        <h2 class="mt-4 text-xl">Become a member</h2>
+        <div class="prose mt-3 text-muted" set:html={membership} />
+        <div class="mt-auto pt-6">
+          <Button href="#newsletter" variant="secondary" size="sm">
+            Tell me when it opens
+          </Button>
+        </div>
+      </li>
+      <li
+        id="whatsapp"
+        class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card"
+      >
+        <Icon name="whatsapp" class="size-8 text-brand" />
+        <h2 class="mt-4 text-xl">The WhatsApp community</h2>
+        <p class="mt-3 text-muted">
+          Where members share jobs, questions, introductions and event news day to day. The group is
+          for members: ask to join and the team will send you the invitation.
+        </p>
+        <div class="mt-auto pt-6">
+          <Button href="?topic=whatsapp#contact" variant="secondary" size="sm">
+            Ask to join the group
+          </Button>
+        </div>
+      </li>
+      <li
+        id="directory"
+        class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card"
+      >
+        <Icon name="building" class="size-8 text-brand" />
+        <h2 class="mt-4 text-xl">List your company</h2>
+        <p class="mt-3 text-muted">
+          French startups and companies, service providers, investors, incubators, schools and
+          institutions in Thailand: get a free listing in the ecosystem directory.
+        </p>
+        <div class="mt-auto flex flex-wrap gap-2 pt-6">
+          <Button href="/ecosystem/submit" variant="secondary" size="sm">
+            Get listed
+          </Button>
+          <Button href="/ecosystem" variant="ghost" size="sm">
+            See the directory
+          </Button>
+        </div>
+      </li>
+    </ul>
+  </Section>
+
+  <Section tone="surface" title="Get involved" intro="The community is run by volunteers.">
+    <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {involved.map((i) => (
+        <li class="relative rounded-card border border-line bg-paper p-5 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-navy">
+          <h3 class="text-lg">
+            <a
+              href={`?topic=${i.topic}#contact`}
+              class="text-ink no-underline after:absolute after:inset-0 hover:text-brand focus-visible:outline-none"
+            >
+              {i.title}
+            </a>
+          </h3>
+          <p class="mt-2 text-sm text-muted">{i.text}</p>
+          <Icon name="arrow" class="mt-4 size-5 text-brand" />
+        </li>
+      ))}
+    </ul>
+  </Section>
+
+  <Section
+    id="newsletter"
+    title="The newsletter"
+    intro="Upcoming events, community news and new members of the ecosystem, about once a month."
+  >
+    <div class="max-w-2xl">
+      {news.sent ? (
+        <Alert tone="success">
+          Almost done: we've sent you an email. Click the link in it to confirm your subscription.
+        </Alert>
+      ) : (
+        <form method="post" action="/join#newsletter" class="grid gap-4">
+          <input type="hidden" name="form" value="newsletter" />
+          {news.errors.form && <Alert tone="danger">{news.errors.form}</Alert>}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <FormField
+              name="name"
+              id="news-name"
+              label="Name"
+              required
+              value={news.values.name as string}
+              error={news.errors.name}
+              autocomplete="name"
+            />
+            <FormField
+              name="email"
+              id="news-email"
+              label="Email"
+              type="email"
+              required
+              value={news.values.email as string}
+              error={news.errors.email}
+              autocomplete="email"
+            />
+          </div>
+          <p class="text-sm text-muted">
+            We'll email you a link to confirm. Unsubscribe at any time. See our{' '}
+            <a href="/privacy">privacy notice</a>.
+          </p>
+          <Turnstile />
+          <div>
+            <Button type="submit">Subscribe</Button>
+          </div>
+        </form>
+      )}
+    </div>
+  </Section>
+
+  <Section
+    id="contact"
+    tone="surface"
+    title="Contact us"
+    intro={`Questions, ideas, partnerships: write to us here or at ${settings.contactEmail}.`}
+  >
+    <div class="max-w-2xl">
+      <ContactForm
+        action="/join#contact"
+        {...contact}
+        topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
+        turnstileScript={news.sent}
+      />
+    </div>
+    {settings.socials.linkedin && (
+      <p class="mt-8">
+        <a
+          href={settings.socials.linkedin}
+          rel="noopener"
+          class="inline-flex items-center gap-2 font-semibold"
+        >
+          <Icon name="linkedin" class="size-5" /> Follow us on LinkedIn
+        </a>
+      </p>
+    )}
+  </Section>
+</BaseLayout>

@@ -6,6 +6,25 @@ import { blockedSenders, messageNotes, submissions, type Submission } from '../d
 
 export type MessageStatus = Submission['status'];
 
+/** Topics of the public contact form (lib/contact.ts). */
+export const CONTACT_TOPICS = {
+  general: 'General question',
+  whatsapp: 'Join the WhatsApp group',
+  volunteer: 'Volunteer with the team',
+  host: 'Host an event at my office',
+  partnership: 'Partnership or sponsoring',
+  speaking: 'Speak at an event',
+  press: 'Press',
+  other: 'Other',
+} as const;
+export type ContactTopic = keyof typeof CONTACT_TOPICS;
+
+/** The topic's label, or the stored key for older messages. */
+export const topicLabel = (topic: unknown) =>
+  typeof topic === 'string' && topic in CONTACT_TOPICS
+    ? CONTACT_TOPICS[topic as ContactTopic]
+    : String(topic ?? '');
+
 export const FOLDERS: { status: MessageStatus; label: string }[] = [
   { status: 'new', label: 'Inbox' },
   { status: 'answered', label: 'Answered' },
@@ -86,6 +105,17 @@ export const MessageAction = z.discriminatedUnion('action', [
     /** Optionally file the message at the same time. */
     move: z.enum(['answered', 'handled']).optional(),
   }),
+  z.object({
+    action: z.literal('assign'),
+    ids: z.array(z.coerce.number().int().positive()).min(1).max(200),
+    /** A team member's email; empty = nobody. */
+    assignee: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(254)
+      .transform((s) => s || null),
+  }),
   z.object({ action: z.literal('block'), pattern: Pattern }),
   z.object({ action: z.literal('unblock'), pattern: z.string().trim().toLowerCase().max(254) }),
 ]);
@@ -108,6 +138,23 @@ export async function applyMessageAction(input: MessageAction, actor: string) {
   if (input.action === 'unblock') {
     await db.delete(blockedSenders).where(eq(blockedSenders.pattern, input.pattern));
     return `Unblocked ${input.pattern}. Messages already in Spam stay there.`;
+  }
+  if (input.action === 'assign') {
+    await db
+      .update(submissions)
+      .set({ assignee: input.assignee })
+      .where(inArray(submissions.id, input.ids));
+    const body = input.assignee ? `Assigned to ${input.assignee}` : 'Unassigned';
+    await db.insert(messageNotes).values(
+      input.ids.map((submissionId) => ({
+        submissionId,
+        kind: 'status' as const,
+        body,
+        author: actor,
+      })),
+    );
+    const n = input.ids.length;
+    return `${n} message${n === 1 ? '' : 's'} ${input.assignee ? `assigned to ${input.assignee}` : 'unassigned'}.`;
   }
   if (input.action === 'note') {
     await db
@@ -198,7 +245,8 @@ export async function notesFor(ids: number[]) {
 export function replyLink(s: Pick<Submission, 'payload' | 'createdAt'>) {
   const p = s.payload;
   const name = typeof p.name === 'string' ? p.name : '';
-  const topic = typeof p.topic === 'string' && p.topic !== 'general' ? ` (${p.topic})` : '';
+  const topic =
+    typeof p.topic === 'string' && p.topic !== 'general' ? ` (${topicLabel(p.topic)})` : '';
   const quoted = String(p.message ?? '')
     .split('\n')
     .map((l) => `> ${l}`)

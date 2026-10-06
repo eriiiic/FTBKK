@@ -7,6 +7,8 @@ import Button from '../../components/Button.astro';
 import { getDb } from '../../db';
 import { blockedSenders, messageNotes, submissions } from '../../db/schema';
 import { formatDate } from '../../lib/format';
+import { loadTeam, teamName } from '../../lib/ownership';
+import { topicLabel } from '../../lib/contact';
 import {
   FOLDERS,
   MessageAction,
@@ -27,8 +29,15 @@ const params = Astro.url.searchParams;
 const folder: MessageStatus =
   FOLDERS.find((f) => f.status === params.get('folder'))?.status ?? 'new';
 const q = (params.get('q') ?? '').trim().slice(0, 100);
+const me = Astro.locals.adminEmail?.toLowerCase() ?? '';
+const mine = params.get('mine') === '1' && !!me;
 const here = (extra: Record<string, string> = {}) => {
-  const p = new URLSearchParams({ folder, ...(q ? { q } : {}), ...extra });
+  const p = new URLSearchParams({
+    folder,
+    ...(q ? { q } : {}),
+    ...(mine ? { mine: '1' } : {}),
+    ...extra,
+  });
   return `/admin/submissions?${p}`;
 };
 
@@ -48,6 +57,7 @@ if (Astro.request.method === 'POST') {
         : undefined,
     pattern: form.get('pattern') ?? undefined,
     body: form.get('body') ?? undefined,
+    assignee: action === 'assign' ? (form.get('assignee') ?? '') : undefined,
     move: action === 'note' ? block : undefined,
   });
   if (parsed.success) {
@@ -69,11 +79,13 @@ const like = `%${q.toLowerCase().replace(/[%_]/g, '')}%`;
 const search = q
   ? sql`(lower(${submissions.payload}) like ${like} or exists (select 1 from ${messageNotes} n where n.submission_id = "submissions"."id" and n.kind = 'note' and lower(n.body) like ${like}))`
   : undefined;
-const [rows, counts, blocked] = await Promise.all([
+const [rows, counts, blocked, team] = await Promise.all([
   db
     .select()
     .from(submissions)
-    .where(and(eq(submissions.status, folder), search))
+    .where(
+      and(eq(submissions.status, folder), search, mine ? eq(submissions.assignee, me) : undefined),
+    )
     .orderBy(desc(submissions.createdAt))
     .limit(200),
   db
@@ -83,6 +95,7 @@ const [rows, counts, blocked] = await Promise.all([
   folder === 'spam'
     ? db.select().from(blockedSenders).orderBy(desc(blockedSenders.createdAt))
     : Promise.resolve([]),
+  loadTeam(),
 ]);
 const notes = await notesFor(rows.map((r) => r.id));
 const countOf = (s: MessageStatus) => counts.find((c) => c.status === s)?.n ?? 0;
@@ -104,7 +117,7 @@ const moves = (
     <nav aria-label="Message folders" class="flex flex-wrap gap-2">
       {FOLDERS.map((f) => (
         <a
-          href={`?folder=${f.status}`}
+          href={`?folder=${f.status}${mine ? '&mine=1' : ''}`}
           aria-current={f.status === folder ? 'page' : undefined}
           class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper"
         >
@@ -112,8 +125,18 @@ const moves = (
         </a>
       ))}
     </nav>
+    {me && (
+      <a
+        href={mine ? `?folder=${folder}` : `?folder=${folder}&mine=1`}
+        aria-current={mine ? 'page' : undefined}
+        class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-accent aria-[current=page]:bg-accent aria-[current=page]:text-paper"
+      >
+        Assigned to me
+      </a>
+    )}
     <form method="get" role="search" class="flex gap-2">
       <input type="hidden" name="folder" value={folder} />
+      {mine && <input type="hidden" name="mine" value="1" />}
       <label for="q" class="sr-only">
         Search messages
       </label>
@@ -209,9 +232,39 @@ const moves = (
                 </p>
               </div>
             </div>
-            <div class="flex items-center gap-2 text-sm text-muted">
-              <Badge tone="accent">{str(p.topic) || s.type}</Badge>
+            <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
+              <Badge tone="accent">{topicLabel(p.topic) || s.type}</Badge>
               {stamp(s.createdAt)}
+              <form method="post" class="flex items-center gap-1">
+                <input type="hidden" name="action" value="assign" />
+                <input type="hidden" name="ids" value={s.id} />
+                <label for={`assignee${s.id}`} class="sr-only">
+                  Who answers this message
+                </label>
+                <select
+                  id={`assignee${s.id}`}
+                  name="assignee"
+                  class="admin-input py-1 text-sm"
+                  onchange="this.form.requestSubmit()"
+                >
+                  <option value="">Nobody assigned</option>
+                  {team.map((m) => (
+                    <option value={m.email} selected={m.email === s.assignee}>
+                      {m.name}
+                    </option>
+                  ))}
+                  {s.assignee && !team.some((m) => m.email === s.assignee) && (
+                    <option value={s.assignee} selected>
+                      {teamName(team, s.assignee)}
+                    </option>
+                  )}
+                </select>
+                <noscript>
+                  <Button type="submit" size="sm" variant="ghost">
+                    Assign
+                  </Button>
+                </noscript>
+              </form>
             </div>
           </div>
           <p class="mt-3 text-sm whitespace-pre-line">{str(p.message)}</p>

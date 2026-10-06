@@ -1,0 +1,179 @@
+---
+import { asc, eq } from 'drizzle-orm';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import Alert from '../../../../components/Alert.astro';
+import Badge from '../../../../components/Badge.astro';
+import Button from '../../../../components/Button.astro';
+import { getDb } from '../../../../db';
+import { eventTasks, events } from '../../../../db/schema';
+import { formatDate, formatEventDate } from '../../../../lib/format';
+import {
+  EVENT_STEPS,
+  TaskAction,
+  applyTaskAction,
+  dueDate,
+  ensureEventTasks,
+  loadTeam,
+  taskState,
+  teamName,
+} from '../../../../lib/ownership';
+
+// An event's checklist: every step of the event circuit with its owner, due date and status.
+// Admin only (guarded in middleware).
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const [event] = await db
+  .select()
+  .from(events)
+  .where(eq(events.id, Number(Astro.params.id)));
+if (!event) return Astro.redirect('/admin/events');
+const base = `/admin/events/${event.id}/tasks`;
+
+let error = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = TaskAction.safeParse(Object.fromEntries(form));
+  if (parsed.success) {
+    await applyTaskAction(event.id, parsed.data, actor);
+    return Astro.redirect(`${base}#t${parsed.data.id}`);
+  }
+  error = 'That did not work. Please try again.';
+}
+
+const team = await loadTeam();
+await ensureEventTasks([event.id], team);
+const rows = await db
+  .select()
+  .from(eventTasks)
+  .where(eq(eventTasks.eventId, event.id))
+  .orderBy(asc(eventTasks.id));
+const now = new Date();
+const steps = EVENT_STEPS.map((s) => {
+  const task = rows.find((r) => r.step === s.key)!;
+  const due = dueDate(event.startsAt, s.offset);
+  return { ...s, task, due, state: taskState(due, task.doneAt, now) };
+});
+const done = steps.filter((s) => s.state === 'done').length;
+const late = steps.filter((s) => s.state === 'late').length;
+const tone = { done: 'success', late: 'danger', soon: 'warning', later: 'neutral' } as const;
+const label = { done: 'Done', late: 'Late', soon: 'This week', later: 'Later' } as const;
+const when = (offset: number) =>
+  offset === 0 ? 'On the day' : offset < 0 ? `D${offset}` : `D+${offset}`;
+// Owners not (or no longer) in the team stay selectable for their own step.
+const ownerOptions = (owner: string | null) => [
+  ...team.map((m) => ({ value: m.email, label: m.name })),
+  ...(owner && !team.some((m) => m.email === owner) ? [{ value: owner, label: owner }] : []),
+];
+---
+
+<AdminLayout title={`Checklist: ${event.title}`}>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <p class="text-sm text-muted">
+      {formatEventDate(event.startsAt, event.endsAt)}
+      {' · '}
+      <a href={`/admin/events/${event.id}`}>Edit event</a>
+      {' · '}
+      <a href={`/admin/registrations?event=${event.id}`}>Registrations</a>
+    </p>
+    <p class="text-sm">
+      <strong>{done}</strong> of {steps.length} done
+      {late > 0 && <span class="text-danger"> · {late} late</span>}
+    </p>
+  </div>
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+  {team.length === 0 && (
+    <Alert tone="warning" class="mb-4">
+      Add the team and their roles in <a href="/admin/team">Team and roles</a>: steps then get an
+      owner automatically.
+    </Alert>
+  )}
+
+  <ol class="grid gap-3">
+    {steps.map((s, i) => (
+      <li
+        id={`t${s.task.id}`}
+        class="admin-panel grid gap-3 md:grid-cols-[1fr_auto] md:items-start"
+      >
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-muted">{i + 1}.</span>
+            <h2 class={`text-base ${s.state === 'done' ? 'text-muted line-through' : ''}`}>
+              {s.title}
+            </h2>
+            <Badge tone={tone[s.state]}>{label[s.state]}</Badge>
+          </div>
+          <p class="mt-1 text-sm text-muted">
+            {when(s.offset)} · due {formatDate(s.due, { weekday: 'short', year: undefined })}
+            {s.task.doneAt &&
+              ` · done ${formatDate(s.task.doneAt, { year: undefined })} by ${teamName(team, s.task.doneBy)}`}
+          </p>
+          {s.hint && <p class="mt-1 text-sm text-muted">{s.hint}</p>}
+          <form method="post" class="mt-2 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="action" value="note" />
+            <input type="hidden" name="id" value={s.task.id} />
+            <label for={`note${s.task.id}`} class="sr-only">
+              Note on this step
+            </label>
+            <input
+              id={`note${s.task.id}`}
+              name="note"
+              value={s.task.note ?? ''}
+              maxlength="500"
+              placeholder="Note: venue booked, waiting for the logo…"
+              class="admin-input min-w-0 flex-1 text-sm"
+            />
+            <Button type="submit" size="sm" variant="ghost">
+              Save note
+            </Button>
+          </form>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 md:justify-end">
+          <form method="post" class="flex items-center gap-2">
+            <input type="hidden" name="action" value="owner" />
+            <input type="hidden" name="id" value={s.task.id} />
+            <label for={`owner${s.task.id}`} class="text-sm text-muted">
+              Owner
+            </label>
+            <select
+              id={`owner${s.task.id}`}
+              name="owner"
+              class="admin-input text-sm"
+              onchange="this.form.requestSubmit()"
+            >
+              <option value="">Nobody yet</option>
+              {ownerOptions(s.task.owner).map((o) => (
+                <option value={o.value} selected={o.value === s.task.owner}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <noscript>
+              <Button type="submit" size="sm" variant="ghost">
+                Set
+              </Button>
+            </noscript>
+          </form>
+          <form method="post">
+            <input type="hidden" name="id" value={s.task.id} />
+            {s.task.doneAt ? (
+              <Button type="submit" name="action" value="undo" size="sm" variant="ghost">
+                Not done
+              </Button>
+            ) : (
+              <Button type="submit" name="action" value="done" size="sm" variant="secondary">
+                Mark done
+              </Button>
+            )}
+          </form>
+        </div>
+      </li>
+    ))}
+  </ol>
+  <p class="mt-6 text-sm text-muted">
+    The site sends the reminder the day before and the feedback email the day after on its own.
+  </p>
+</AdminLayout>

@@ -2,7 +2,7 @@
 export const CONTACT_EMAIL_TOKEN = '{contactEmail}';
 
 /**
- * Default code of conduct, used until it is edited in /admin/settings. The same text is seeded by
+ * Default code of conduct, used until it is edited in /admin/site-texts. The same text is seeded by
  * migrations/0011_code_of_conduct.sql and scripts/import.ts.
  */
 export const DEFAULT_CODE_OF_CONDUCT = `La French Tech Bangkok brings together founders, employees, investors, students and friends of French tech in Thailand. This code of conduct applies to everyone who takes part: attendees, speakers, sponsors, hosts, volunteers and organisers.

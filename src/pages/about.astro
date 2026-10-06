@@ -1,24 +1,14 @@
 ---
-import { z } from 'zod';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Section from '../components/Section.astro';
 import PersonCard from '../components/PersonCard.astro';
-import FormField from '../components/FormField.astro';
-import Button from '../components/Button.astro';
-import Alert from '../components/Alert.astro';
-import Turnstile from '../components/Turnstile.astro';
 import { getSettings } from '../lib/settings';
 import { hostedSpeakers, peopleByGroup } from '../lib/queries';
 import { HOSTED_SPEAKERS_LIMIT } from '../lib/speakers';
 import JoinUs from '../components/JoinUs.astro';
+import ContactForm from '../components/ContactForm.astro';
+import { handleContactForm, topicFromQuery, type ContactResult } from '../lib/contact';
 import { renderMarkdown } from '../lib/markdown';
-import { clientIp, email, fieldErrors, formToObject, optionalText } from '../lib/forms';
-import { verifyTurnstile } from '../lib/turnstile';
-import { rateLimit } from '../lib/ratelimit';
-import { sendEmail } from '../lib/email';
-import { getDb } from '../db';
-import { messageNotes, submissions } from '../db/schema';
-import { blockedBy } from '../lib/messages';
 
 const settings = await getSettings();
 const [board, institutional, speakers] = await Promise.all([
@@ -34,76 +24,15 @@ const [boardTone, speakersTone, institutionalTone, contactTone] = tones;
 const intro = renderMarkdown(settings.aboutIntro, { breaks: true });
 const community = renderMarkdown(settings.communityText, { breaks: true });
 
-const ContactSchema = z.object({
-  name: z.string().min(1, 'Tell us your name.').max(120),
-  email,
-  company: optionalText(120),
-  topic: z.enum(['general', 'partnership', 'speaking', 'press', 'other']).default('general'),
-  message: z.string().min(10, 'Write a few words.').max(4000),
-});
-
-let errors: Record<string, string> = {};
-let values: Record<string, unknown> = {};
-let sent = false;
+let contact: ContactResult = { errors: {}, values: {}, sent: false };
 const isPost = Astro.request.method === 'POST';
-if (isPost) {
-  const form = await Astro.request.formData();
-  values = formToObject(form);
-  const ip = clientIp(Astro.request);
-  if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip))) {
-    errors.form = 'The anti-spam check failed. Please try again.';
-  } else if (!(await rateLimit(`contact:${ip}`, 5, 3600))) {
-    errors.form = 'Too many messages from your connection. Please try again later.';
-  } else {
-    const parsed = ContactSchema.safeParse(values);
-    if (!parsed.success) {
-      errors = fieldErrors(parsed.error);
-    } else {
-      // A blocked sender sees the usual thank-you; the message is kept in Spam, unannounced.
-      const blocked = await blockedBy(parsed.data.email);
-      const [saved] = await getDb()
-        .insert(submissions)
-        .values({
-          type: 'contact',
-          payload: parsed.data,
-          ...(blocked
-            ? {
-                status: 'spam' as const,
-                handled: true,
-                statusAt: new Date(),
-                statusBy: `blocked: ${blocked}`,
-              }
-            : {}),
-        })
-        .returning({ id: submissions.id });
-      if (blocked && saved)
-        await getDb()
-          .insert(messageNotes)
-          .values({
-            submissionId: saved.id,
-            kind: 'status',
-            body: `Arrived in Spam (sender ${blocked} is blocked)`,
-            author: 'website',
-          });
-      if (!blocked)
-        await sendEmail({
-          to: settings.contactEmail,
-          replyTo: parsed.data.email,
-          subject: `Website contact (${parsed.data.topic}): ${parsed.data.name}`,
-          paragraphs: [parsed.data.message],
-          details: [
-            ['From', `${parsed.data.name} <${parsed.data.email}>`],
-            ['Company', parsed.data.company ?? '-'],
-            ['Topic', parsed.data.topic],
-          ],
-          footer:
-            'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
-        });
-      sent = true;
-      values = {};
-    }
-  }
-}
+if (isPost)
+  contact = await handleContactForm(
+    Astro.request,
+    await Astro.request.formData(),
+    settings,
+    'About',
+  );
 ---
 
 <BaseLayout
@@ -190,65 +119,11 @@ if (isPost) {
     intro={`Or write to ${settings.contactEmail}.`}
   >
     <div class="max-w-2xl">
-      {sent ? (
-        <Alert tone="success">Thanks, your message was sent. We'll get back to you soon.</Alert>
-      ) : (
-        <form method="post" action="/about#contact" class="grid gap-4">
-          {errors.form && <Alert tone="danger">{errors.form}</Alert>}
-          <div class="grid gap-4 sm:grid-cols-2">
-            <FormField
-              name="name"
-              label="Name"
-              required
-              value={values.name as string}
-              error={errors.name}
-              autocomplete="name"
-            />
-            <FormField
-              name="email"
-              label="Email"
-              type="email"
-              required
-              value={values.email as string}
-              error={errors.email}
-              autocomplete="email"
-            />
-          </div>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <FormField
-              name="company"
-              label="Company"
-              value={values.company as string}
-              autocomplete="organization"
-            />
-            <FormField
-              name="topic"
-              label="Topic"
-              value={(values.topic as string) ?? 'general'}
-              options={[
-                { value: 'general', label: 'General question' },
-                { value: 'partnership', label: 'Partnership or sponsoring' },
-                { value: 'speaking', label: 'Speak at an event' },
-                { value: 'press', label: 'Press' },
-                { value: 'other', label: 'Other' },
-              ]}
-            />
-          </div>
-          <FormField
-            name="message"
-            label="Message"
-            rows={6}
-            required
-            value={values.message as string}
-            error={errors.message}
-            maxlength={4000}
-          />
-          <Turnstile />
-          <div>
-            <Button type="submit">Send message</Button>
-          </div>
-        </form>
-      )}
+      <ContactForm
+        action="/about#contact"
+        {...contact}
+        topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
+      />
     </div>
   </Section>
 </BaseLayout>

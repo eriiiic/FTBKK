@@ -50,6 +50,6 @@ describe('messages', () => {
     const body = decodeURIComponent(link.split('body=')[1]!);
     expect(body).toContain('Hello Marie,');
     expect(body).toContain('> Hi\n> there');
-    expect(decodeURIComponent(link)).toContain('(press)');
+    expect(decodeURIComponent(link)).toContain('(Press)');
   });
 });

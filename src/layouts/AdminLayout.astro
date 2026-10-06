@@ -15,27 +15,72 @@ const flashText =
     : flash === 'done'
       ? 'Done.'
       : 'Saved. Public pages refresh within a minute.';
-const nav = [
-  { href: '/admin', label: 'Dashboard' },
-  { href: '/admin/events', label: 'Events' },
-  { href: '/admin/events/stats', label: 'Event stats' },
-  { href: '/admin/registrations', label: 'Registrations' },
-  { href: '/admin/checkin', label: 'Check-in' },
-  { href: '/admin/contacts', label: 'Contacts' },
-  { href: '/admin/posts', label: 'Posts' },
-  { href: '/admin/files', label: 'Files' },
-  { href: '/admin/ecosystem', label: 'Ecosystem' },
-  { href: '/admin/people', label: 'People' },
-  { href: '/admin/submissions', label: 'Messages' },
-  { href: '/admin/settings', label: 'Settings' },
+// The sidebar, in groups.
+interface NavLink {
+  href: string;
+  label: string;
+}
+const groups: { label: string; links: NavLink[] }[] = [
+  { label: '', links: [{ href: '/admin', label: 'Dashboard' }] },
+  {
+    label: 'Events',
+    links: [
+      { href: '/admin/events', label: 'All events' },
+      { href: '/admin/registrations', label: 'Registrations' },
+      { href: '/admin/checkin', label: 'Check-in' },
+      { href: '/admin/events/stats', label: 'Stats' },
+    ],
+  },
+  {
+    label: 'Community',
+    links: [
+      { href: '/admin/contacts', label: 'Contacts' },
+      { href: '/admin/submissions', label: 'Messages' },
+      { href: '/admin/people', label: 'Board and speakers' },
+    ],
+  },
+  {
+    label: 'Ecosystem',
+    links: [
+      { href: '/admin/ecosystem', label: 'To review' },
+      { href: '/admin/ecosystem?tab=all', label: 'All listings' },
+      { href: '/admin/ecosystem?tab=renewals', label: 'Renewals' },
+    ],
+  },
+  {
+    label: 'Content',
+    links: [
+      { href: '/admin/posts', label: 'Posts' },
+      { href: '/admin/files', label: 'Files' },
+      { href: '/admin/site-texts', label: 'Site texts' },
+    ],
+  },
+  {
+    label: 'Team',
+    links: [
+      { href: '/admin/team', label: 'Team and roles' },
+      { href: '/admin/settings', label: 'Settings' },
+    ],
+  },
 ];
 const path = Astro.url.pathname;
-// The longest matching link wins, so /admin/events/stats doesn't also light up Events.
-const current = nav
+const tab = Astro.url.searchParams.get('tab');
+// The longest matching link wins, so /admin/events/stats doesn't also light up All events. The
+// Ecosystem links differ only by ?tab=, which must match too (no tab = the review queue).
+const links = groups.flatMap((g) => g.links);
+const matches = (href: string) => {
+  const [p, q] = href.split('?');
+  if (p === '/admin') return path === '/admin';
+  if (!(path === p || path.startsWith(`${p}/`))) return false;
+  if (p !== '/admin/ecosystem' || path !== p) return true;
+  return (new URLSearchParams(q).get('tab') ?? null) === (tab && tab !== 'queue' ? tab : null);
+};
+const current = links
   .map((n) => n.href)
-  .filter((h) => (h === '/admin' ? path === '/admin' : path === h || path.startsWith(`${h}/`)))
-  .sort((a, b) => b.length - a.length)[0];
+  .filter(matches)
+  .sort((a, b) => b.split('?')[0]!.length - a.split('?')[0]!.length)[0];
 const active = (href: string) => href === current;
+const currentGroup = groups.find((g) => g.links.some((l) => active(l.href)));
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 ---
 
@@ -51,31 +96,51 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body class="min-h-screen bg-surface md:flex">
-    <aside class="bg-navy text-paper md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0">
-      <div class="flex items-center justify-between p-4 md:block">
+    <aside class="bg-navy text-paper md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:overflow-y-auto">
+      <div class="flex items-center justify-between gap-3 p-4 md:block">
         <a href="/admin" class="no-underline">
           <Logo tone="light" class="h-12" />
         </a>
-        <a href="/" class="text-xs text-accent-soft md:mt-3 md:block">
-          View site ↗
-        </a>
+        <div class="flex items-center gap-3 md:block">
+          <a href="/" class="text-xs text-accent-soft md:mt-3 md:block">
+            View site ↗
+          </a>
+          <button
+            type="button"
+            class="rounded-lg px-3 py-2 text-sm font-semibold text-paper hover:bg-paper/10 md:hidden"
+            aria-controls="admin-menu"
+            aria-expanded="false"
+            data-admin-menu
+          >
+            Menu{currentGroup?.label ? ` · ${currentGroup.label}` : ''}
+          </button>
+        </div>
       </div>
-      <nav aria-label="Admin">
-        <ul class="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:px-3">
-          {nav.map((n) => (
-            <li>
-              <a
-                href={n.href}
-                aria-current={active(n.href) ? 'page' : undefined}
-                class="block rounded-lg px-3 py-2 text-sm whitespace-nowrap text-paper no-underline hover:bg-paper/10 aria-[current=page]:bg-paper/15 aria-[current=page]:font-semibold"
-              >
-                {n.label}
-              </a>
-            </li>
-          ))}
-        </ul>
+      <nav id="admin-menu" aria-label="Admin" class="hidden px-2 pb-4 md:block md:px-3">
+        {groups.map((g) => (
+          <div class="mb-3">
+            {g.label && (
+              <p class="px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-accent-soft uppercase">
+                {g.label}
+              </p>
+            )}
+            <ul class="grid gap-0.5">
+              {g.links.map((n) => (
+                <li>
+                  <a
+                    href={n.href}
+                    aria-current={active(n.href) ? 'page' : undefined}
+                    class="block rounded-lg px-3 py-1.5 text-sm text-paper no-underline hover:bg-paper/10 aria-[current=page]:bg-paper/15 aria-[current=page]:font-semibold"
+                  >
+                    {n.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {adminEmail && <p class="px-3 pt-3 text-xs text-accent-soft">{adminEmail}</p>}
       </nav>
-      {adminEmail && <p class="hidden px-6 pt-6 text-xs text-accent-soft md:block">{adminEmail}</p>}
     </aside>
     <main class="min-w-0 flex-1 p-4 md:p-8">
       <h1 class="mb-6 text-2xl">{title}</h1>
@@ -91,6 +156,14 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       <slot />
     </main>
     <script>
+      // Small screens: the menu opens from the "Menu" button.
+      const menuButton = document.querySelector<HTMLButtonElement>('[data-admin-menu]');
+      const menu = document.getElementById('admin-menu');
+      menuButton?.addEventListener('click', () => {
+        const open = menuButton.getAttribute('aria-expanded') !== 'true';
+        menuButton.setAttribute('aria-expanded', String(open));
+        menu?.classList.toggle('hidden', !open);
+      });
       document.querySelectorAll<HTMLElement>('[data-toast]').forEach((t) => {
         setTimeout(() => t.remove(), 6000);
       });

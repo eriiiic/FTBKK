@@ -1,5 +1,11 @@
 ---
 import { env } from 'cloudflare:workers';
+
+interface Props {
+  /** False when another widget on the page already loads the script. */
+  script?: boolean;
+}
+const { script = true } = Astro.props;
 ---
 
 <div
@@ -7,4 +13,11 @@ import { env } from 'cloudflare:workers';
   data-sitekey={env.TURNSTILE_SITE_KEY}
   data-theme="light"
 ></div>
-<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{script && (
+  <script
+    is:inline
+    src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+    async
+    defer
+  ></script>
+)}

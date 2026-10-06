@@ -1,0 +1,211 @@
+---
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import { getDb } from '../../db';
+import { teamMembers } from '../../db/schema';
+import { email, fieldErrors, formToObject } from '../../lib/forms';
+import { audit } from '../../lib/orgs';
+import {
+  EVENT_STEPS,
+  ROLE_KEYS,
+  TEAM_ROLES,
+  fillUnownedTasks,
+  loadTeam,
+} from '../../lib/ownership';
+
+// The organising team and their roles. A role makes someone the default owner of the matching
+// steps on new event checklists, of new messages (Messages role) and of directory reviews.
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const MemberSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a name.').max(120),
+  email,
+  roles: z.array(z.enum(ROLE_KEYS as [string, ...string[]])).default([]),
+});
+let error = '';
+let draft: Record<string, unknown> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action'));
+  const id = Number(form.get('id'));
+  const team = await loadTeam();
+  const member = team.find((m) => m.id === id);
+  if (action === 'delete' && member) {
+    await db.delete(teamMembers).where(eq(teamMembers.id, id));
+    await audit(actor, 'delete', 'team', id, { email: member.email }, null);
+    return Astro.redirect('/admin/team?saved=deleted');
+  }
+  if (action === 'save') {
+    draft = formToObject(form, ['roles']);
+    const parsed = MemberSchema.safeParse(draft);
+    const taken = parsed.success && team.some((m) => m.email === parsed.data.email && m.id !== id);
+    if (!parsed.success) error = Object.values(fieldErrors(parsed.error)).join(' ');
+    else if (taken) error = `${parsed.data.email} is already in the team.`;
+    else {
+      if (member) {
+        await db
+          .update(teamMembers)
+          .set({ ...parsed.data, updatedAt: new Date() })
+          .where(eq(teamMembers.id, id));
+        await audit(actor, 'update', 'team', id, { email: member.email }, parsed.data);
+      } else {
+        const [ins] = await db
+          .insert(teamMembers)
+          .values(parsed.data)
+          .returning({ id: teamMembers.id });
+        await audit(actor, 'create', 'team', ins!.id, null, parsed.data);
+      }
+      await fillUnownedTasks();
+      return Astro.redirect('/admin/team?saved=done');
+    }
+  }
+}
+const team = await loadTeam();
+const stepsFor = (role: string) => EVENT_STEPS.filter((s) => s.role === role).length;
+const missing = ROLE_KEYS.filter((r) => !team.some((m) => m.roles.includes(r)));
+const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
+const newRoles = Array.isArray(draft.roles) && !draft.id ? (draft.roles as string[]) : [];
+---
+
+<AdminLayout title="Team and roles">
+  <p class="mb-6 max-w-3xl text-sm text-muted">
+    Who runs what. Each role makes that person the default owner of the matching steps when an
+    event's checklist is created (and of current steps nobody owns yet), so every step has a name.
+    Use the email they sign in to the admin with: their tasks then show on their Dashboard, and
+    every Monday they get an email with what is late or due that week. Steps can be handed to anyone
+    on the event's Checklist.
+  </p>
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+  {missing.length > 0 && team.length > 0 && (
+    <Alert tone="warning" class="mb-4">
+      Nobody has these roles yet: {missing.map((r) => TEAM_ROLES[r]).join(', ')}.
+    </Alert>
+  )}
+
+  <section class="admin-panel mb-6">
+    <h2 class="text-lg">The team</h2>
+    {team.length === 0 && (
+      <p class="mt-2 text-sm text-muted">Nobody yet: add the first person below.</p>
+    )}
+    <ul class="mt-4 grid gap-3">
+      {team.map((m) => (
+        <li class="rounded-lg border border-line p-3">
+          <form method="post" class="grid gap-3">
+            <input type="hidden" name="id" value={m.id} />
+            <div class="grid gap-2 sm:grid-cols-2">
+              <label class="text-xs text-muted">
+                Name
+                <input name="name" value={m.name} required class={input} />
+              </label>
+              <label class="text-xs text-muted">
+                Email
+                <input name="email" type="email" value={m.email} required class={input} />
+              </label>
+            </div>
+            <fieldset>
+              <legend class="text-xs text-muted">Roles</legend>
+              <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                {ROLE_KEYS.map((r) => (
+                  <label class="inline-flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="roles" value={r} checked={m.roles.includes(r)} />
+                    {TEAM_ROLES[r]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div class="flex flex-wrap gap-2">
+              <Button type="submit" name="action" value="save" size="sm">
+                Save
+              </Button>
+              <Button
+                type="submit"
+                name="action"
+                value="delete"
+                size="sm"
+                variant="ghost"
+                data-confirm={`Remove ${m.name} from the team? Steps they own keep their name until someone else takes them.`}
+                formnovalidate
+              >
+                Remove
+              </Button>
+            </div>
+          </form>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="admin-panel mb-6">
+    <h2 class="text-lg">Add someone</h2>
+    <form method="post" class="mt-4 grid gap-3">
+      <input type="hidden" name="action" value="save" />
+      <div class="grid gap-2 sm:grid-cols-2">
+        <label class="text-xs text-muted">
+          Name
+          <input
+            name="name"
+            required
+            value={draft.id ? '' : ((draft.name as string) ?? '')}
+            class={input}
+          />
+        </label>
+        <label class="text-xs text-muted">
+          Email
+          <input
+            name="email"
+            type="email"
+            required
+            value={draft.id ? '' : ((draft.email as string) ?? '')}
+            class={input}
+          />
+        </label>
+      </div>
+      <fieldset>
+        <legend class="text-xs text-muted">Roles</legend>
+        <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+          {ROLE_KEYS.map((r) => (
+            <label class="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" name="roles" value={r} checked={newRoles.includes(r)} />
+              {TEAM_ROLES[r]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div>
+        <Button type="submit" size="sm">
+          Add to the team
+        </Button>
+      </div>
+    </form>
+  </section>
+
+  <section class="admin-panel">
+    <h2 class="text-lg">What each role owns</h2>
+    <dl class="mt-4 grid gap-3 text-sm">
+      {ROLE_KEYS.map((r) => (
+        <div>
+          <dt class="font-semibold">{TEAM_ROLES[r]}</dt>
+          <dd class="text-muted">
+            {r === 'directory'
+              ? 'Listing requests, claims, owner changes and memberships in Ecosystem > To review (target: answered within 5 days).'
+              : r === 'messages'
+                ? 'New contact-form and Join page messages are assigned to them.'
+                : `${stepsFor(r)} step${stepsFor(r) === 1 ? '' : 's'} of each event: ${EVENT_STEPS.filter(
+                    (s) => s.role === r,
+                  )
+                    .map((s) => s.title.split(':')[0])
+                    .join('; ')}.`}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+</AdminLayout>
