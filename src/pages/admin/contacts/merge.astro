@@ -1,0 +1,133 @@
+---
+import { z } from 'zod';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Alert from '../../../components/Alert.astro';
+import Badge from '../../../components/Badge.astro';
+import Button from '../../../components/Button.astro';
+import { CONTACT_TAGS, loadContacts, mergeContacts } from '../../../lib/contacts';
+import { MEMBER_STATUSES } from '../../../lib/members';
+import { formatDate } from '../../../lib/format';
+
+// Merge duplicate contacts (picked with the checkboxes on Contacts): choose whose name and
+// details to keep, then everything else comes along. See mergeContacts in lib/contacts.ts.
+const Keys = z.array(z.string().min(1).max(320)).min(2).max(10);
+const actor = Astro.locals.adminEmail ?? 'admin';
+let error = '';
+let keys: string[] = Astro.url.searchParams.getAll('c');
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  keys = form.getAll('c').map(String);
+  const parsed = z
+    .object({ keys: Keys, keep: z.string().min(1).max(320) })
+    .safeParse({ keys, keep: form.get('keep') });
+  if (!parsed.success || !parsed.data.keys.includes(parsed.data.keep))
+    error = 'Choose which contact to keep.';
+  else {
+    const result = await mergeContacts(parsed.data.keys, parsed.data.keep, actor);
+    if ('error' in result) error = result.error;
+    else
+      return Astro.redirect(
+        `/admin/contacts/view?c=${encodeURIComponent(result.key)}&saved=merged`,
+        303,
+      );
+  }
+}
+
+if (!Keys.safeParse(keys).success) return Astro.redirect('/admin/contacts');
+const all = await loadContacts();
+const list = all.filter((c) => keys.includes(c.key));
+// Default choice: the one with an email who came the most (the list is sorted that way).
+const keep = list.find((c) => c.email)?.key ?? list[0]?.key;
+const emails = [...new Set(list.map((c) => c.email).filter(Boolean))];
+---
+
+<AdminLayout title="Merge contacts">
+  <p class="mb-4 max-w-3xl text-sm text-muted">
+    Pick the contact to keep: its name and email stay, and the others are folded into it. All their
+    registrations, attendance and feedback move over (if two of them registered for the same event,
+    the one that counts most stays: came, then registered, waitlist, cancelled). Empty details are
+    filled from the others, tags are combined, notes are put together, and a membership moves to the
+    kept email. This can't be undone.
+  </p>
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+  {list.length < 2 ? (
+    <Alert tone="warning">
+      Some of these contacts no longer exist. <a href="/admin/contacts">Back to Contacts</a>.
+    </Alert>
+  ) : (
+    <form method="post" class="grid gap-4">
+      {keys.map((k) => (
+        <input type="hidden" name="c" value={k} />
+      ))}
+      <fieldset class="grid gap-3">
+        <legend class="mb-2 font-semibold">Keep</legend>
+        {list.map((c) => (
+          <label class="admin-panel flex cursor-pointer items-start gap-3 has-[:checked]:border-navy has-[:checked]:ring-2 has-[:checked]:ring-navy">
+            <input
+              type="radio"
+              name="keep"
+              value={c.key}
+              checked={c.key === keep}
+              class="mt-1 size-4 accent-brand"
+            />
+            <span class="grid gap-1 text-sm">
+              <span class="text-base font-semibold">
+                {c.name}
+                {c.member && (
+                  <Badge tone="accent" class="ml-1">
+                    {c.member.status === 'active' ? 'Member' : MEMBER_STATUSES[c.member.status]}
+                  </Badge>
+                )}
+                {c.tags.map((t) => (
+                  <Badge tone="brand" class="ml-1">
+                    {CONTACT_TAGS[t]}
+                  </Badge>
+                ))}
+              </span>
+              <span class="break-all text-muted">{c.email ?? 'Walk-in, no email'}</span>
+              <span>
+                {[c.company, c.role, c.phone].filter(Boolean).join(' · ') || (
+                  <span class="text-muted">No details</span>
+                )}
+              </span>
+              <span class="text-muted">
+                Came {c.attended}, registered {c.registrations}
+                {c.lastEvent &&
+                  `, last: ${c.lastEvent.title} (${formatDate(c.lastEvent.startsAt)})`}
+                {c.savedId ? ' · saved card' : ''}
+              </span>
+              {c.organisations.length > 0 && (
+                <span class="text-muted">
+                  Ecosystem: {c.organisations.map((o) => o.name).join(', ')}
+                </span>
+              )}
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {emails.length > 1 && (
+        <Alert tone="warning">
+          The other emails ({emails.length - 1}) are dropped: registrations move to the kept email.
+          Ecosystem listings that name a dropped email as owner keep it; change those on the listing
+          if needed.
+        </Alert>
+      )}
+      <div class="flex flex-wrap gap-2">
+        <Button
+          type="submit"
+          data-confirm={`Merge ${list.length} contacts into one? This can't be undone.`}
+        >
+          Merge {list.length} contacts
+        </Button>
+        <Button href="/admin/contacts" variant="ghost">
+          Cancel
+        </Button>
+      </div>
+    </form>
+  )}
+</AdminLayout>

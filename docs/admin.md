@@ -134,6 +134,14 @@ uses any more.
   In the Ecosystem column, **Member company** marks a listing with company membership.
 - **Regulars not yet members**: people who came to 3 or more events and are not members yet. Copy
   their emails or export them to invite them to join on the Join page.
+- **Merge duplicates**: tick 2 to 10 contacts (for example the same person with a work and a
+  personal email, or a walk-in typed differently) and click **Merge…**. Pick the one to keep:
+  its name and email stay. All registrations, attendance and feedback move to it; if two of them
+  registered for the same event, the one that counts most stays (came, then registered, waitlist,
+  cancelled) and a freed seat on an upcoming event goes to the waitlist. Empty details (phone,
+  company, role, LinkedIn) are filled from the others, tags are combined, notes are put together
+  and a membership moves to the kept email. The other emails are dropped, except on ecosystem
+  listings that name them as owner (change those on the listing). Merging can't be undone.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
   **Call** buttons, and **Edit** for name, email, phone, company, role, tags, LinkedIn and team
   notes.

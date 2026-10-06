@@ -257,6 +257,17 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
               Remove tag
             </Button>
           </span>
+          <Button
+            type="submit"
+            size="sm"
+            variant="light"
+            formaction="/admin/contacts/merge"
+            formmethod="get"
+            data-bulk-merge
+            title="Combine duplicates into one contact"
+          >
+            Merge…
+          </Button>
           <Button type="button" size="sm" variant="light" data-bulk-copy>
             Copy emails
           </Button>
@@ -378,6 +389,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       const all = form.querySelector<HTMLInputElement>('[data-bulk-all]')!;
       const del = form.querySelector<HTMLButtonElement>('[data-bulk-delete]')!;
       const copy = form.querySelector<HTMLButtonElement>('[data-bulk-copy]')!;
+      const merge = form.querySelector<HTMLButtonElement>('[data-bulk-merge]')!;
       const tag = form.querySelector('[data-bulk-tag]') as unknown as HTMLSelectElement;
       const tagButtons = [...form.querySelectorAll<HTMLButtonElement>('[data-bulk-tag-action]')];
       const boxes = () => [...form.querySelectorAll<HTMLInputElement>('input[name="c"]')];
@@ -393,6 +405,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
         copy.disabled = emails.size === 0;
         copy.textContent = `Copy emails (${emails.size})`;
         for (const b of tagButtons) b.disabled = !tag.value;
+        merge.disabled = ticked.length < 2 || ticked.length > 10;
       };
       form.addEventListener('change', update);
       all.addEventListener('change', () => {
