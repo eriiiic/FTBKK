@@ -19,6 +19,7 @@ import {
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { formatDate, formatEventDate } from '../../../lib/format';
+import { MEMBER_STATUSES } from '../../../lib/members';
 
 const key = Astro.url.searchParams.get('c') ?? '';
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -97,6 +98,12 @@ const details = [
   ['Role', c.role],
   ['First seen', formatDate(c.firstSeen)],
   ['Newsletter', newsletterText(c.newsletter)],
+  [
+    'Membership',
+    c.member
+      ? `${MEMBER_STATUSES[c.member.status]}${c.member.memberSince ? `, member since ${formatDate(c.member.memberSince)}` : ''}`
+      : 'Not a member',
+  ],
   ['Tags', c.tags.length ? 'tags' : null],
 ].filter(([, v]) => v) as [string, string][];
 function newsletterText(n: typeof c.newsletter) {
@@ -141,6 +148,8 @@ const stats = [
               <dd class="break-words">
                 {k === 'Email' && c.email ? (
                   <a href={`mailto:${c.email}`}>{v}</a>
+                ) : k === 'Membership' && c.member ? (
+                  <a href={`/admin/members?tab=all&q=${encodeURIComponent(c.member.email)}`}>{v}</a>
                 ) : k === 'Tags' ? (
                   <span class="flex flex-wrap gap-1">
                     {c.tags.map((t) => (
@@ -197,7 +206,7 @@ const stats = [
               <li class="flex flex-wrap items-center gap-2">
                 <a href={`/admin/ecosystem/${o.id}`}>{o.name}</a>
                 <Badge>{o.relation === 'owner' ? 'manages the listing' : 'listing contact'}</Badge>
-                {o.memberStatus === 'member' && <Badge tone="accent">Member</Badge>}
+                {o.memberStatus === 'member' && <Badge tone="accent">Member company</Badge>}
                 {o.status !== 'published' && <Badge tone="warning">{o.status}</Badge>}
               </li>
             ))}

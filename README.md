@@ -32,8 +32,14 @@ Public pages:
 - **Member page** at `/member?token=…` (a reusable `member` link, 30 days, sent in every member
   email; no passwords): membership dates, the WhatsApp button, their events (coming up and past),
   their profile to edit, and **Leave**, which deletes the member row (event history stays until
-  they use My data). `/member` without a link offers **Send me my link**. Deleting a contact (in
-  the admin or from My data) deletes their membership too.
+  they use My data). `/member` without a link offers **Send me my link**, and the footer links
+  "My membership" while sign-up is open. Confirming a membership also creates the person's
+  contact card (an existing one is left alone), so members show in Contacts (with a Member badge,
+  a Membership line on their page and a Membership column in the CSV) and in My data, which lists
+  the membership. Deleting a contact (in the admin or from My data) deletes their membership too.
+  Active members count as members for member priority on events, like owners of member companies.
+  The default privacy notice covers membership (migration 0023 updates the live text only if it
+  was never edited).
 - **Newsletter sign-up** on `/join` with double opt-in: name and email (Turnstile and rate limits)
   send a confirmation link (a single-use `newsletter` code in `magic_tokens`, valid 7 days); the
   `/newsletter` page asks for one click (so link scanners can't subscribe anyone) and records the
@@ -41,7 +47,8 @@ Public pages:
 - **Ecosystem**: a directory of French startups, companies, service providers, investors,
   incubators, schools and institutions in Thailand. Anyone can request a listing; owners manage
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
-  a Member badge, validated by the board.
+  a Member badge, validated by the board (the "company membership", separate from individual
+  membership: Settings > "Accept company membership applications").
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
@@ -109,8 +116,8 @@ backup); a second send of the same message within 10 minutes, even from another 
 per person (grouped by email), with no sign-up needed. For each person it shows how many events
 they attended, registered for and missed, which events those were, their company, and the
 ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
-came, linked to the ecosystem, by event, by tag, and "Suggest for membership": people who came to
-3 or more events with no ecosystem listing and no member company, for the board) and exported to CSV, and "Copy emails" copies
+came, linked to the ecosystem, by event, by tag, "Members" (active individual members) and
+"Regulars not yet members": people who came to 3 or more events and haven't joined, to invite) and exported to CSV, and "Copy emails" copies
 the filtered addresses for the Bcc field of an email. Contacts can carry tags (speaker, sponsor,
 volunteer, board, press), shown next to their name. Tick several contacts to copy their emails,
 export them to CSV, add or remove a tag, or delete them at once. Contacts can be added by hand,

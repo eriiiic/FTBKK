@@ -39,7 +39,7 @@ describe('newcomersHint', () => {
   });
 });
 
-describe('Suggest for membership', () => {
+describe('Regulars not yet members', () => {
   const ev = (id: number) => ({
     id,
     title: `Event ${id}`,
@@ -73,17 +73,29 @@ describe('Suggest for membership', () => {
       ...came('regular@example.com', 3),
       ...came('twice@example.com', 2),
       ...came('owner@example.com', 4),
-      ...came('staff@example.com', 3, 'Acme Co., Ltd.'),
-      ...came('other@example.com', 3, 'Bistro'),
+      ...came('member@example.com', 3),
+      ...came('lapsed@example.com', 3),
     ],
-    [org(1, 'Acme', 'member', 'boss@acme.test'), org(2, 'Bistro', 'none', 'owner@example.com')],
+    [org(2, 'Bistro', 'none', 'owner@example.com')],
     new Date('2026-10-05T00:00:00Z'),
+    [],
+    [
+      { id: 1, email: 'member@example.com', status: 'active', memberSince: null },
+      { id: 2, email: 'lapsed@example.com', status: 'lapsed', memberSince: null },
+    ],
   );
 
-  it('lists regulars without a listing who do not work for a member', () => {
+  it('lists regulars who are not active members', () => {
     expect(filterContacts(list, { show: 'membership' }).map((c) => c.email)).toEqual([
-      'other@example.com',
+      'owner@example.com',
+      'lapsed@example.com',
       'regular@example.com',
+    ]);
+  });
+
+  it('lists active members', () => {
+    expect(filterContacts(list, { show: 'members' }).map((c) => c.email)).toEqual([
+      'member@example.com',
     ]);
   });
 

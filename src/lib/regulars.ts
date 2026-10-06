@@ -4,7 +4,7 @@ import { getDb } from '../db';
 import { events, registrations } from '../db/schema';
 
 // Newcomers and regulars: how many earlier events someone came to. Used by the check-in screen
-// (so volunteers can greet newcomers) and the "Suggest for membership" filter on Contacts.
+// (so volunteers can greet newcomers) and the "Regulars not yet members" filter on Contacts.
 
 /** Someone who came to at least this many events is a regular. */
 export const REGULAR_MIN_EVENTS = 3;

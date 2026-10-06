@@ -316,6 +316,11 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
                 </td>
                 <td>
                   <a href={`/admin/contacts/view?c=${encodeURIComponent(c.key)}`}>{c.name}</a>
+                  {c.member?.status === 'active' && (
+                    <Badge tone="accent" class="ml-1">
+                      Member
+                    </Badge>
+                  )}
                   {c.tags.map((t) => (
                     <Badge tone="brand" class="ml-1">
                       {CONTACT_TAGS[t]}
@@ -344,7 +349,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
                       {o.name}
                       {o.memberStatus === 'member' && (
                         <Badge tone="accent" class="ml-1">
-                          Member
+                          Member company
                         </Badge>
                       )}
                     </span>
