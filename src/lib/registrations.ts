@@ -252,6 +252,28 @@ export async function registerForEvent(
   return { status: row.status };
 }
 
+/**
+ * Cancels a registration or a waitlist place (from the email link or the member page). A freed
+ * seat goes to the next person on the waitlist. False when it was already cancelled or attended.
+ */
+export async function cancelRegistration(
+  event: Event,
+  reg: { id: number; status: string },
+  memberPriority: boolean,
+) {
+  const cancelled = await env.DB.prepare(
+    `UPDATE registrations SET status = 'cancelled' WHERE id = ? AND status IN ('registered', 'waitlist') RETURNING status`,
+  )
+    .bind(reg.id)
+    .first();
+  if (!cancelled) return false;
+  if (reg.status === 'registered') {
+    const promoted = await promoteFromWaitlist(event, { memberPriority });
+    if (promoted) await sendPromotion(event, promoted);
+  }
+  return true;
+}
+
 /** Moves the first waitlisted person to registered when a seat is free. Returns them, or null. */
 export async function promoteFromWaitlist(
   event: Pick<Event, 'id' | 'capacity' | 'memberReservedSeats'>,

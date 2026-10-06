@@ -7,7 +7,7 @@ import { env } from 'cloudflare:workers';
 import { eventBySlug } from '../../../lib/queries';
 import { formatEventDate } from '../../../lib/format';
 import { getSettings } from '../../../lib/settings';
-import { promoteFromWaitlist, sendPromotion } from '../../../lib/registrations';
+import { cancelRegistration } from '../../../lib/registrations';
 
 // GET shows a button (so email link scanners can't cancel); POST cancels.
 const event = await eventBySlug(Astro.params.slug!);
@@ -30,16 +30,8 @@ let state: 'ask' | 'done' | 'invalid' | 'already' | 'started' = !reg
       : 'ask';
 
 if (Astro.request.method === 'POST' && state === 'ask' && reg) {
-  const cancelled = await env.DB.prepare(
-    `UPDATE registrations SET status = 'cancelled' WHERE id = ? AND status IN ('registered', 'waitlist') RETURNING status`,
-  )
-    .bind(reg.id)
-    .first();
-  if (cancelled && reg.status === 'registered') {
-    const settings = await getSettings();
-    const promoted = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
-    if (promoted) await sendPromotion(event, promoted);
-  }
+  const settings = await getSettings();
+  await cancelRegistration(event, reg, settings.memberPriority);
   state = 'done';
 }
 ---

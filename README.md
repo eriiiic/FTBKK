@@ -33,6 +33,13 @@ Public pages:
   (`renewal_due_at`): a daily cron job emails a one-click reminder 30 and 7 days before
   (`member_renew` link, `/member/renew`), then marks the member **lapsed** with a last email;
   a lapsed member renews in one click from that email or their member page.
+- **Member admin and reports**: Members > All members filters on status, profile, nationality,
+  sector, joined dates, events attended, no-show rate and newsletter, and exports the filtered
+  list as CSV (`/admin/members.csv`, `src/lib/member-list.ts`). Community > Reports
+  (`/admin/reports`, `src/lib/member-reports.ts`) shows members by month, profile type, sector and
+  nationality group, and the share of event attendees who are members (today and on the day).
+  Members can cancel an upcoming registration or leave a waitlist from their member page
+  (`cancelRegistration` in `src/lib/registrations.ts`, shared with the email cancel link).
 - **Members-only events** (once membership is open): the registration box asks only for the
   email, the optional note and the photo notice. An active member is registered at once with the
   details of their membership. Any other email gets the free membership form in the same box;

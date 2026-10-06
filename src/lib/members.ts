@@ -7,7 +7,12 @@ import { getDb } from '../db';
 import { contacts, events, members, registrations, type Event, type Member } from '../db/schema';
 import { email, optionalText, optionalUrl } from './forms';
 import { SECTORS } from './directory';
-import { HOW_HEARD, registerForEvent, type RegisterOutcome } from './registrations';
+import {
+  HOW_HEARD,
+  cancelRegistration,
+  registerForEvent,
+  type RegisterOutcome,
+} from './registrations';
 import { consumeToken, issueToken, peekToken } from './tokens';
 import { sendEmail, sendEmailBatch, type EmailMessage } from './email';
 import {
@@ -435,6 +440,7 @@ export async function deleteMembers(ids: number[], actor: string) {
 export async function memberEvents(address: string) {
   return getDb()
     .select({
+      id: registrations.id,
       title: events.title,
       slug: events.slug,
       startsAt: events.startsAt,
@@ -445,6 +451,22 @@ export async function memberEvents(address: string) {
     .innerJoin(events, eq(events.id, registrations.eventId))
     .where(eq(registrations.email, address))
     .orderBy(desc(events.startsAt));
+}
+
+/**
+ * A member cancels one of their registrations from their member page. Only their own, and only
+ * before the event starts; the freed seat goes to the waitlist as with the email link.
+ */
+export async function memberCancel(member: Pick<Member, 'email'>, registrationId: number) {
+  const [row] = await getDb()
+    .select({ id: registrations.id, status: registrations.status, event: events })
+    .from(registrations)
+    .innerJoin(events, eq(events.id, registrations.eventId))
+    .where(and(eq(registrations.id, registrationId), eq(registrations.email, member.email)));
+  if (!row || (row.status !== 'registered' && row.status !== 'waitlist')) return null;
+  if (row.event.startsAt <= new Date()) return null;
+  const settings = await getSettings();
+  return (await cancelRegistration(row.event, row, settings.memberPriority)) ? row.event : null;
 }
 
 // ---------- admin ----------

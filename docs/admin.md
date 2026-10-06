@@ -5,7 +5,7 @@ only emails on the Access policy get in. Every change is saved straight to the l
 pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
-(Members, Contacts, Messages, Email the community, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
+(Members, Contacts, Messages, Email the community, Reports, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
 **Content** (Posts, Files, Site texts, Emails) and **Settings**. On a phone, open it with the
 **Menu** button. Everyone who can sign in to the admin can do everything: there are no roles,
 owners or approval steps.
@@ -264,8 +264,14 @@ enrolment at check-in.
   blocks anyone (they are members already); it just helps the board keep track of who joined.
   Add a **note** if useful, then tick them and **Mark as reviewed**. Members made from a contact's
   Edit form, and suspended members, count as reviewed. There is no email about it.
-- **All members**: search by name, email or company and filter by status, profile type and
-  nationality. Tick members and write a reason to **Suspend** them (they
+- **All members**: search by name, email or company and filter by status, profile type,
+  nationality, sector of interest, when they joined (between two dates), events attended (never,
+  once, 3 or 5 times or more), no-shows (always came, 25% or 50% no-shows and more) and newsletter
+  (agreed or not). The Events column shows events attended, no-shows and the newsletter.
+  **Export these members (CSV)** downloads the list with the filters applied, with their profile,
+  sectors, join and renewal dates, event figures, newsletter answer and notes. No-shows count only
+  events where check-in was used; event figures and the newsletter answer come from Contacts.
+  Tick members and write a reason to **Suspend** them (they
   keep their page but lose the WhatsApp button; remove them from the group by hand).
   **Reactivate** undoes a suspension. **Email their member link** sends confirmed members a fresh link to their page
   (for someone who lost it; they can also ask for it themselves at `/member`). **Delete**
@@ -281,6 +287,15 @@ enrolment at check-in.
   who registers for an event fills the membership form again.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
   (didn't confirm their year).
+- **Reports** (Community menu), for the board: active members, new members in the last 30
+  days, members by month over the last 12 months (new each month and the running total), active
+  members by profile type, sector of interest and nationality group, and the share of event
+  attendees who are members, per event and overall for the last 12 months. That share is shown
+  twice: members today, and members on the day of the event. Attendees are the people checked
+  in, or the registered ones at events where check-in wasn't used.
+- **Cancelling from the member page**: members see a **Can't come? Cancel** (or **Leave the
+  waitlist**) link under each upcoming registration on their page; it works like the cancel link
+  in the event emails, and the freed seat goes to the waitlist.
 - **Email the community** (Community menu): one email to every active member, to the newsletter
   subscribers, or to the contacts you ticked in Contacts (**Email…**). `{name}` becomes the
   person's first name. **Send me a test** first; the same email can't go to the same audience
