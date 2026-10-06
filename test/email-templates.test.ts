@@ -71,7 +71,43 @@ describe('checkPlaceholders', () => {
       { ...def, required: ['event'] },
       { subject: '{evnt}', body: 'Hi {name}', buttonLabel: null },
     );
-    expect(c).toEqual({ unknown: ['evnt'], missing: ['event'] });
+    expect(c).toEqual({ unknown: ['evnt'], missing: ['event'], inSubject: [], inButton: [] });
+  });
+
+  it('wants required placeholders in the message, not the subject or the button', () => {
+    const contact = EMAIL_TEMPLATES['admin.contact-form'];
+    const c = checkPlaceholders(contact, {
+      subject: 'Contact: {message}',
+      body: 'New message from {name}.',
+      buttonLabel: null,
+    });
+    expect(c.missing).toEqual(['message']);
+    expect(c.inSubject).toEqual(['message']);
+    const r = templateSchema(contact).safeParse({
+      subject: 'Contact: {message}',
+      body: 'New message from {name}.\n\n{message}',
+      buttonLabel: contact.buttonLabel,
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.path[0])).toEqual(['subject']);
+    const rejected = EMAIL_TEMPLATES['directory.change-rejected'];
+    const b = templateSchema(rejected).safeParse({
+      subject: 'S',
+      body: 'Because {reason}',
+      buttonLabel: '{reason}',
+    });
+    expect(b.error?.issues.map((i) => i.path[0])).toEqual(['buttonLabel']);
+  });
+
+  it('puts a filled subject on one line, with a length cap', () => {
+    const contact = EMAIL_TEMPLATES['admin.contact-form'];
+    const r = applyTemplate(
+      contact,
+      { subject: 'Contact {name}', body: '{message}', buttonLabel: null },
+      { name: 'a\n\nb'.repeat(200), message: 'm' },
+    );
+    expect(r.subject).not.toMatch(/\n/);
+    expect(r.subject.length).toBeLessThanOrEqual(250);
   });
 
   it('blocks a missing required placeholder in the form, but not an unknown one', () => {
@@ -169,7 +205,7 @@ describe('default templates', () => {
   it('only use placeholders each email declares', () => {
     for (const k of TEMPLATE_KEYS) {
       const c = checkPlaceholders(EMAIL_TEMPLATES[k], defaultText(EMAIL_TEMPLATES[k]));
-      expect(c, k).toEqual({ unknown: [], missing: [] });
+      expect(c, k).toEqual({ unknown: [], missing: [], inSubject: [], inButton: [] });
     }
   });
 
@@ -438,6 +474,15 @@ describe('directory, team and admin emails', () => {
       templateSchema(def).safeParse({ subject: 'S', body: 'Hi {name}', buttonLabel: 'Go' }).success,
     ).toBe(false);
     expect(EMAIL_TEMPLATES['directory.claim-rejected'].required).toEqual(['reason']);
+    const claim = EMAIL_TEMPLATES['admin.claim-to-review'];
+    expect(claim.required).toEqual(['domain-check']);
+    expect(
+      templateSchema(claim).safeParse({
+        subject: 'S',
+        body: '{name} asks to manage {org}.',
+        buttonLabel: 'Go',
+      }).success,
+    ).toBe(false);
   });
 });
 

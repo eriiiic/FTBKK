@@ -14,7 +14,9 @@ const flashText =
     ? 'Deleted.'
     : flash === 'done'
       ? 'Done.'
-      : 'Saved. Public pages refresh within a minute.';
+      : flash === 'email'
+        ? 'Saved. The next emails sent use this text.'
+        : 'Saved. Public pages refresh within a minute.';
 // The sidebar, in groups.
 interface NavLink {
   href: string;
@@ -181,6 +183,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       // another has changes that would be lost.
       const dirty = new Set<HTMLFormElement>();
       document.querySelectorAll<HTMLFormElement>('form[data-warn-unsaved]').forEach((f) => {
+        // <form data-unsaved>: re-rendered with text that isn't saved yet (e.g. after a preview).
+        if (f.hasAttribute('data-unsaved')) dirty.add(f);
         f.addEventListener('input', () => dirty.add(f));
         f.addEventListener('submit', (e) => {
           if (e.defaultPrevented) return;

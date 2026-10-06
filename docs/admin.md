@@ -308,9 +308,11 @@ paragraphs) and **button label**. Placeholders in braces are replaced in each em
 address), `{org}` (the organisation), `{reason}` (what the moderator typed when declining), and
 others per email. The list under the form shows which ones that email knows; click one to insert
 it. A placeholder the email doesn't know is sent as typed, and the page warns you. Some must stay
-in the text (marked "must stay"): the reason of a refusal, the contact form message, the
-membership motivation, and the lists the site builds (`{tasks}` in the weekly tasks, `{renewals}`
-in the directory summary). Put a list on a line of its own to get one paragraph per item.
+in the message (marked "must stay"; not only in the subject or the button, where a long value
+doesn't fit): the reason of a refusal, the contact form message, the membership motivation, the
+domain check of a claim, and the lists the site builds (`{tasks}` in the weekly tasks,
+`{renewals}` in the directory summary). Put a list on a line of its own to get one paragraph per
+item. After Preview or a test, the page says "Not saved yet" and warns you before you leave.
 
 - **Preview** shows the email in its real layout with sample values, without saving.
 - **Send me a test** emails that preview to you, subject starting with "[Test]".

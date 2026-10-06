@@ -80,8 +80,8 @@ published/declined, membership approved/declined), the newsletter confirmation, 
 link, the team's weekly tasks, and the notifications to the team (contact form message, new
 listing, claim, listing change and membership application to review, weekly directory summary).
 Lists built by the site (the steps of the weekly tasks, the renewals of the directory summary) are
-placeholders (`{tasks}`, `{renewals}`) that must stay in the text, like a rejection `{reason}` or
-the contact form `{message}`. "Email registrants" is written each time, so it is listed but not a
+placeholders (`{tasks}`, `{renewals}`) that must stay in the message (not only the subject or
+button), like a rejection `{reason}`, the contact form `{message}` or a claim's `{domain-check}`. "Email registrants" is written each time, so it is listed but not a
 template.
 
 **Who owns what.** Team and roles lists the organising team (name, the email they sign in with,

@@ -49,10 +49,11 @@ const toText = (r: EmailTemplateRow): EmailText => ({
   buttonLabel: r.buttonLabel,
 });
 const saved = row ? toText(row) : defaultText(def);
-const isDefault = (t: EmailText) => {
-  const d = defaultText(def);
-  return t.subject === d.subject && t.body === d.body && (t.buttonLabel ?? null) === d.buttonLabel;
-};
+const sameText = (a: EmailText, b: EmailText) =>
+  a.subject === b.subject &&
+  a.body === b.body &&
+  (a.buttonLabel ?? null) === (b.buttonLabel ?? null);
+const isDefault = (t: EmailText) => sameText(t, defaultText(def));
 
 let values: EmailText = saved;
 let errors: Record<string, string> = {};
@@ -102,7 +103,7 @@ if (Astro.request.method === 'POST') {
           ...t,
         },
       );
-      return Astro.redirect(`/admin/emails/${key}?saved=1`);
+      return Astro.redirect(`/admin/emails/${key}?saved=email`);
     } else if (action === 'test') {
       const to = Astro.locals.adminEmail;
       const msg = sampleEmail(def, t, to ?? '');
@@ -118,6 +119,10 @@ if (Astro.request.method === 'POST') {
   row = await loadRow();
 }
 
+// After Preview, Send me a test or a form with errors, the fields hold text that isn't saved:
+// the page says so, and the layout warns before leaving (data-unsaved).
+const unsaved =
+  Astro.request.method === 'POST' && !sameText(values, row ? toText(row) : defaultText(def));
 const check = checkPlaceholders(def, values);
 const preview = renderEmail(sampleEmail(def, values)).html;
 const hasButton = def.buttonLabel !== undefined;
@@ -177,6 +182,7 @@ const hasButton = def.buttonLabel !== undefined;
         method="post"
         class="admin-panel grid content-start gap-5"
         data-warn-unsaved
+        data-unsaved={unsaved ? '' : undefined}
         data-template-form
       >
         <FormField
@@ -208,7 +214,7 @@ const hasButton = def.buttonLabel !== undefined;
             hint={def.buttonNote}
           />
         )}
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <Button type="submit" name="action" value="save">
             Save
           </Button>
@@ -218,6 +224,7 @@ const hasButton = def.buttonLabel !== undefined;
           <Button type="submit" name="action" value="test" variant="secondary">
             Send me a test
           </Button>
+          {unsaved && <span class="text-sm font-semibold text-ink">Not saved yet</span>}
         </div>
         <p class="text-sm text-muted">
           The test goes only to {Astro.locals.adminEmail ?? 'you'}, with the sample values below.
@@ -246,7 +253,7 @@ const hasButton = def.buttonLabel !== undefined;
                   <span>
                     {p.description}
                     {def.required?.includes(p.key) && (
-                      <span class="font-semibold text-ink"> (must stay in the text)</span>
+                      <span class="font-semibold text-ink"> (must stay in the message)</span>
                     )}
                   </span>
                   <span class="text-muted">e.g. {p.list ? p.sample.split('\n')[0] : p.sample}</span>

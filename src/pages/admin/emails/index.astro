@@ -38,11 +38,12 @@ const flash = Astro.url.searchParams.get('reset') ? 'Back to the default text.' 
   )}
   <div class="grid max-w-4xl gap-6">
     {TEMPLATE_GROUPS.map((group) => {
+      const id = `g-${group.toLowerCase().replace(/\s+/g, '-')}`;
       const keys = TEMPLATE_KEYS.filter((k) => EMAIL_TEMPLATES[k].group === group);
       const manual = WRITTEN_EACH_TIME.filter((m) => m.group === group);
       return (
-        <section class="admin-panel" aria-labelledby={`g-${group}`}>
-          <h2 id={`g-${group}`} class="text-lg">
+        <section class="admin-panel" aria-labelledby={id}>
+          <h2 id={id} class="text-lg">
             {group}
           </h2>
           <ul class="mt-3 divide-y divide-line">

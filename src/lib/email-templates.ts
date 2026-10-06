@@ -620,6 +620,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
       },
     ],
     added: 'The link to the admin (the button).',
+    required: ['domain-check'],
     preview: { buttonUrl: adminEcosystemUrl },
   },
   'admin.change-to-review': {
@@ -746,14 +747,30 @@ export function placeholdersIn(text: string) {
   return [...new Set([...text.matchAll(PLACEHOLDER)].map((m) => m[1]!))];
 }
 
-/** Placeholders a text uses that this email doesn't know, and required ones it lacks. */
+/**
+ * Placeholders a text uses that this email doesn't know, required ones missing from the message,
+ * and required ones put in the subject or the button (long or multi-line values belong in the
+ * message, where they are always shown in full).
+ */
 export function checkPlaceholders(def: EmailTemplateDef, t: EmailText) {
-  const used = placeholdersIn([t.subject, t.body, t.buttonLabel ?? ''].join('\n'));
+  const inBody = placeholdersIn(t.body);
+  const inSubject = placeholdersIn(t.subject);
+  const inButton = placeholdersIn(t.buttonLabel ?? '');
   const known = new Set(def.placeholders.map((p) => p.key));
+  const required = def.required ?? [];
   return {
-    unknown: used.filter((k) => !known.has(k)),
-    missing: (def.required ?? []).filter((k) => !used.includes(k)),
+    unknown: [...new Set([...inSubject, ...inBody, ...inButton])].filter((k) => !known.has(k)),
+    missing: required.filter((k) => !inBody.includes(k)),
+    inSubject: required.filter((k) => inSubject.includes(k)),
+    inButton: required.filter((k) => inButton.includes(k)),
   };
+}
+
+const MAX_SUBJECT = 250;
+/** A filled subject on one line, at most MAX_SUBJECT characters (values can be long). */
+function oneLine(s: string) {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > MAX_SUBJECT ? `${t.slice(0, MAX_SUBJECT - 1).trimEnd()}…` : t;
 }
 
 export const defaultText = (def: EmailTemplateDef): EmailText => ({
@@ -792,7 +809,8 @@ export function applyTemplate(
   });
   return {
     subject:
-      fillPlaceholders(t.subject.trim(), inSubject) || fillPlaceholders(def.subject, inSubject),
+      oneLine(fillPlaceholders(t.subject, inSubject)) ||
+      oneLine(fillPlaceholders(def.subject, inSubject)),
     paragraphs,
     buttonLabel:
       def.buttonLabel === undefined
@@ -872,12 +890,25 @@ export function templateSchema(def: EmailTemplateDef) {
               .max(60, 'Keep the button label under 60 characters.'),
     })
     .superRefine((t, ctx) => {
-      const { missing } = checkPlaceholders(def, t);
-      if (missing.length)
+      const c = checkPlaceholders(def, t);
+      const list = (keys: string[]) => keys.map((k) => `{${k}}`).join(', ');
+      if (c.missing.length)
         ctx.addIssue({
           code: 'custom',
           path: ['body'],
-          message: `Keep ${missing.map((k) => `{${k}}`).join(', ')} in the text.`,
+          message: `Keep ${list(c.missing)} in the message.`,
+        });
+      if (c.inSubject.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['subject'],
+          message: `${list(c.inSubject)} can be long: put it in the message, not the subject.`,
+        });
+      if (c.inButton.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['buttonLabel'],
+          message: `${list(c.inButton)} can be long: put it in the message, not the button.`,
         });
     });
 }
