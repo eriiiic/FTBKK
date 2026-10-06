@@ -3,7 +3,7 @@ import { email as emailField } from './forms';
 import { CONTACT_EMAIL_TOKEN } from './code-of-conduct';
 
 /**
- * Default privacy notice (Thailand's PDPA), used until it is edited in /admin/settings. The same
+ * Default privacy notice (Thailand's PDPA), used until it is edited in /admin/site-texts. The same
  * text is seeded by migrations/0019_privacy_notice.sql and scripts/import.ts.
  */
 export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run community for French tech founders, employees, investors, students and friends in Thailand. This notice explains what we keep about you when you register for one of our events, why, and what you can do about it under Thailand's Personal Data Protection Act (PDPA).

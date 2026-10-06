@@ -1,5 +1,7 @@
 import { runDirectoryJobs } from './cron-directory';
 import { sendEventReminders, sendFeedbackRequests, weeklyBackup } from './cron-events';
+import { sendOwnerDigests } from './ownership';
+import { TZ } from './format';
 
 /**
  * Daily scheduled job (09:00 Asia/Bangkok, `0 2 * * *` in wrangler.jsonc). Each job is isolated so
@@ -11,6 +13,7 @@ export async function runScheduled(_env: Env, now: Date): Promise<void> {
     ['event-feedback', () => sendFeedbackRequests(now)],
     ['directory', () => runDirectoryJobs(now)],
     ['backup', () => weeklyBackup(now)],
+    ['owner-digest', () => (isMonday(now) ? sendOwnerDigests(now) : Promise.resolve(0))],
   ];
   for (const [name, job] of jobs) {
     try {
@@ -20,3 +23,7 @@ export async function runScheduled(_env: Env, now: Date): Promise<void> {
     }
   }
 }
+
+/** Monday in Bangkok: the day of the weekly emails. */
+export const isMonday = (now: Date) =>
+  new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(now) === 'Mon';

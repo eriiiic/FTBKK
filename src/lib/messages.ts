@@ -86,6 +86,17 @@ export const MessageAction = z.discriminatedUnion('action', [
     /** Optionally file the message at the same time. */
     move: z.enum(['answered', 'handled']).optional(),
   }),
+  z.object({
+    action: z.literal('assign'),
+    ids: z.array(z.coerce.number().int().positive()).min(1).max(200),
+    /** A team member's email; empty = nobody. */
+    assignee: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(254)
+      .transform((s) => s || null),
+  }),
   z.object({ action: z.literal('block'), pattern: Pattern }),
   z.object({ action: z.literal('unblock'), pattern: z.string().trim().toLowerCase().max(254) }),
 ]);
@@ -108,6 +119,23 @@ export async function applyMessageAction(input: MessageAction, actor: string) {
   if (input.action === 'unblock') {
     await db.delete(blockedSenders).where(eq(blockedSenders.pattern, input.pattern));
     return `Unblocked ${input.pattern}. Messages already in Spam stay there.`;
+  }
+  if (input.action === 'assign') {
+    await db
+      .update(submissions)
+      .set({ assignee: input.assignee })
+      .where(inArray(submissions.id, input.ids));
+    const body = input.assignee ? `Assigned to ${input.assignee}` : 'Unassigned';
+    await db.insert(messageNotes).values(
+      input.ids.map((submissionId) => ({
+        submissionId,
+        kind: 'status' as const,
+        body,
+        author: actor,
+      })),
+    );
+    const n = input.ids.length;
+    return `${n} message${n === 1 ? '' : 's'} ${input.assignee ? `assigned to ${input.assignee}` : 'unassigned'}.`;
   }
   if (input.action === 'note') {
     await db

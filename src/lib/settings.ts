@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { DEFAULT_CODE_OF_CONDUCT } from './code-of-conduct';
 import { DEFAULT_PRIVACY_NOTICE } from './privacy';
 
-/** Site-wide settings, editable in /admin/settings. Stored as key/JSON rows in the settings table. */
+/** Site-wide settings, editable in /admin/settings and /admin/site-texts. Stored as key/JSON rows in the settings table. */
 export interface Settings {
   siteTitle: string;
   siteDescription: string;
@@ -26,6 +26,10 @@ export interface Settings {
   communityText: string;
   /** "You can join us" cards on the home and About pages; link is optional. */
   joinPaths: { title: string; text: string; link?: string }[];
+  /** Top of the /join page (Markdown); empty = DEFAULT_JOIN_INTRO. */
+  joinIntro: string;
+  /** "Become a member" block on /join (Markdown); empty = DEFAULT_JOIN_MEMBERSHIP. */
+  joinMembership: string;
   /** /code-of-conduct page (Markdown); {contactEmail} is replaced by the contact email. */
   codeOfConduct: string;
   /** /privacy page (Markdown); {contactEmail} is replaced by the contact email. */
@@ -51,6 +55,8 @@ export const defaultSettings: Settings = {
   aboutIntro: '',
   communityText: '',
   joinPaths: [],
+  joinIntro: '',
+  joinMembership: '',
   codeOfConduct: DEFAULT_CODE_OF_CONDUCT,
   privacyNotice: DEFAULT_PRIVACY_NOTICE,
   membershipOpen: false,

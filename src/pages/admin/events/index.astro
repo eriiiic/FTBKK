@@ -1,12 +1,13 @@
 ---
-import { desc } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
 import { getDb } from '../../../db';
-import { events } from '../../../db/schema';
+import { eventTasks, events } from '../../../db/schema';
 import { registrationCount } from '../../../lib/registrations';
 import { formatEventDate } from '../../../lib/format';
+import { EVENT_STEPS } from '../../../lib/ownership';
 
 const rows = await getDb()
   .select({
@@ -22,12 +23,24 @@ const rows = await getDb()
   })
   .from(events)
   .orderBy(desc(events.startsAt));
+// Checklist progress (steps done) per event; events whose checklist was never opened have none.
+const progress = new Map(
+  (
+    await getDb()
+      .select({
+        eventId: eventTasks.eventId,
+        done: sql<number>`sum(case when ${eventTasks.doneAt} is not null then 1 else 0 end)`,
+      })
+      .from(eventTasks)
+      .groupBy(eventTasks.eventId)
+  ).map((r) => [r.eventId, r.done]),
+);
 const now = new Date();
 const upcoming = rows.filter((e) => (e.endsAt ?? e.startsAt) >= now).reverse();
 const past = rows.filter((e) => (e.endsAt ?? e.startsAt) < now);
 const groups = [
-  { title: 'Upcoming', rows: upcoming },
-  { title: 'Past', rows: past },
+  { title: 'Upcoming', rows: upcoming, checklist: true },
+  { title: 'Past', rows: past, checklist: false },
 ];
 ---
 
@@ -51,6 +64,7 @@ const groups = [
               <th>Date</th>
               <th>Registered</th>
               <th>Status</th>
+              {g.checklist && <th>Checklist</th>}
             </tr>
           </thead>
           <tbody>
@@ -84,6 +98,15 @@ const groups = [
                     {e.status}
                   </Badge>
                 </td>
+                {g.checklist && (
+                  <td data-sort={progress.get(e.id) ?? -1}>
+                    <a href={`/admin/events/${e.id}/tasks`}>
+                      {progress.has(e.id)
+                        ? `${progress.get(e.id)} / ${EVENT_STEPS.length}`
+                        : 'Open'}
+                    </a>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

@@ -2,14 +2,13 @@
 import { z } from 'zod';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import FormField from '../../components/FormField.astro';
-import MarkdownEditor from '../../components/admin/MarkdownEditor.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
-import CardFields from '../../components/admin/CardFields.astro';
-import { cardsFromForm, getSettings, saveSettings, type Settings } from '../../lib/settings';
+import { getSettings, saveSettings, type Settings } from '../../lib/settings';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
 
+// Site-wide settings. The texts shown on public pages are in Site texts (/admin/site-texts).
 const actor = Astro.locals.adminEmail ?? 'admin';
 const current = await getSettings();
 
@@ -18,27 +17,12 @@ const lines = (s: string) =>
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
-/** Long texts: Windows line endings from the browser become plain new lines. */
-const longText = (max: number) =>
-  z
-    .string()
-    .max(max)
-    .transform((s) => s.replace(/\r\n?/g, '\n'));
 const url = z.union([z.literal(''), z.url('Enter a full URL starting with https://')]);
-const card = z.object({
-  title: z.string().min(1, 'Give every card a title.').max(80),
-  text: z.string().max(400),
-  link: z
-    .string()
-    .regex(/^(\/|https?:\/\/|mailto:)\S*$/, 'A link starts with /, https:// or mailto:')
-    .max(300)
-    .optional(),
-});
 const socials = [
   ['linkedin', 'LinkedIn'],
   ['instagram', 'Instagram'],
   ['facebook', 'Facebook'],
-  ['whatsapp', 'WhatsApp group invite link'],
+  ['whatsapp', 'WhatsApp group invite link (never shown publicly)'],
   ['youtube', 'YouTube'],
 ] as const;
 
@@ -55,17 +39,6 @@ const Schema = z.object({
   facebook: url,
   linkedin: url,
   youtube: url,
-  heroTitle: z.string().min(2).max(120),
-  heroTagline: z.string().min(2, 'The home page needs a main heading.').max(300),
-  mission: longText(2000),
-  values: z.string().transform(lines),
-  ecosystemHeading: z.string().max(200),
-  pillars: z.array(card.omit({ link: true })).max(6),
-  aboutIntro: longText(6000),
-  communityText: longText(6000),
-  joinPaths: z.array(card).max(6),
-  codeOfConduct: longText(12000),
-  privacyNotice: longText(12000),
   membershipOpen: z.boolean().optional().default(false),
   memberPriority: z.boolean().optional().default(false),
   analyticsToken: z.string().max(100),
@@ -76,22 +49,11 @@ let values: Record<string, unknown> = {
   ...current,
   ...current.socials,
   moderatorEmails: current.moderatorEmails.join('\n'),
-  values: current.values.join('\n'),
 };
-let pillars = current.pillars;
-let joinPaths = current.joinPaths;
 
 if (Astro.request.method === 'POST') {
-  values = formToObject(await Astro.request.formData(), [
-    'pillarTitle',
-    'pillarText',
-    'joinTitle',
-    'joinText',
-    'joinLink',
-  ]);
-  pillars = cardsFromForm(values, 'pillar');
-  joinPaths = cardsFromForm(values, 'join', true);
-  const parsed = Schema.safeParse({ ...values, pillars, joinPaths });
+  values = formToObject(await Astro.request.formData());
+  const parsed = Schema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else {
     const { instagram, whatsapp, facebook, linkedin, youtube, ...rest } = parsed.data;
@@ -113,6 +75,10 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       Please fix the highlighted fields.
     </Alert>
   )}
+  <p class="mb-6 max-w-3xl text-sm text-muted">
+    The texts of the home, About, Join, code of conduct and privacy pages are in
+    <a href="/admin/site-texts">Site texts</a>.
+  </p>
   <form method="post" data-warn-unsaved class="grid max-w-3xl gap-6">
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Site</h2>
@@ -156,115 +122,6 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       {socials.map(([k, label]) => (
         <FormField name={k} label={label} value={str(k)} error={errors[k]} placeholder="https://" />
       ))}
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Home page</h2>
-      <FormField
-        name="heroTitle"
-        label="Small line above the heading"
-        required
-        maxlength={120}
-        value={str('heroTitle')}
-        error={errors.heroTitle}
-      />
-      <FormField
-        name="heroTagline"
-        label="Main heading"
-        required
-        rows={2}
-        maxlength={300}
-        value={str('heroTagline')}
-        error={errors.heroTagline}
-      />
-      <FormField
-        name="mission"
-        label="Mission"
-        rows={3}
-        maxlength={2000}
-        value={str('mission')}
-        error={errors.mission}
-        hint="Under the heading, and in the footer."
-      />
-      <FormField
-        name="values"
-        label="Values"
-        rows={4}
-        value={str('values')}
-        error={errors.values}
-        hint="One per line."
-      />
-      <FormField
-        name="ecosystemHeading"
-        label="Navy section heading"
-        maxlength={200}
-        value={str('ecosystemHeading')}
-        error={errors.ecosystemHeading}
-        hint="The big title above the three pillars."
-      />
-      <CardFields prefix="pillar" legend="Pillars" items={pillars} error={errors.pillars} />
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">You can join us</h2>
-      <CardFields
-        prefix="join"
-        legend="Cards"
-        items={joinPaths}
-        error={errors.joinPaths}
-        withLink
-        hint="Navy cards on the home and About pages. With a link, the whole card is clickable: a page such as /events or /about#contact, or a full https:// address."
-      />
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">About page</h2>
-      <MarkdownEditor
-        name="aboutIntro"
-        label="Who we are"
-        rows={12}
-        value={str('aboutIntro')}
-        error={errors.aboutIntro}
-        breaks
-        uploads={false}
-        hint="Top of the About page. Line breaks are kept; leave an empty line between paragraphs. **bold**, [link text](https://…), - list. Use Preview to check."
-      />
-      <MarkdownEditor
-        name="communityText"
-        label="Official French Tech Community"
-        rows={10}
-        value={str('communityText')}
-        error={errors.communityText}
-        breaks
-        uploads={false}
-        hint="Shown next to the official logo on the About page. Start a line with ## for a heading. Empty = hidden."
-      />
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Code of conduct</h2>
-      <MarkdownEditor
-        name="codeOfConduct"
-        label="Code of conduct"
-        rows={16}
-        value={str('codeOfConduct')}
-        error={errors.codeOfConduct}
-        uploads={false}
-        hint="The /code-of-conduct page, linked in the footer, on event pages and in the registration form. {contactEmail} is replaced by the contact email. Start a line with ## for a heading, - for a list. Empty = the default text."
-      />
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Privacy notice</h2>
-      <MarkdownEditor
-        name="privacyNotice"
-        label="Privacy notice"
-        rows={16}
-        value={str('privacyNotice')}
-        error={errors.privacyNotice}
-        uploads={false}
-        hint="The /privacy page (Thailand's PDPA), linked in the footer and under every registration form. Keep it true to what the site does: what we collect, why, who sees it, how long we keep it, people's rights. {contactEmail} is replaced by the contact email. Empty = the default text."
-      />
     </section>
 
     <section class="admin-panel grid gap-4">
