@@ -7,11 +7,18 @@ import FormField from '../components/FormField.astro';
 import Icon from '../components/Icon.astro';
 import Turnstile from '../components/Turnstile.astro';
 import ContactForm from '../components/ContactForm.astro';
+import MemberProfileFields from '../components/MemberProfileFields.astro';
 import { getSettings } from '../lib/settings';
 import { renderMarkdown } from '../lib/markdown';
 import { handleContactForm, topicFromQuery, type ContactResult } from '../lib/contact';
 import { NewsletterSchema, sendNewsletterConfirmation } from '../lib/newsletter';
-import { DEFAULT_JOIN_INTRO, DEFAULT_JOIN_MEMBERSHIP } from '../lib/join';
+import {
+  DEFAULT_JOIN_INTRO,
+  DEFAULT_JOIN_MEMBERSHIP,
+  DEFAULT_JOIN_MEMBERSHIP_OPEN,
+} from '../lib/join';
+import { HOW_HEARD } from '../lib/registrations';
+import { MemberSignupSchema, requestMembership, signupInput } from '../lib/members';
 import { clientIp, fieldErrors, formToObject } from '../lib/forms';
 import { verifyTurnstile } from '../lib/turnstile';
 import { rateLimit } from '../lib/ratelimit';
@@ -21,9 +28,11 @@ import { rateLimit } from '../lib/ratelimit';
 // involved, the newsletter and the contact form.
 const settings = await getSettings();
 const intro = renderMarkdown(settings.joinIntro || DEFAULT_JOIN_INTRO, { breaks: true });
-const membership = renderMarkdown(settings.joinMembership || DEFAULT_JOIN_MEMBERSHIP, {
-  breaks: true,
-});
+const open = settings.memberSignupOpen;
+const membership = renderMarkdown(
+  settings.joinMembership || (open ? DEFAULT_JOIN_MEMBERSHIP_OPEN : DEFAULT_JOIN_MEMBERSHIP),
+  { breaks: true },
+);
 
 let contact: ContactResult = { errors: {}, values: {}, sent: false };
 let news: { errors: Record<string, string>; values: Record<string, unknown>; sent: boolean } = {
@@ -31,10 +40,36 @@ let news: { errors: Record<string, string>; values: Record<string, unknown>; sen
   values: {},
   sent: false,
 };
+let member: typeof news = { errors: {}, values: {}, sent: false };
 const isPost = Astro.request.method === 'POST';
 if (isPost) {
   const form = await Astro.request.formData();
-  if (form.get('form') === 'newsletter') {
+  if (form.get('form') === 'member' && open) {
+    // The same answer whether the address is new or already a member (they get their link).
+    const values = formToObject(form, ['interests']);
+    const ip = clientIp(Astro.request);
+    const parsed = MemberSignupSchema.safeParse(signupInput(values));
+    if (!(await verifyTurnstile(form.get('cf-turnstile-response') as string, ip)))
+      member = {
+        values,
+        sent: false,
+        errors: { form: 'The anti-spam check failed. Please try again.' },
+      };
+    else if (!parsed.success) member = { values, sent: false, errors: fieldErrors(parsed.error) };
+    else if (
+      !(await rateLimit(`member:${ip}`, 5, 3600)) ||
+      !(await rateLimit(`member:${parsed.data.email}`, 3, 86400))
+    )
+      member = {
+        values,
+        sent: false,
+        errors: { form: 'Too many sign-ups from here. Please try again later.' },
+      };
+    else {
+      await requestMembership(parsed.data);
+      member = { values: {}, sent: true, errors: {} };
+    }
+  } else if (form.get('form') === 'newsletter') {
     const values = formToObject(form);
     const ip = clientIp(Astro.request);
     const parsed = NewsletterSchema.safeParse(values);
@@ -60,6 +95,8 @@ if (isPost) {
     }
   } else contact = await handleContactForm(Astro.request, form, settings, 'Join the community');
 }
+
+const memberForm = open && !member.sent;
 
 const involved = [
   {
@@ -114,10 +151,21 @@ const involved = [
         <Icon name="users" class="size-8 text-brand" />
         <h2 class="mt-4 text-xl">Become a member</h2>
         <div class="prose mt-3 text-muted" set:html={membership} />
-        <div class="mt-auto pt-6">
-          <Button href="#newsletter" variant="secondary" size="sm">
-            Tell me when it opens
-          </Button>
+        <div class="mt-auto flex flex-wrap gap-2 pt-6">
+          {open ? (
+            <>
+              <Button href="#become-member" size="sm">
+                Become a member
+              </Button>
+              <Button href="/member" variant="ghost" size="sm">
+                I'm a member
+              </Button>
+            </>
+          ) : (
+            <Button href="#newsletter" variant="secondary" size="sm">
+              Tell me when it opens
+            </Button>
+          )}
         </div>
       </li>
       <li
@@ -127,13 +175,21 @@ const involved = [
         <Icon name="whatsapp" class="size-8 text-brand" />
         <h2 class="mt-4 text-xl">The WhatsApp community</h2>
         <p class="mt-3 text-muted">
-          Where members share jobs, questions, introductions and event news day to day. The group is
-          for members: ask to join and the team will send you the invitation.
+          Where members share jobs, questions, introductions and event news day to day.{' '}
+          {open
+            ? 'The group is for members: the invitation is in your welcome email and on your member page.'
+            : 'The group is for members: ask to join and the team will send you the invitation.'}
         </p>
         <div class="mt-auto pt-6">
-          <Button href="?topic=whatsapp#contact" variant="secondary" size="sm">
-            Ask to join the group
-          </Button>
+          {open ? (
+            <Button href="#become-member" variant="secondary" size="sm">
+              Join to get the invitation
+            </Button>
+          ) : (
+            <Button href="?topic=whatsapp#contact" variant="secondary" size="sm">
+              Ask to join the group
+            </Button>
+          )}
         </div>
       </li>
       <li
@@ -157,6 +213,70 @@ const involved = [
       </li>
     </ul>
   </Section>
+
+  {open && (
+    <Section
+      id="become-member"
+      title="Become a member"
+      intro="Free, for anyone who is part of or close to the French tech community in Thailand."
+    >
+      <div class="max-w-2xl">
+        {member.sent ? (
+          <Alert tone="success">
+            Almost done: we've sent you an email. Click the link in it to confirm your membership.
+            Already a member? The email has the link to your member page.
+          </Alert>
+        ) : (
+          <form method="post" action="/join#become-member" class="grid gap-4">
+            <input type="hidden" name="form" value="member" />
+            {member.errors.form && <Alert tone="danger">{member.errors.form}</Alert>}
+            <FormField
+              name="email"
+              id="m-email"
+              label="Email"
+              type="email"
+              required
+              autocomplete="email"
+              value={member.values.email as string}
+              error={member.errors.email}
+            />
+            <MemberProfileFields values={member.values} errors={member.errors} />
+            <FormField
+              name="howHeard"
+              id="m-howHeard"
+              label="How did you hear about us?"
+              value={member.values.howHeard as string}
+              options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
+            />
+            <FormField
+              name="newsletter"
+              id="m-newsletter"
+              type="checkbox"
+              checked={member.values.newsletter === true}
+              label="Send me the newsletter too (about once a month). You can unsubscribe at any time."
+            />
+            <FormField
+              name="terms"
+              id="m-terms"
+              type="checkbox"
+              required
+              checked={member.values.terms === true}
+              error={member.errors.terms}
+              label="I agree to the code of conduct and to La French Tech Bangkok keeping my details as described in the privacy notice."
+            />
+            <p class="text-sm text-muted">
+              Read the <a href="/code-of-conduct">code of conduct</a> and the{' '}
+              <a href="/privacy">privacy notice</a>. Your profile is not public.
+            </p>
+            <Turnstile />
+            <div>
+              <Button type="submit">Become a member</Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </Section>
+  )}
 
   <Section tone="surface" title="Get involved" intro="The community is run by volunteers.">
     <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -216,7 +336,7 @@ const involved = [
             We'll email you a link to confirm. Unsubscribe at any time. See our{' '}
             <a href="/privacy">privacy notice</a>.
           </p>
-          <Turnstile />
+          <Turnstile script={!memberForm} />
           <div>
             <Button type="submit">Subscribe</Button>
           </div>
@@ -236,7 +356,7 @@ const involved = [
         action="/join#contact"
         {...contact}
         topic={topicFromQuery(Astro.url.searchParams.get('topic'))}
-        turnstileScript={news.sent}
+        turnstileScript={news.sent && !memberForm}
       />
     </div>
     {settings.socials.linkedin && (

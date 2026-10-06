@@ -1,10 +1,10 @@
 ---
-import { and, asc, count, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
 import { getDb } from '../../db';
-import { events, organisations, posts, submissions } from '../../db/schema';
+import { events, members, organisations, posts, submissions } from '../../db/schema';
 import { registrationCount } from '../../lib/registrations';
 import { loadContacts } from '../../lib/contacts';
 import { moderationQueue } from '../../lib/cron-directory';
@@ -31,7 +31,17 @@ const myLater = tasks.filter((t) => t.owner === me && t.state === 'later').lengt
 const lateAll = tasks.filter((t) => t.state === 'late');
 const unowned = tasks.filter((t) => !t.owner && t.state !== 'later').length;
 const myMessages = mine[0]?.n ?? 0;
-const [queue, upcoming, [drafts], [unread], [listed], [renewSoon], contacts] = await Promise.all([
+const [
+  queue,
+  upcoming,
+  [drafts],
+  [unread],
+  [listed],
+  [renewSoon],
+  contacts,
+  [active],
+  [unreviewed],
+] = await Promise.all([
   moderationQueue(),
   db
     .select({
@@ -61,6 +71,11 @@ const [queue, upcoming, [drafts], [unread], [listed], [renewSoon], contacts] = a
       ),
     ),
   loadContacts(now),
+  db.select({ n: count() }).from(members).where(eq(members.status, 'active')),
+  db
+    .select({ n: count() })
+    .from(members)
+    .where(and(eq(members.status, 'active'), isNull(members.reviewedAt))),
 ]);
 const queueAges = [
   ...queue.pendingOrgs.map((o) => o.submittedAt ?? o.updatedAt),
@@ -85,6 +100,12 @@ const stats = [
     value: listed!.n,
     href: '/admin/ecosystem?tab=all',
     note: `${renewSoon!.n} renewals in the next 30 days`,
+  },
+  {
+    label: 'Members',
+    value: active!.n,
+    href: '/admin/members',
+    note: unreviewed!.n ? `${unreviewed!.n} to review` : 'All reviewed',
   },
   {
     label: 'Contacts',

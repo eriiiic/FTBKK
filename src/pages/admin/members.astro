@@ -1,0 +1,344 @@
+---
+import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+import Badge from '../../components/Badge.astro';
+import { getDb } from '../../db';
+import { members } from '../../db/schema';
+import { fieldErrors, formToObject } from '../../lib/forms';
+import { formatDate } from '../../lib/format';
+import { getSettings } from '../../lib/settings';
+import {
+  MEMBER_STATUSES,
+  MemberAdminAction,
+  NATIONALITY_GROUPS,
+  PROFILE_TYPES,
+  applyMemberAction,
+  type MemberStatus,
+  type ProfileType,
+} from '../../lib/members';
+
+// Free individual members. New members are active as soon as they confirm their email; the
+// board reviews them afterwards here (To review), and can suspend anyone.
+const actor = Astro.locals.adminEmail ?? 'admin';
+const params = Astro.url.searchParams;
+const tab = params.get('tab') === 'all' ? 'all' : 'review';
+let error = '';
+const done = params.get('done');
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = MemberAdminAction.safeParse(formToObject(form, ['ids']));
+  if (!parsed.success) error = Object.values(fieldErrors(parsed.error)).join(' ');
+  else {
+    const message = await applyMemberAction(parsed.data, actor);
+    const back = new URL(Astro.url);
+    back.searchParams.set('done', message);
+    return Astro.redirect(`${back.pathname}${back.search}`, 303);
+  }
+}
+
+const status = params.get('status') ?? '';
+const type = params.get('type') ?? '';
+const nationality = params.get('nationality') ?? '';
+const q = (params.get('q') ?? '').trim().slice(0, 100);
+const filters: (SQL | undefined)[] =
+  tab === 'review'
+    ? [eq(members.status, 'active'), isNull(members.reviewedAt)]
+    : [
+        status in MEMBER_STATUSES ? eq(members.status, status as MemberStatus) : undefined,
+        type in PROFILE_TYPES ? eq(members.profileType, type) : undefined,
+        nationality in NATIONALITY_GROUPS ? eq(members.nationality, nationality) : undefined,
+        q
+          ? or(
+              like(members.name, `%${q}%`),
+              like(members.email, `%${q}%`),
+              like(members.company, `%${q}%`),
+            )
+          : undefined,
+      ];
+const db = getDb();
+const [rows, counts, settings] = await Promise.all([
+  db
+    .select()
+    .from(members)
+    .where(and(...filters))
+    .orderBy(desc(members.createdAt))
+    .limit(1000),
+  db.select({ status: members.status, reviewedAt: members.reviewedAt }).from(members),
+  getSettings(),
+]);
+const total = (s: MemberStatus) => counts.filter((c) => c.status === s).length;
+const toReview = counts.filter((c) => c.status === 'active' && !c.reviewedAt).length;
+const tone = {
+  pending: 'neutral',
+  active: 'success',
+  suspended: 'danger',
+  lapsed: 'warning',
+} as const;
+const select = 'rounded-lg border border-line px-3 py-1.5';
+---
+
+<AdminLayout title="Members">
+  <p class="mb-4 max-w-3xl text-sm text-muted">
+    Free individual membership from the Join page. People are members as soon as they confirm their
+    email; the board then reviews each new member (every Monday the Board role gets the list by
+    email). Suspend anyone who should not be in the community: they lose the member page's WhatsApp
+    link. {total('active')} active, {total('pending')} not confirmed yet, {total('suspended')}{' '}
+    suspended.
+  </p>
+  {!settings.memberSignupOpen && (
+    <Alert tone="warning" class="mb-4">
+      Sign-up is closed: the form on the Join page shows once you tick "Open free individual
+      membership" in <a href="/admin/settings">Settings</a>.
+    </Alert>
+  )}
+  {done && (
+    <Alert tone="success" class="mb-4">
+      {done}
+    </Alert>
+  )}
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+
+  <nav aria-label="Member lists" class="mb-4 flex flex-wrap gap-2">
+    {[
+      ['review', `To review (${toReview})`],
+      ['all', `All members (${counts.length})`],
+    ].map(([key, label]) => (
+      <a
+        href={`?tab=${key}`}
+        aria-current={key === tab ? 'page' : undefined}
+        class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper"
+      >
+        {label}
+      </a>
+    ))}
+  </nav>
+
+  <div class="admin-panel overflow-x-auto">
+    {tab === 'all' && (
+      <form method="get" role="search" class="mb-4 flex flex-wrap gap-2">
+        <input type="hidden" name="tab" value="all" />
+        <label for="q" class="sr-only">
+          Search
+        </label>
+        <input
+          id="q"
+          name="q"
+          value={q}
+          placeholder="Name, email or company"
+          class="rounded-lg border border-line px-3 py-1.5"
+        />
+        <label for="status" class="sr-only">
+          Status
+        </label>
+        <select id="status" name="status" class={select}>
+          <option value="">All statuses</option>
+          {Object.entries(MEMBER_STATUSES).map(([k, label]) => (
+            <option value={k} selected={k === status}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <label for="type" class="sr-only">
+          Profile
+        </label>
+        <select id="type" name="type" class={select}>
+          <option value="">All profiles</option>
+          {Object.entries(PROFILE_TYPES).map(([k, label]) => (
+            <option value={k} selected={k === type}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <label for="nationality" class="sr-only">
+          Nationality
+        </label>
+        <select id="nationality" name="nationality" class={select}>
+          <option value="">All nationalities</option>
+          {Object.entries(NATIONALITY_GROUPS).map(([k, label]) => (
+            <option value={k} selected={k === nationality}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <Button type="submit" size="sm" variant="secondary">
+          Filter
+        </Button>
+      </form>
+    )}
+
+    {rows.length === 0 ? (
+      <p class="text-muted">
+        {tab === 'review' ? 'Nobody to review. 🎉' : 'No members match these filters.'}
+      </p>
+    ) : (
+      <form method="post" data-bulk>
+        <div
+          data-bulk-bar
+          hidden
+          class="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-navy p-3 text-paper"
+        >
+          <p class="mr-auto text-sm font-semibold" aria-live="polite">
+            <span data-bulk-count>0</span> selected
+          </p>
+          <Button type="submit" size="sm" variant="light" name="action" value="review">
+            Mark as reviewed
+          </Button>
+          <Button type="submit" size="sm" variant="light" name="action" value="link">
+            Email their member link
+          </Button>
+          <Button type="submit" size="sm" variant="light" name="action" value="reactivate">
+            Reactivate
+          </Button>
+          <span class="flex flex-wrap items-center gap-2">
+            <label for="reason" class="sr-only">
+              Reason for suspending
+            </label>
+            <input
+              id="reason"
+              name="reason"
+              placeholder="Reason (for the team)"
+              class="rounded-lg border border-paper/40 bg-navy px-2 py-1 text-sm text-paper placeholder:text-paper/60"
+            />
+            <Button type="submit" size="sm" variant="light" name="action" value="suspend">
+              Suspend
+            </Button>
+          </span>
+          <Button
+            type="submit"
+            size="sm"
+            name="action"
+            value="delete"
+            data-confirm="Delete the selected members? Their event registrations stay (delete those from Contacts)."
+          >
+            Delete
+          </Button>
+        </div>
+        <table class="admin-table" data-sortable>
+          <thead>
+            <tr>
+              <th data-nosort class="w-8">
+                <input
+                  type="checkbox"
+                  data-bulk-all
+                  aria-label="Select all members shown"
+                  class="size-4 accent-brand"
+                />
+              </th>
+              <th>Name</th>
+              <th>Company</th>
+              <th>Profile</th>
+              <th>Sectors</th>
+              <th>Status</th>
+              <th>Joined</th>
+              <th data-nosort>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr>
+                <td>
+                  <input
+                    type="checkbox"
+                    name="ids"
+                    value={m.id}
+                    aria-label={`Select ${m.name}`}
+                    class="size-4 accent-brand"
+                  />
+                </td>
+                <td>
+                  <a href={`/admin/contacts/view?c=${encodeURIComponent(m.email)}`}>{m.name}</a>
+                  <span class="block text-xs break-all text-muted">{m.email}</span>
+                  {m.linkedin && (
+                    <a href={m.linkedin} rel="noopener" class="text-xs">
+                      LinkedIn
+                    </a>
+                  )}
+                </td>
+                <td>
+                  {m.company ?? ''}
+                  {m.jobTitle && <span class="block text-xs text-muted">{m.jobTitle}</span>}
+                </td>
+                <td>
+                  {PROFILE_TYPES[m.profileType as ProfileType] ?? m.profileType}
+                  {m.nationality && (
+                    <span class="block text-xs text-muted">
+                      {NATIONALITY_GROUPS[m.nationality as keyof typeof NATIONALITY_GROUPS]}
+                    </span>
+                  )}
+                </td>
+                <td class="text-xs">{m.interests.join(', ')}</td>
+                <td>
+                  <Badge tone={tone[m.status]}>{MEMBER_STATUSES[m.status]}</Badge>
+                  {m.status === 'active' && !m.reviewedAt && (
+                    <span class="block text-xs text-muted">Not reviewed</span>
+                  )}
+                  {m.reviewedBy && (
+                    <span class="block text-xs text-muted">Reviewed by {m.reviewedBy}</span>
+                  )}
+                  {m.suspendedReason && (
+                    <span class="block text-xs text-muted">{m.suspendedReason}</span>
+                  )}
+                </td>
+                <td class="whitespace-nowrap text-muted" data-sort={m.createdAt.getTime()}>
+                  {formatDate(m.confirmedAt ?? m.createdAt)}
+                  {m.howHeard && <span class="block text-xs">{m.howHeard}</span>}
+                </td>
+                <td class="min-w-48">
+                  <textarea
+                    id={`notes-${m.id}`}
+                    aria-label={`Notes on ${m.name}`}
+                    name="notes"
+                    form={`n-${m.id}`}
+                    rows={2}
+                    maxlength={4000}
+                    class="w-full rounded-lg border border-line px-2 py-1 text-xs"
+                    set:text={m.notes ?? ''}
+                  />
+                  <button type="submit" form={`n-${m.id}`} class="text-xs text-accent underline">
+                    Save note
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </form>
+    )}
+    {rows.map((m) => (
+      <form id={`n-${m.id}`} method="post" hidden>
+        <input type="hidden" name="action" value="notes" />
+        <input type="hidden" name="ids" value={m.id} />
+      </form>
+    ))}
+  </div>
+  <script>
+    // Bulk selection: a bar with the count and actions appears once a row is ticked.
+    const form = document.querySelector<HTMLFormElement>('form[data-bulk]');
+    if (form) {
+      const bar = form.querySelector<HTMLElement>('[data-bulk-bar]')!;
+      const count = form.querySelector<HTMLElement>('[data-bulk-count]')!;
+      const all = form.querySelector<HTMLInputElement>('[data-bulk-all]')!;
+      const boxes = () => [...form.querySelectorAll<HTMLInputElement>('input[name="ids"]')];
+      const update = () => {
+        const ticked = boxes().filter((b) => b.checked).length;
+        count.textContent = String(ticked);
+        bar.hidden = ticked === 0;
+        all.checked = ticked > 0 && ticked === boxes().length;
+        all.indeterminate = ticked > 0 && !all.checked;
+      };
+      form.addEventListener('change', update);
+      all.addEventListener('change', () => {
+        for (const b of boxes()) b.checked = all.checked;
+        update();
+      });
+      update();
+    }
+  </script>
+</AdminLayout>

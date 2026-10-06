@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Section from '../../components/Section.astro';
+import Alert from '../../components/Alert.astro';
+import Button from '../../components/Button.astro';
+import { confirmMembership, memberPagePath } from '../../lib/members';
+import { peekToken } from '../../lib/tokens';
+
+// Membership confirmation link from the sign-up email. GET only shows a button, so email link
+// scanners can't confirm anyone; the button POSTs, then opens the member page.
+const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
+let valid = true;
+if (Astro.request.method === 'POST') {
+  const done = await confirmMembership(token);
+  if (done) return Astro.redirect(`${memberPagePath(done.link)}&welcome=1`, 303);
+  valid = false;
+} else valid = Boolean(token && (await peekToken(token, 'member_confirm')));
+---
+
+<BaseLayout title="Confirm your membership" noindex cache={false}>
+  <Section>
+    <div class="max-w-xl">
+      <h1 class="text-3xl">Confirm your membership</h1>
+      {valid ? (
+        <form method="post" class="mt-6 grid gap-4">
+          <p>
+            One click to confirm your email and start your free La French Tech Bangkok membership.
+          </p>
+          <div>
+            <Button type="submit">Confirm my membership</Button>
+          </div>
+        </form>
+      ) : (
+        <div class="mt-6 grid gap-4">
+          <Alert tone="warning">
+            This link has expired or was already used. If you already confirmed, ask for a link to
+            your member page; otherwise sign up again on the Join page.
+          </Alert>
+          <div class="flex flex-wrap gap-2">
+            <Button href="/member">Send me my member link</Button>
+            <Button href="/join#become-member" variant="secondary">
+              Go to the Join page
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  </Section>
+</BaseLayout>
