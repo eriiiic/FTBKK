@@ -8,6 +8,7 @@ import { clientIp, email, fieldErrors, formToObject, optionalText } from './form
 import { verifyTurnstile } from './turnstile';
 import { rateLimit } from './ratelimit';
 import { sendEmail } from './email';
+import { renderTemplate } from './email-templates';
 import { CONTACT_TOPICS, blockedBy, topicLabel, type ContactTopic } from './messages';
 import { defaultOwners, loadTeam } from './ownership';
 import type { Settings } from './settings';
@@ -88,12 +89,17 @@ export async function handleContactForm(
         body: `Arrived in Spam (sender ${blocked} is blocked)`,
         author: 'website',
       });
-  if (!blocked)
+  if (!blocked) {
+    const w = await renderTemplate('admin.contact-form', {
+      name: data.name,
+      topic: topicLabel(data.topic),
+      message: data.message,
+    });
     await sendEmail({
       to: [...new Set([settings.contactEmail, ...(assignee ? [assignee] : [])])],
       replyTo: data.email,
-      subject: `Website contact (${topicLabel(data.topic)}): ${data.name}`,
-      paragraphs: [data.message],
+      subject: w.subject,
+      paragraphs: w.paragraphs,
       details: [
         ['From', `${data.name} <${data.email}>`],
         ['Company', data.company ?? '-'],
@@ -103,5 +109,6 @@ export async function handleContactForm(
       ],
       footer: 'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
     });
+  }
   return { values: {}, sent: true, errors: {} };
 }

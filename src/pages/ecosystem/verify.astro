@@ -9,6 +9,7 @@ import { organisations } from '../../db/schema';
 import { consumeToken } from '../../lib/tokens';
 import { audit, moderatorEmails, orgById, siteUrl } from '../../lib/orgs';
 import { sendEmail } from '../../lib/email';
+import { renderTemplate } from '../../lib/email-templates';
 
 // Email verification for a new listing request. GET shows a button so link scanners can't verify.
 const token = Astro.url.searchParams.get('token');
@@ -32,19 +33,17 @@ if (Astro.request.method === 'POST') {
       { status: 'unverified' },
       { status: 'pending' },
     );
+    const w = await renderTemplate('admin.listing-to-review', { org: org.name, email: row.email });
     await sendEmail({
       to: await moderatorEmails(),
-      subject: `New directory listing to review: ${org.name}`,
-      paragraphs: [
-        `${org.name} asked to be listed in the ecosystem directory and verified ${row.email}.`,
-        'Target: answer within 5 days.',
-      ],
+      subject: w.subject,
+      paragraphs: w.paragraphs,
       details: [
         ['Category', org.category],
         ['Website', org.website ?? '-'],
         ['Pitch', org.pitch ?? '-'],
       ],
-      action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+      action: { label: w.buttonLabel, url: siteUrl('/admin/ecosystem') },
     });
     state = 'ok';
     orgName = org.name;

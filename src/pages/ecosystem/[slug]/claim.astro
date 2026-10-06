@@ -14,6 +14,7 @@ import { verifyTurnstile } from '../../../lib/turnstile';
 import { rateLimit } from '../../../lib/ratelimit';
 import { issueToken } from '../../../lib/tokens';
 import { sendEmail } from '../../../lib/email';
+import { renderTemplate } from '../../../lib/email-templates';
 
 const org = await orgBySlug(Astro.params.slug!);
 if (!org || org.status !== 'published') return Astro.rewrite('/404');
@@ -54,14 +55,12 @@ if (Astro.request.method === 'POST' && !claimed) {
       })
       .returning({ id: claims.id });
     const token = await issueToken('claim', parsed.data.email, { orgId: org.id, refId: claim!.id });
+    const w = await renderTemplate('directory.claim-confirm', { org: org.name });
     await sendEmail({
       to: parsed.data.email,
-      subject: `Confirm your claim for ${org.name}`,
-      paragraphs: [
-        `You asked to manage the ${org.name} listing in La French Tech Bangkok's directory.`,
-        'Confirm your email and a moderator will approve the claim, usually within 5 days.',
-      ],
-      action: { label: 'Confirm my email', url: siteUrl(`/ecosystem/claim/verify?token=${token}`) },
+      subject: w.subject,
+      paragraphs: w.paragraphs,
+      action: { label: w.buttonLabel, url: siteUrl(`/ecosystem/claim/verify?token=${token}`) },
     });
     sent = true;
   }

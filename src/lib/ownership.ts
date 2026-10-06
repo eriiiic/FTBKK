@@ -7,6 +7,7 @@ import { eventTasks, events, teamMembers, type TeamMember } from '../db/schema';
 import { DAY_MS } from './lifecycle';
 import { TZ, formatDate } from './format';
 import { sendEmail } from './email';
+import { EMAIL_TEMPLATES, applyTemplate, loadTemplateText } from './email-templates';
 import { siteUrl } from './orgs';
 
 export const TEAM_ROLES = {
@@ -317,23 +318,26 @@ export async function applyTaskAction(
  */
 export async function sendOwnerDigests(now: Date) {
   const [team, tasks] = await Promise.all([loadTeam(), openTasks(now)]);
+  const text = await loadTemplateText('team.weekly-digest');
   let sent = 0;
   for (const m of team) {
     const mine = tasks.filter((t) => t.owner === m.email && t.state !== 'later');
     if (!mine.length) continue;
     const late = mine.filter((t) => t.state === 'late').length;
+    const w = applyTemplate(EMAIL_TEMPLATES['team.weekly-digest'], text, {
+      name: m.name.split(' ')[0]!,
+      count: String(mine.length),
+      late: late ? ` (${late} late)` : '',
+      tasks: mine.map(
+        (t) =>
+          `${t.state === 'late' ? 'LATE: ' : ''}${t.eventTitle}: ${t.title} (due ${formatDate(t.due, { year: undefined })})`,
+      ),
+    });
     await sendEmail({
       to: m.email,
-      subject: `Your French Tech Bangkok tasks this week: ${mine.length}${late ? ` (${late} late)` : ''}`,
-      paragraphs: [
-        `Hi ${m.name.split(' ')[0]}, here is what is on your plate for the coming week.`,
-        ...mine.map(
-          (t) =>
-            `${t.state === 'late' ? 'LATE: ' : ''}${t.eventTitle}: ${t.title} (due ${formatDate(t.due, { year: undefined })})`,
-        ),
-        'Tick a step as done on the event checklist in the admin, or hand it to someone else there.',
-      ],
-      action: { label: 'Open my tasks', url: siteUrl('/admin') },
+      subject: w.subject,
+      paragraphs: w.paragraphs,
+      action: { label: w.buttonLabel, url: siteUrl('/admin') },
     });
     sent++;
   }

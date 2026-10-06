@@ -286,16 +286,31 @@ them in Settings > Directory moderators.
 
 ## Emails
 
-**Content > Emails** lists the emails the site sends by itself (registration confirmed, waitlist,
-seat freed, the reminder the day before, event cancelled, the feedback request, the newsletter
-confirmation, the "your data" link), grouped, with who gets each one and when. A **Default** badge
-means the text the site came with; **Edited** shows when and by whom.
+**Content > Emails** lists every email the site sends by itself, grouped, with who gets each one
+and when:
+
+- **Events**: registration confirmed, waitlist, seat freed, the reminder the day before, event
+  cancelled, the feedback request.
+- **Ecosystem** (to the people who list or manage an organisation): listing request to confirm,
+  listing published or declined, the link to manage a listing, the yearly check (and its last
+  day), listing hidden, invitation to claim, claim to confirm, claim approved or declined, changes
+  published or declined, membership approved or declined.
+- **Community**: the newsletter confirmation. **Privacy**: the "your data" link.
+- **Team**: the Monday email with each member's tasks.
+- **Admin notifications** (to the team): a contact form message, a new listing, a claim, a
+  listing change and a membership application to review, and the Monday directory summary.
+
+A **Default** badge means the text the site came with; **Edited** shows when and by whom.
 
 Open an email to change its **subject**, **message** (plain text, an empty line between
 paragraphs) and **button label**. Placeholders in braces are replaced in each email: `{name}`
 (the person's name), `{event}` (the event title), `{date}` (day and time), `{venue}` (venue and
-address). The list under the form shows which ones that email knows; click one to insert it. A
-placeholder the email doesn't know is sent as typed, and the page warns you.
+address), `{org}` (the organisation), `{reason}` (what the moderator typed when declining), and
+others per email. The list under the form shows which ones that email knows; click one to insert
+it. A placeholder the email doesn't know is sent as typed, and the page warns you. Some must stay
+in the text (marked "must stay"): the reason of a refusal, the contact form message, the
+membership motivation, and the lists the site builds (`{tasks}` in the weekly tasks, `{renewals}`
+in the directory summary). Put a list on a line of its own to get one paragraph per item.
 
 - **Preview** shows the email in its real layout with sample values, without saving.
 - **Send me a test** emails that preview to you, subject starting with "[Test]".

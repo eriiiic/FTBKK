@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMAIL_TEMPLATES,
+  NO_REASON,
   TEMPLATE_KEYS,
+  type TemplateVars,
   applyTemplate,
   checkPlaceholders,
   eventVars,
@@ -230,5 +232,241 @@ describe('edited templates', () => {
       vars,
     );
     expect(w).toEqual(t('event.cancelled'));
+  });
+});
+
+describe('directory, team and admin emails', () => {
+  const d = (key: keyof typeof EMAIL_TEMPLATES, v: TemplateVars) =>
+    applyTemplate(EMAIL_TEMPLATES[key], null, v);
+  const org = 'Acme';
+
+  it('reproduce the wording they had before they became editable', () => {
+    expect(d('directory.submit-confirm', { name: 'Ann', org })).toEqual({
+      subject: 'Confirm your listing request for Acme',
+      paragraphs: [
+        "Hi Ann, thanks for adding Acme to La French Tech Bangkok's ecosystem directory.",
+        'Please confirm your email address. We review every request and aim to answer within 5 days.',
+        'This link expires in 7 days.',
+      ],
+      buttonLabel: 'Confirm my email',
+    });
+    expect(d('directory.listing-approved', { org })).toEqual({
+      subject: 'Acme is now listed on La French Tech Bangkok',
+      paragraphs: [
+        "Good news: Acme is now published in La French Tech Bangkok's ecosystem directory.",
+        "Once a year we'll ask you to confirm the listing is still accurate, so the directory stays reliable. You can update it any time from the link below.",
+      ],
+      buttonLabel: 'See your listing',
+    });
+    expect(d('directory.listing-rejected', { org, reason: 'Too vague.' })).toEqual({
+      subject: 'Your listing request for Acme',
+      paragraphs: [
+        "Thank you for submitting Acme to La French Tech Bangkok's ecosystem directory. We couldn't publish it as it is:",
+        'Too vague.',
+        'You are welcome to submit it again with the changes.',
+      ],
+      buttonLabel: 'Submit again',
+    });
+    expect(d('directory.manage-link', { listings: 'your 2 listings' })).toEqual({
+      subject: 'Your link to manage your French Tech Bangkok listing',
+      paragraphs: [
+        'Use the button below to update your 2 listings. The link works once and expires in 30 minutes.',
+        "If you didn't ask for this, you can ignore this email.",
+      ],
+      buttonLabel: 'Manage my listing',
+    });
+    const renewal = [
+      "Once a year we ask every organisation in La French Tech Bangkok's directory to confirm its listing, so the directory only shows organisations that are really active.",
+      'Please confirm Acme by 1 Dec 2026. One click is enough if nothing changed. Listings that are not confirmed are hidden 30 days after that date.',
+    ];
+    expect(d('directory.renewal-reminder', { org, due: '1 Dec 2026' })).toEqual({
+      subject: 'Is your Acme listing still accurate?',
+      paragraphs: renewal,
+      buttonLabel: 'Yes, it is still accurate',
+    });
+    expect(d('directory.renewal-today', { org, due: '1 Dec 2026' })).toEqual({
+      subject: 'Today: is the Acme listing still accurate?',
+      paragraphs: renewal,
+      buttonLabel: 'Yes, it is still accurate',
+    });
+    expect(d('directory.hidden', { org })).toEqual({
+      subject: 'Acme is now hidden from the directory',
+      paragraphs: [
+        "We didn't get a confirmation for Acme, so the listing is now hidden from La French Tech Bangkok's directory.",
+        'You can bring it back at any time in the next 12 months with one click.',
+      ],
+      buttonLabel: 'Reactivate my listing',
+    });
+    expect(d('directory.claim-invite', { org })).toEqual({
+      subject: "Acme is listed in La French Tech Bangkok's directory",
+      paragraphs: [
+        "Acme is listed in La French Tech Bangkok's ecosystem directory, but nobody manages the listing yet.",
+        'Claim it to keep it accurate: update the description, logo and links, and confirm it once a year. It is free.',
+      ],
+      buttonLabel: 'Claim the listing',
+    });
+    expect(d('directory.claim-confirm', { org })).toEqual({
+      subject: 'Confirm your claim for Acme',
+      paragraphs: [
+        "You asked to manage the Acme listing in La French Tech Bangkok's directory.",
+        'Confirm your email and a moderator will approve the claim, usually within 5 days.',
+      ],
+      buttonLabel: 'Confirm my email',
+    });
+    expect(d('directory.claim-approved', { org })).toEqual({
+      subject: 'You can now manage Acme on La French Tech Bangkok',
+      paragraphs: [
+        "Your request was approved: you can now update the Acme listing in La French Tech Bangkok's ecosystem directory.",
+        'Once a year we will ask you to confirm the listing is still accurate.',
+      ],
+      buttonLabel: 'Update the listing',
+    });
+    expect(d('directory.claim-rejected', { org, reason: NO_REASON })).toEqual({
+      subject: 'Your request to manage Acme',
+      paragraphs: [
+        "We could not approve your request to manage Acme in La French Tech Bangkok's directory:",
+        'No reason given.',
+        'Reply to this email if you think this is a mistake.',
+      ],
+      buttonLabel: '',
+    });
+    expect(d('directory.change-approved', { org })).toEqual({
+      subject: 'Your changes to Acme are live',
+      paragraphs: [
+        'A moderator approved your changes to Acme. They are now visible in the directory.',
+      ],
+      buttonLabel: 'See the listing',
+    });
+    expect(d('directory.change-rejected', { org, reason: 'Logo too small.' })).toEqual({
+      subject: 'Your changes to Acme were not published',
+      paragraphs: ['A moderator could not publish your changes to Acme:', 'Logo too small.'],
+      buttonLabel: 'Update the listing',
+    });
+    expect(d('membership.approved', { org })).toEqual({
+      subject: 'Welcome to La French Tech Bangkok, Acme',
+      paragraphs: [
+        'The board approved Acme as a member of La French Tech Bangkok. Your listing now shows the Member badge.',
+        'We will share member news and perks by email.',
+      ],
+      buttonLabel: 'See the listing',
+    });
+    expect(d('membership.rejected', { org, reason: 'Not active.' })).toEqual({
+      subject: 'Your membership application for Acme',
+      paragraphs: ['The board could not approve the membership of Acme for now:', 'Not active.'],
+      buttonLabel: 'See the listing',
+    });
+    expect(
+      d('team.weekly-digest', {
+        name: 'Ann',
+        count: '2',
+        late: ' (1 late)',
+        tasks: ['LATE: Connect: Book (due 2 Nov)', 'Connect: Invite (due 6 Nov)'],
+      }),
+    ).toEqual({
+      subject: 'Your French Tech Bangkok tasks this week: 2 (1 late)',
+      paragraphs: [
+        'Hi Ann, here is what is on your plate for the coming week.',
+        'LATE: Connect: Book (due 2 Nov)',
+        'Connect: Invite (due 6 Nov)',
+        'Tick a step as done on the event checklist in the admin, or hand it to someone else there.',
+      ],
+      buttonLabel: 'Open my tasks',
+    });
+    expect(
+      d('admin.contact-form', { name: 'Ann', topic: 'Events', message: 'Hello {name}\n\nBye' }),
+    ).toEqual({
+      subject: 'Website contact (Events): Ann',
+      paragraphs: ['Hello {name}\n\nBye'],
+      buttonLabel: '',
+    });
+    expect(d('admin.listing-to-review', { org, email: 'a@acme.com' })).toEqual({
+      subject: 'New directory listing to review: Acme',
+      paragraphs: [
+        'Acme asked to be listed in the ecosystem directory and verified a@acme.com.',
+        'Target: answer within 5 days.',
+      ],
+      buttonLabel: 'Review in the admin',
+    });
+    expect(
+      d('admin.claim-to-review', {
+        name: 'Ann',
+        role: 'no role given',
+        email: 'a@acme.com',
+        org,
+        'domain-check': 'The email domain matches the website.',
+      }),
+    ).toEqual({
+      subject: 'Listing claim to review: Acme',
+      paragraphs: [
+        'Ann (no role given) verified a@acme.com and asks to manage Acme.',
+        'The email domain matches the website.',
+      ],
+      buttonLabel: 'Review in the admin',
+    });
+    expect(
+      d('admin.change-to-review', { email: 'a@acme.com', fields: 'name, pitch', org }),
+    ).toEqual({
+      subject: 'Listing change to review: Acme',
+      paragraphs: ['a@acme.com asked to change name, pitch on Acme.'],
+      buttonLabel: 'Review in the admin',
+    });
+    expect(d('admin.membership-application', { org, motivation: 'We hire.' })).toEqual({
+      subject: 'Membership application: Acme',
+      paragraphs: ['Acme applied for the free French Tech Bangkok membership.', 'We hire.'],
+      buttonLabel: 'Review in the admin',
+    });
+    const digest = (items: string, oldest: string, renewals: string[]) =>
+      d('admin.directory-digest', { items, oldest, target: '5', renewals });
+    expect(digest('1 item', '', [])).toEqual({
+      subject: 'Directory: 1 item to review',
+      paragraphs: ['Weekly summary of the ecosystem directory. Target: answer within 5 days.'],
+      buttonLabel: 'Open the moderation queue',
+    });
+    expect(digest('3 items', ' (oldest 9 days)', ['Renewal due: Acme, 1 Dec 2026'])).toEqual({
+      subject: 'Directory: 3 items to review (oldest 9 days)',
+      paragraphs: [
+        'Weekly summary of the ecosystem directory. Target: answer within 5 days.',
+        'Renewal due: Acme, 1 Dec 2026',
+      ],
+      buttonLabel: 'Open the moderation queue',
+    });
+  });
+
+  it('keep the lists and reasons required', () => {
+    const def = EMAIL_TEMPLATES['team.weekly-digest'];
+    expect(
+      templateSchema(def).safeParse({ subject: 'S', body: 'Hi {name}', buttonLabel: 'Go' }).success,
+    ).toBe(false);
+    expect(EMAIL_TEMPLATES['directory.claim-rejected'].required).toEqual(['reason']);
+  });
+});
+
+describe('list placeholders', () => {
+  const def = EMAIL_TEMPLATES['team.weekly-digest'];
+  const vars = { name: 'Ann', count: '2', late: '', tasks: ['One', 'Two'] };
+
+  it('become one paragraph per item on a line of their own', () => {
+    const w = applyTemplate(
+      def,
+      { subject: 'Tasks: {tasks}', body: 'A\n\n{tasks}\n\nB', buttonLabel: 'Go' },
+      vars,
+    );
+    expect(w.subject).toBe('Tasks: One, Two');
+    expect(w.paragraphs).toEqual(['A', 'One', 'Two', 'B']);
+  });
+
+  it('are joined with line breaks inside a sentence', () => {
+    const w = applyTemplate(
+      def,
+      { subject: 'S', body: 'Your steps: {tasks}', buttonLabel: 'Go' },
+      vars,
+    );
+    expect(w.paragraphs).toEqual(['Your steps: One\nTwo']);
+  });
+
+  it('use the sample items in the admin preview', () => {
+    const m = sampleEmail(def, defaultText(def));
+    expect(m.paragraphs.length).toBe(5);
+    expect(m.paragraphs[1]).toMatch(/^LATE: /);
   });
 });

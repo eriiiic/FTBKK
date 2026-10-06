@@ -243,8 +243,13 @@ const hasButton = def.buttonLabel !== undefined;
                   >
                     {`{${p.key}}`}
                   </button>
-                  <span>{p.description}</span>
-                  <span class="text-muted">e.g. {p.sample}</span>
+                  <span>
+                    {p.description}
+                    {def.required?.includes(p.key) && (
+                      <span class="font-semibold text-ink"> (must stay in the text)</span>
+                    )}
+                  </span>
+                  <span class="text-muted">e.g. {p.list ? p.sample.split('\n')[0] : p.sample}</span>
                 </li>
               ))}
             </ul>

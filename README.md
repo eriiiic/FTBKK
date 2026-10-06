@@ -66,15 +66,23 @@ events, registrations, check-in, stats), **Community** (contacts, messages, boar
 and **Team** (team and roles, settings). See [docs/admin.md](docs/admin.md).
 
 **Emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
-Community, Privacy), each with who receives it, when it goes out and whether its text is the
+Ecosystem, Community, Privacy, Team, Admin notifications), each with who receives it, when it goes out and whether its text is the
 default or edited (when, by whom). Opening one edits its subject, message and button label, with
 placeholders such as `{name}`, `{event}`, `{date}` and `{venue}`, a preview in the real email
 layout with sample values, **Send me a test** and **Back to the default text**. Only the words
 are editable: dates, venue, logos, the ticket, links and attachments stay in the code. Edits are
 rows in the `email_templates` table; without a row (or if the table can't be read) the built-in
-default from `src/lib/email-templates.ts` is used. Templated so far: registration confirmed,
-waitlist, seat freed, reminder, event cancelled, feedback request, newsletter confirmation and the
-"your data" link. "Email registrants" is written each time, so it is listed but not a template.
+default from `src/lib/email-templates.ts` is used. Every automatic email is a template: the
+event emails (registration confirmed, waitlist, seat freed, reminder, cancelled, feedback request),
+the directory emails to listing owners (listing request, published, declined, manage link, yearly
+check and last day, hidden, claim invitation, claim confirm/approved/declined, changes
+published/declined, membership approved/declined), the newsletter confirmation, the "your data"
+link, the team's weekly tasks, and the notifications to the team (contact form message, new
+listing, claim, listing change and membership application to review, weekly directory summary).
+Lists built by the site (the steps of the weekly tasks, the renewals of the directory summary) are
+placeholders (`{tasks}`, `{renewals}`) that must stay in the text, like a rejection `{reason}` or
+the contact form `{message}`. "Email registrants" is written each time, so it is listed but not a
+template.
 
 **Who owns what.** Team and roles lists the organising team (name, the email they sign in with,
 roles: event lead, board go/no-go, communication, check-in at the door, directory reviews,
