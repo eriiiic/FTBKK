@@ -8,6 +8,7 @@ import { issueToken } from './tokens';
 import { sendEmail } from './email';
 import { siteUrl } from './orgs';
 import { audit } from './orgs';
+import { renderTemplate } from './email-templates';
 
 export const NewsletterSchema = z.object({
   name: z.string().trim().min(1, 'Tell us your name.').max(120),
@@ -21,15 +22,13 @@ export function newsletterConfirmPath(token: string, name: string) {
 
 export async function sendNewsletterConfirmation(data: z.infer<typeof NewsletterSchema>) {
   const token = await issueToken('newsletter', data.email);
+  const w = await renderTemplate('newsletter.confirm', { name: data.name });
   await sendEmail({
     to: data.email,
-    subject: 'Confirm your subscription to the La French Tech Bangkok newsletter',
-    paragraphs: [
-      `Hi ${data.name}, thanks for signing up. Please confirm it's you: we'll then send you our news, upcoming events and the community's highlights, about once a month.`,
-      "Didn't sign up? Ignore this email and nothing happens.",
-    ],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     action: {
-      label: 'Confirm my subscription',
+      label: w.buttonLabel,
       url: siteUrl(newsletterConfirmPath(token, data.name)),
     },
     footer: 'The link works for 7 days. You can unsubscribe at any time.',

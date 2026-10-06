@@ -20,6 +20,7 @@ import {
 } from './lifecycle';
 import { audit, moderatorEmails, sendExpiredNotice, sendRenewalReminder, siteUrl } from './orgs';
 import { sendEmail } from './email';
+import { renderTemplate } from './email-templates';
 import { TZ, formatDate } from './format';
 
 /** Daily directory maintenance. Returns a summary for the logs. */
@@ -155,17 +156,20 @@ export async function sendModeratorDigest(now: Date) {
   const unclaimedDue = expiring.filter((o) => o.owners.length === 0).length;
   const total = ages.length;
   if (!total && !expiring.length) return;
+  const w = await renderTemplate('admin.directory-digest', {
+    items: `${total} item${total === 1 ? '' : 's'}`,
+    oldest: oldest > MODERATION_TARGET_DAYS ? ` (oldest ${oldest} days)` : '',
+    target: String(MODERATION_TARGET_DAYS),
+    renewals: expiring
+      .slice(0, 20)
+      .map((o) =>
+        `Renewal due: ${o.name}, ${o.renewalDueAt ? formatDate(o.renewalDueAt) : ''}${o.owners.length ? '' : ' (unclaimed, invite someone to claim it)'} ${o.renewalDueAt && daysUntil(o.renewalDueAt, now) < 0 ? '(overdue)' : ''}`.trim(),
+      ),
+  });
   await sendEmail({
     to: await moderatorEmails(),
-    subject: `Directory: ${total} item${total === 1 ? '' : 's'} to review${oldest > MODERATION_TARGET_DAYS ? ` (oldest ${oldest} days)` : ''}`,
-    paragraphs: [
-      `Weekly summary of the ecosystem directory. Target: answer within ${MODERATION_TARGET_DAYS} days.`,
-      ...expiring
-        .slice(0, 20)
-        .map((o) =>
-          `Renewal due: ${o.name}, ${o.renewalDueAt ? formatDate(o.renewalDueAt) : ''}${o.owners.length ? '' : ' (unclaimed, invite someone to claim it)'} ${o.renewalDueAt && daysUntil(o.renewalDueAt, now) < 0 ? '(overdue)' : ''}`.trim(),
-        ),
-    ],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     details: [
       ['New listings', String(q.pendingOrgs.length)],
       ['Owner changes', String(q.changes.length)],
@@ -174,6 +178,6 @@ export async function sendModeratorDigest(now: Date) {
       ['Oldest item', `${oldest} days`],
       ['Renewals due this month', `${expiring.length} (${unclaimedDue} unclaimed)`],
     ],
-    action: { label: 'Open the moderation queue', url: siteUrl('/admin/ecosystem') },
+    action: { label: w.buttonLabel, url: siteUrl('/admin/ecosystem') },
   });
 }

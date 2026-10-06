@@ -7,6 +7,7 @@ import { CATEGORY_KEYS, SECTORS, STAGES } from './directory';
 import { email, optionalText, optionalUrl } from './forms';
 import { getSettings } from './settings';
 import { sendEmail } from './email';
+import { renderTemplate } from './email-templates';
 import { issueToken } from './tokens';
 import { renewalDates } from './lifecycle';
 import { formatDate } from './format';
@@ -156,16 +157,14 @@ export async function approveListing(org: Organisation, actor: string, now = new
     { status: org.status },
     { status: 'published' },
   );
+  const w = await renderTemplate('directory.listing-approved', { org: org.name });
   for (const owner of org.ownerEmails) {
     const manage = await issueToken('confirm', owner, { orgId: org.id });
     await sendEmail({
       to: owner,
-      subject: `${org.name} is now listed on La French Tech Bangkok`,
-      paragraphs: [
-        `Good news: ${org.name} is now published in La French Tech Bangkok's ecosystem directory.`,
-        `Once a year we'll ask you to confirm the listing is still accurate, so the directory stays reliable. You can update it any time from the link below.`,
-      ],
-      action: { label: 'See your listing', url: siteUrl(`/ecosystem/${org.slug}`) },
+      subject: w.subject,
+      paragraphs: w.paragraphs,
+      action: { label: w.buttonLabel, url: siteUrl(`/ecosystem/${org.slug}`) },
       links: [
         { label: 'Update your listing', url: siteUrl('/ecosystem/manage') },
         { label: 'Confirm it is accurate', url: siteUrl(`/ecosystem/confirm?token=${manage}`) },
@@ -188,15 +187,12 @@ export async function rejectListing(org: Organisation, reason: string, actor: st
     { status: 'rejected', reason },
   );
   if (org.ownerEmails.length) {
+    const w = await renderTemplate('directory.listing-rejected', { org: org.name, reason });
     await sendEmail({
       to: org.ownerEmails,
-      subject: `Your listing request for ${org.name}`,
-      paragraphs: [
-        `Thank you for submitting ${org.name} to La French Tech Bangkok's ecosystem directory. We couldn't publish it as it is:`,
-        reason,
-        'You are welcome to submit it again with the changes.',
-      ],
-      action: { label: 'Submit again', url: siteUrl('/ecosystem/submit') },
+      subject: w.subject,
+      paragraphs: w.paragraphs,
+      action: { label: w.buttonLabel, url: siteUrl('/ecosystem/submit') },
     });
   }
 }
@@ -226,34 +222,31 @@ export async function sendManageLinks(addr: string) {
   const owned = await orgsOwnedBy(addr);
   if (!owned.length) return;
   const token = await issueToken('manage', addr);
+  const w = await renderTemplate('directory.manage-link', {
+    listings: owned.length === 1 ? owned[0]!.name : `your ${owned.length} listings`,
+  });
   await sendEmail({
     to: addr,
-    subject: 'Your link to manage your French Tech Bangkok listing',
-    paragraphs: [
-      `Use the button below to update ${owned.length === 1 ? owned[0]!.name : `your ${owned.length} listings`}. The link works once and expires in 30 minutes.`,
-      "If you didn't ask for this, you can ignore this email.",
-    ],
-    action: { label: 'Manage my listing', url: siteUrl(`/ecosystem/manage/${token}`) },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl(`/ecosystem/manage/${token}`) },
   });
 }
 
 export async function sendRenewalReminder(org: Organisation, offset: number) {
   const due = org.renewalDueAt ? formatDate(org.renewalDueAt) : 'soon';
-  const subject =
-    offset === 0
-      ? `Today: is the ${org.name} listing still accurate?`
-      : `Is your ${org.name} listing still accurate?`;
+  const w = await renderTemplate(
+    offset === 0 ? 'directory.renewal-today' : 'directory.renewal-reminder',
+    { org: org.name, due },
+  );
   for (const owner of org.ownerEmails) {
     const token = await issueToken('confirm', owner, { orgId: org.id });
     await sendEmail({
       to: owner,
-      subject,
-      paragraphs: [
-        `Once a year we ask every organisation in La French Tech Bangkok's directory to confirm its listing, so the directory only shows organisations that are really active.`,
-        `Please confirm ${org.name} by ${due}. One click is enough if nothing changed. Listings that are not confirmed are hidden 30 days after that date.`,
-      ],
+      subject: w.subject,
+      paragraphs: w.paragraphs,
       action: {
-        label: 'Yes, it is still accurate',
+        label: w.buttonLabel,
         url: siteUrl(`/ecosystem/confirm?token=${token}`),
       },
       links: [
@@ -265,16 +258,17 @@ export async function sendRenewalReminder(org: Organisation, offset: number) {
 }
 
 export async function sendExpiredNotice(org: Organisation) {
+  const w = await renderTemplate('directory.hidden', { org: org.name });
   for (const owner of org.ownerEmails) {
     const token = await issueToken('confirm', owner, { orgId: org.id });
     await sendEmail({
       to: owner,
-      subject: `${org.name} is now hidden from the directory`,
-      paragraphs: [
-        `We didn't get a confirmation for ${org.name}, so the listing is now hidden from La French Tech Bangkok's directory.`,
-        'You can bring it back at any time in the next 12 months with one click.',
-      ],
-      action: { label: 'Reactivate my listing', url: siteUrl(`/ecosystem/confirm?token=${token}`) },
+      subject: w.subject,
+      paragraphs: w.paragraphs,
+      action: {
+        label: w.buttonLabel,
+        url: siteUrl(`/ecosystem/confirm?token=${token}`),
+      },
     });
   }
 }

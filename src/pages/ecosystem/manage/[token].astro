@@ -28,6 +28,7 @@ import {
 import { email, fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { sendEmail } from '../../../lib/email';
+import { renderTemplate } from '../../../lib/email-templates';
 import { getSettings } from '../../../lib/settings';
 import { formatDate } from '../../../lib/format';
 
@@ -78,20 +79,21 @@ if (Astro.request.method === 'POST' && row && org) {
         .set({ memberStatus: 'applied' })
         .where(eq(organisations.id, org.id));
       await audit(row.email, 'membership_apply', 'organisation', org.id);
+      const w = await renderTemplate('admin.membership-application', {
+        org: org.name,
+        motivation: parsed.data.motivation,
+      });
       await sendEmail({
         to: await moderatorEmails(),
-        subject: `Membership application: ${org.name}`,
-        paragraphs: [
-          `${org.name} applied for the free French Tech Bangkok membership.`,
-          parsed.data.motivation,
-        ],
+        subject: w.subject,
+        paragraphs: w.paragraphs,
         details: [
           [
             'Contact',
             `${parsed.data.contactName} (${parsed.data.contactRole ?? '-'}) <${row.email}>`,
           ],
         ],
-        action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+        action: { label: w.buttonLabel, url: siteUrl('/admin/ecosystem') },
       });
       applied = true;
     }
@@ -143,13 +145,16 @@ if (Astro.request.method === 'POST' && row && org) {
             .insert(orgChanges)
             .values({ orgId: org.id, email: row.email, changes: review });
           await audit(row.email, 'owner_change_requested', 'organisation', org.id, null, review);
+          const w = await renderTemplate('admin.change-to-review', {
+            email: row.email,
+            fields: Object.keys(review).join(', '),
+            org: org.name,
+          });
           await sendEmail({
             to: await moderatorEmails(),
-            subject: `Listing change to review: ${org.name}`,
-            paragraphs: [
-              `${row.email} asked to change ${Object.keys(review).join(', ')} on ${org.name}.`,
-            ],
-            action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+            subject: w.subject,
+            paragraphs: w.paragraphs,
+            action: { label: w.buttonLabel, url: siteUrl('/admin/ecosystem') },
           });
         }
         result = { published: Object.keys(immediate), review: Object.keys(review) };

@@ -15,6 +15,7 @@ import { ORG_ARRAY_FIELDS, SubmitSchema, audit, siteUrl, uniqueSlug } from '../.
 import { IMAGE_TYPES, storeUpload } from '../../lib/uploads';
 import { issueToken } from '../../lib/tokens';
 import { sendEmail } from '../../lib/email';
+import { renderTemplate } from '../../lib/email-templates';
 import { slugify } from '../../lib/format';
 
 let errors: Record<string, string> = {};
@@ -72,15 +73,15 @@ if (isPost) {
         submitter: d.submitterName,
       });
       const token = await issueToken('verify', d.ownerEmail, { orgId: row!.id });
+      const w = await renderTemplate('directory.submit-confirm', {
+        name: d.submitterName,
+        org: d.name,
+      });
       await sendEmail({
         to: d.ownerEmail,
-        subject: `Confirm your listing request for ${d.name}`,
-        paragraphs: [
-          `Hi ${d.submitterName}, thanks for adding ${d.name} to La French Tech Bangkok's ecosystem directory.`,
-          'Please confirm your email address. We review every request and aim to answer within 5 days.',
-          'This link expires in 7 days.',
-        ],
-        action: { label: 'Confirm my email', url: siteUrl(`/ecosystem/verify?token=${token}`) },
+        subject: w.subject,
+        paragraphs: w.paragraphs,
+        action: { label: w.buttonLabel, url: siteUrl(`/ecosystem/verify?token=${token}`) },
       });
       done = d.ownerEmail;
     }

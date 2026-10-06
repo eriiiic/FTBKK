@@ -16,6 +16,7 @@ import { optionalText, optionalUrl } from './forms';
 import { slugify } from './format';
 import { audit, orgById, siteUrl } from './orgs';
 import { sendEmail } from './email';
+import { NO_REASON, renderTemplate } from './email-templates';
 import { issueToken } from './tokens';
 import { renewalDates } from './lifecycle';
 
@@ -173,14 +174,12 @@ export const AdminOrgExtras = z.object({
 /** Sends the owner(s) their links after a moderator gave them access. */
 async function sendOwnerWelcome(org: Organisation, to: string) {
   const confirm = await issueToken('confirm', to, { orgId: org.id });
+  const w = await renderTemplate('directory.claim-approved', { org: org.name });
   await sendEmail({
     to,
-    subject: `You can now manage ${org.name} on La French Tech Bangkok`,
-    paragraphs: [
-      `Your request was approved: you can now update the ${org.name} listing in La French Tech Bangkok's ecosystem directory.`,
-      'Once a year we will ask you to confirm the listing is still accurate.',
-    ],
-    action: { label: 'Update the listing', url: siteUrl('/ecosystem/manage') },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl('/ecosystem/manage') },
     links: [
       { label: 'Confirm it is accurate', url: siteUrl(`/ecosystem/confirm?token=${confirm}`) },
       { label: 'See the listing', url: siteUrl(`/ecosystem/${org.slug}`) },
@@ -219,20 +218,18 @@ export async function decideChange(id: number, approve: boolean, reason: string,
     before,
     approve ? change.changes : { reason },
   );
+  const w = await renderTemplate(
+    approve ? 'directory.change-approved' : 'directory.change-rejected',
+    { org: org.name, reason: reason || NO_REASON },
+  );
   await sendEmail({
     to: change.email,
-    subject: approve
-      ? `Your changes to ${org.name} are live`
-      : `Your changes to ${org.name} were not published`,
-    paragraphs: approve
-      ? [`A moderator approved your changes to ${org.name}. They are now visible in the directory.`]
-      : [
-          `A moderator could not publish your changes to ${org.name}:`,
-          reason || 'No reason given.',
-        ],
-    action: approve
-      ? { label: 'See the listing', url: siteUrl(`/ecosystem/${org.slug}`) }
-      : { label: 'Update the listing', url: siteUrl('/ecosystem/manage') },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: {
+      label: w.buttonLabel,
+      url: approve ? siteUrl(`/ecosystem/${org.slug}`) : siteUrl('/ecosystem/manage'),
+    },
   });
 }
 
@@ -274,15 +271,11 @@ export async function decideClaim(id: number, approve: boolean, reason: string, 
       email: claim.email,
       reason,
     });
-    await sendEmail({
-      to: claim.email,
-      subject: `Your request to manage ${org.name}`,
-      paragraphs: [
-        `We could not approve your request to manage ${org.name} in La French Tech Bangkok's directory:`,
-        reason || 'No reason given.',
-        'Reply to this email if you think this is a mistake.',
-      ],
+    const w = await renderTemplate('directory.claim-rejected', {
+      org: org.name,
+      reason: reason || NO_REASON,
     });
+    await sendEmail({ to: claim.email, subject: w.subject, paragraphs: w.paragraphs });
   }
 }
 
@@ -320,34 +313,26 @@ export async function decideMembership(
   await audit(actor, approve ? 'member_approve' : 'member_reject', 'organisation', org.id, null, {
     reason: reason || undefined,
   });
+  const w = await renderTemplate(approve ? 'membership.approved' : 'membership.rejected', {
+    org: org.name,
+    reason: reason || NO_REASON,
+  });
   await sendEmail({
     to: app.email,
-    subject: approve
-      ? `Welcome to La French Tech Bangkok, ${org.name}`
-      : `Your membership application for ${org.name}`,
-    paragraphs: approve
-      ? [
-          `The board approved ${org.name} as a member of La French Tech Bangkok. Your listing now shows the Member badge.`,
-          'We will share member news and perks by email.',
-        ]
-      : [
-          `The board could not approve the membership of ${org.name} for now:`,
-          reason || 'No reason given.',
-        ],
-    action: { label: 'See the listing', url: siteUrl(`/ecosystem/${org.slug}`) },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl(`/ecosystem/${org.slug}`) },
   });
 }
 
 /** Invites someone (e.g. a founder we know) to claim an unclaimed listing. */
 export async function inviteToClaim(org: Organisation, to: string, actor: string) {
+  const w = await renderTemplate('directory.claim-invite', { org: org.name });
   await sendEmail({
     to,
-    subject: `${org.name} is listed in La French Tech Bangkok's directory`,
-    paragraphs: [
-      `${org.name} is listed in La French Tech Bangkok's ecosystem directory, but nobody manages the listing yet.`,
-      'Claim it to keep it accurate: update the description, logo and links, and confirm it once a year. It is free.',
-    ],
-    action: { label: 'Claim the listing', url: siteUrl(`/ecosystem/${org.slug}/claim`) },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl(`/ecosystem/${org.slug}/claim`) },
     links: [{ label: 'See the listing', url: siteUrl(`/ecosystem/${org.slug}`) }],
   });
   await audit(actor, 'invite_claim', 'organisation', org.id, null, { to });

@@ -6,7 +6,7 @@ pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
 (Members, Contacts, Messages, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
-**Content** (Posts, Files, Site texts) and **Team** (Team and roles, Settings). On a phone, open it
+**Content** (Posts, Files, Site texts, Emails) and **Team** (Team and roles, Settings). On a phone, open it
 with the **Menu** button.
 
 ## Team, roles and event checklists
@@ -325,6 +325,52 @@ emails only reach the Resend account owner.
   example if you start sharing attendee lists with a sponsor, it must say so and ask first).
   `{contactEmail}` becomes a mail link; emptying the field brings the default back. It is linked
   in the footer and under every registration form.
+
+## Emails
+
+**Content > Emails** lists every email the site sends by itself, grouped, with who gets each one
+and when:
+
+- **Events**: registration confirmed, waitlist, seat freed, the reminder the day before, event
+  cancelled, the feedback request.
+- **Ecosystem** (to the people who list or manage an organisation): listing request to confirm,
+  listing published or declined, the link to manage a listing, the yearly check (and its last
+  day), listing hidden, invitation to claim, claim to confirm, claim approved or declined, changes
+  published or declined, membership approved or declined.
+- **Membership** (the free individual membership): the sign-up confirmation, the welcome email,
+  the link to the member page (asked for, or sent by an admin) and the link sent when a member
+  signs up again.
+- **Community**: the newsletter confirmation. **Privacy**: the "your data" link.
+- **Team**: the Monday email with each member's tasks.
+- **Admin notifications** (to the team): a contact form message, a new listing, a claim, a
+  listing change and a membership application to review, the Monday directory summary, and the
+  Monday list of new members for the board.
+
+A **Default** badge means the text the site came with; **Edited** shows when and by whom.
+
+Open an email to change its **subject**, **message** (plain text, an empty line between
+paragraphs) and **button label**. Placeholders in braces are replaced in each email: `{name}`
+(the person's name), `{event}` (the event title), `{date}` (day and time), `{venue}` (venue and
+address), `{org}` (the organisation), `{reason}` (what the moderator typed when declining), and
+others per email. The list under the form shows which ones that email knows; click one to insert
+it. A placeholder the email doesn't know is sent as typed, and the page warns you. Some must stay
+in the message (marked "must stay"; not only in the subject or the button, where a long value
+doesn't fit): the reason of a refusal, the contact form message, the membership motivation, the
+domain check of a claim, and the lists the site builds (`{tasks}` in the weekly tasks,
+`{renewals}` in the directory summary, `{members}` in the board's new members email). In the
+welcome email, `{whatsapp}` is the invitation to the WhatsApp community (empty when Settings has
+no WhatsApp link) and `{next-events}` is "Coming up next:" with the next three events (empty when
+none is planned); when one is empty, its paragraph is simply left out. Put a list on a line of its own to get one paragraph per
+item. After Preview or a test, the page says "Not saved yet" and warns you before you leave.
+
+- **Preview** shows the email in its real layout with sample values, without saving.
+- **Send me a test** emails that preview to you, subject starting with "[Test]".
+- **Save** applies it to every email sent from then on.
+- **Back to the default text** drops your changes (it asks first).
+
+The date and venue rows, logos, the ticket, the calendar invite, the links and the "Manage or
+delete my data" footer are added by the site and can't be edited here. "Email registrants" (on an
+event's page) is written each time, so it is only listed. Every save and reset is in the history.
 
 ## For developers
 

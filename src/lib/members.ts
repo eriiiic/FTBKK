@@ -10,6 +10,7 @@ import { SECTORS } from './directory';
 import { HOW_HEARD } from './registrations';
 import { consumeToken, issueToken, peekToken } from './tokens';
 import { sendEmail } from './email';
+import { renderTemplate } from './email-templates';
 import { audit, siteUrl } from './orgs';
 import { confirmNewsletter } from './newsletter';
 import { getSettings } from './settings';
@@ -130,15 +131,13 @@ export async function requestMembership(data: MemberSignup, now = new Date()) {
     ? await db.update(members).set(row).where(eq(members.id, existing.id)).returning()
     : await db.insert(members).values(row).returning();
   const token = await issueToken('member_confirm', data.email, { refId: saved!.id, now });
+  const w = await renderTemplate('member.confirm', { name: data.name });
   await sendEmail({
     to: data.email,
-    subject: 'Confirm your La French Tech Bangkok membership',
-    paragraphs: [
-      `Hi ${data.name}, thanks for joining La French Tech Bangkok. One click to confirm your email and your free membership starts.`,
-      "Didn't sign up? Ignore this email and nothing happens.",
-    ],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     action: {
-      label: 'Confirm my membership',
+      label: w.buttonLabel,
       url: siteUrl(`/member/confirm?token=${encodeURIComponent(token)}`),
     },
     footer: 'The link works for 7 days.',
@@ -192,28 +191,26 @@ export async function confirmMembership(token: string, now = new Date()) {
 async function sendWelcome(m: Member, link: string) {
   const [settings, next] = await Promise.all([getSettings(), upcomingEvents(3)]);
   const whatsapp = settings.socials.whatsapp;
+  const w = await renderTemplate('member.welcome', {
+    name: m.name,
+    whatsapp: whatsapp
+      ? `Join the members' WhatsApp community, where we share events, jobs, questions and introductions: ${whatsapp}`
+      : '',
+    'next-events': next.length
+      ? [
+          'Coming up next:',
+          ...next.map(
+            (e) =>
+              `${e.title}, ${formatEventDate(e.startsAt, e.endsAt)}: ${siteUrl(`/events/${e.slug}`)}`,
+          ),
+        ]
+      : [],
+  });
   await sendEmail({
     to: m.email,
-    subject: 'Welcome to La French Tech Bangkok',
-    paragraphs: [
-      `Welcome, ${m.name}! You are now a member of La French Tech Bangkok. Membership is free; we'll ask you to confirm it once a year.`,
-      ...(whatsapp
-        ? [
-            `Join the members' WhatsApp community, where we share events, jobs, questions and introductions: ${whatsapp}`,
-          ]
-        : []),
-      ...(next.length
-        ? [
-            'Coming up next:',
-            ...next.map(
-              (e) =>
-                `${e.title}, ${formatEventDate(e.startsAt, e.endsAt)}: ${siteUrl(`/events/${e.slug}`)}`,
-            ),
-          ]
-        : []),
-      'Your member page lets you update your profile and see your events. Keep this email: the button opens it.',
-    ],
-    action: { label: 'Open my member page', url: siteUrl(memberPagePath(link)) },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl(memberPagePath(link)) },
     links: whatsapp ? [{ label: 'Join the WhatsApp community', url: whatsapp }] : undefined,
   });
 }
@@ -289,16 +286,14 @@ export async function moveMembership(from: string, to: string) {
 /** Emails a link to the member page (from "Send me my link", or a repeat sign-up). */
 export async function sendMemberLink(m: Member, repeat = false) {
   const token = await issueToken('member', m.email, { refId: m.id });
+  const w = await renderTemplate(repeat ? 'member.already-member' : 'member.link', {
+    name: m.name,
+  });
   await sendEmail({
     to: m.email,
-    subject: 'Your La French Tech Bangkok member page',
-    paragraphs: [
-      repeat
-        ? `Hi ${m.name}, you are already a member. Here is the link to your member page.`
-        : `Hi ${m.name}, here is the link to your member page, as you asked.`,
-      "Didn't ask for it? Ignore this email.",
-    ],
-    action: { label: 'Open my member page', url: siteUrl(memberPagePath(token)) },
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl(memberPagePath(token)) },
     footer: 'The link works for 30 days.',
   });
 }
@@ -454,20 +449,24 @@ export async function sendBoardMemberDigest() {
   if (!todo.length) return 0;
   const [team, settings] = await Promise.all([loadTeam(), getSettings()]);
   const board = team.filter((m) => m.roles.includes('board')).map((m) => m.email);
-  await sendEmail({
-    to: board.length ? board : settings.contactEmail,
-    subject: `Members: ${todo.length} new member${todo.length === 1 ? '' : 's'} to review`,
-    paragraphs: [
-      'New members are active as soon as they confirm their email. Have a look, mark them as reviewed, or suspend anyone who should not be in the community.',
+  const n = todo.length;
+  const w = await renderTemplate('admin.new-members', {
+    count: `${n} new member${n === 1 ? '' : 's'}`,
+    members: [
       ...todo
         .slice(0, 30)
         .map(
           (m) =>
             `${m.name}${m.company ? `, ${m.company}` : ''} (${PROFILE_TYPES[m.profileType as ProfileType] ?? m.profileType}), joined ${formatDate(m.confirmedAt ?? m.createdAt, { year: undefined })}`,
         ),
-      ...(todo.length > 30 ? [`And ${todo.length - 30} more.`] : []),
+      ...(n > 30 ? [`And ${n - 30} more.`] : []),
     ],
-    action: { label: 'Review new members', url: siteUrl('/admin/members') },
+  });
+  await sendEmail({
+    to: board.length ? board : settings.contactEmail,
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl('/admin/members') },
   });
   return 1;
 }

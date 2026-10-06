@@ -1,0 +1,98 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Badge from '../../../components/Badge.astro';
+import { getDb } from '../../../db';
+import { emailTemplates, type EmailTemplateRow } from '../../../db/schema';
+import {
+  EMAIL_TEMPLATES,
+  TEMPLATE_GROUPS,
+  TEMPLATE_KEYS,
+  WRITTEN_EACH_TIME,
+} from '../../../lib/email-templates';
+import { formatDate } from '../../../lib/format';
+
+// Every email the site sends, and whether its wording was edited. Admin only (middleware).
+let edited = new Map<string, EmailTemplateRow>();
+try {
+  const rows = await getDb().select().from(emailTemplates);
+  edited = new Map(rows.map((r) => [r.key, r]));
+} catch {
+  // Table not migrated yet: everything is the default text.
+}
+const flash = Astro.url.searchParams.get('reset') ? 'Back to the default text.' : '';
+---
+
+<AdminLayout title="Emails">
+  <p class="mb-6 max-w-3xl text-muted">
+    The emails the site sends on its own. Open one to change its subject, its text or its button,
+    preview it and send yourself a test. The dates, venue, ticket, links and logos are added by the
+    site and stay as they are.
+  </p>
+  {flash && (
+    <div
+      role="status"
+      class="mb-6 rounded-xl border border-success/30 bg-success/5 p-4 text-success"
+    >
+      {flash}
+    </div>
+  )}
+  <div class="grid max-w-4xl gap-6">
+    {TEMPLATE_GROUPS.map((group) => {
+      const id = `g-${group.toLowerCase().replace(/\s+/g, '-')}`;
+      const keys = TEMPLATE_KEYS.filter((k) => EMAIL_TEMPLATES[k].group === group);
+      const manual = WRITTEN_EACH_TIME.filter((m) => m.group === group);
+      return (
+        <section class="admin-panel" aria-labelledby={id}>
+          <h2 id={id} class="text-lg">
+            {group}
+          </h2>
+          <ul class="mt-3 divide-y divide-line">
+            {keys.map((k) => {
+              const d = EMAIL_TEMPLATES[k];
+              const row = edited.get(k);
+              return (
+                <li class="py-3">
+                  <a
+                    href={`/admin/emails/${k}`}
+                    class="-mx-2 block rounded-lg px-2 py-1 no-underline hover:bg-surface"
+                  >
+                    <span class="flex flex-wrap items-center gap-2">
+                      <span class="font-semibold text-ink">{d.label}</span>
+                      {row ? (
+                        <Badge tone="accent">Edited</Badge>
+                      ) : (
+                        <Badge tone="neutral">Default</Badge>
+                      )}
+                    </span>
+                    <span class="mt-1 block text-sm text-muted">
+                      {d.audience} · {d.trigger}
+                    </span>
+                    {row && (
+                      <span class="mt-1 block text-xs text-muted">
+                        Edited {formatDate(row.updatedAt)}
+                        {row.updatedBy && <> by {row.updatedBy}</>}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              );
+            })}
+            {manual.map((m) => (
+              <li class="py-3">
+                <div class="px-0 py-1">
+                  <span class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold text-ink">{m.label}</span>
+                    <Badge tone="neutral">Written each time</Badge>
+                  </span>
+                  <span class="mt-1 block text-sm text-muted">
+                    {m.audience} · {m.trigger}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    })}
+  </div>
+</AdminLayout>

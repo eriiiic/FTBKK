@@ -12,6 +12,14 @@ import { myDataPath } from './privacy';
 import { qrPng, ticketCode } from './ticket';
 import { sponsorsForEvent } from './queries';
 import { emailLogos, showSponsor, sponsorDetails } from './sponsors';
+import {
+  EMAIL_TEMPLATES,
+  applyTemplate,
+  eventVars,
+  loadTemplateText,
+  renderTemplate,
+  type EmailText,
+} from './email-templates';
 
 /** Longest note a registrant can leave (the textarea's maxlength too). */
 export const NOTE_MAX = 500;
@@ -305,18 +313,17 @@ export async function sendConfirmation(
   const waitlist = r.status === 'waitlist';
   const t = waitlist ? null : await ticket(e, r.token);
   const sp = await emailSponsors(e.id);
+  const w = await renderTemplate(
+    waitlist ? 'registration.waitlist' : 'registration.confirmed',
+    eventVars(e, r.name),
+  );
   await sendEmail({
     to: r.email,
-    subject: waitlist ? `You're on the waitlist: ${e.title}` : `You're registered: ${e.title}`,
-    paragraphs: waitlist
-      ? [
-          `Hi ${r.name}, ${e.title} is full for now, so you are on the waitlist.`,
-          'If a seat frees up we will register you automatically and email you.',
-        ]
-      : [`Hi ${r.name}, see you at ${e.title}! The calendar invite is attached.`],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     details: [...eventDetails(e), ...sp.details],
     logos: sp.logos,
-    action: map && !waitlist ? { label: 'Open the map', url: map } : undefined,
+    action: map && !waitlist && w.buttonLabel ? { label: w.buttonLabel, url: map } : undefined,
     links: [
       { label: 'Event page', url: siteUrl(`/events/${e.slug}`) },
       { label: waitlist ? 'Leave the waitlist' : "Can't come? Cancel", url: cancelUrl },
@@ -330,13 +337,11 @@ export async function sendConfirmation(
 export async function sendPromotion(e: Event, r: RegistrationRow) {
   const t = await ticket(e, r.token);
   const sp = await emailSponsors(e.id);
+  const w = await renderTemplate('registration.promoted', eventVars(e, r.name));
   await sendEmail({
     to: r.email,
-    subject: `A seat opened up: you're registered for ${e.title}`,
-    paragraphs: [
-      `Good news ${r.name}: a seat freed up and you are now registered for ${e.title}. The calendar invite is attached.`,
-      "If you can't come any more, please cancel so the next person can take your seat.",
-    ],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     details: [...eventDetails(e), ...sp.details],
     logos: sp.logos,
     links: [
@@ -349,19 +354,22 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
   });
 }
 
+/** `text` is the edited wording (loadTemplateText('event.reminder')); null = the default. */
 export function reminderEmail(
   e: Event,
   r: { name: string; email: string; token: string },
   sp: EmailSponsors = NO_SPONSORS,
+  text: EmailText | null = null,
 ): EmailMessage {
   const map = mapLink(e);
+  const w = applyTemplate(EMAIL_TEMPLATES['event.reminder'], text, eventVars(e, r.name));
   return {
     to: r.email,
-    subject: `Tomorrow: ${e.title}`,
-    paragraphs: [`Hi ${r.name}, a reminder that ${e.title} is tomorrow. See you there!`],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     details: [...eventDetails(e), ...sp.details],
     logos: sp.logos,
-    action: map ? { label: 'Open the map', url: map } : undefined,
+    action: map && w.buttonLabel ? { label: w.buttonLabel, url: map } : undefined,
     links: [
       { label: 'Show my ticket', url: ticketUrl(e, r.token) },
       {
@@ -379,25 +387,32 @@ export async function sendReminders(
 ) {
   if (!rows.length) return { ok: true, sent: 0 };
   const sp = await emailSponsors(e.id);
-  return sendEmailBatch(rows.map((r) => reminderEmail(e, r, sp)));
+  const text = await loadTemplateText('event.reminder');
+  return sendEmailBatch(rows.map((r) => reminderEmail(e, r, sp, text)));
 }
 
 export async function sendEventCancelled(
   e: Event,
   rows: { name: string; email: string; token?: string | null }[],
 ) {
-  return sendEmailBatch(
-    rows.map((r) => ({
-      to: r.email,
-      subject: `Cancelled: ${e.title}`,
-      paragraphs: [
-        `Hi ${r.name}, we are sorry: ${e.title} on ${formatEventDate(e.startsAt, e.endsAt)} is cancelled.`,
-        'Keep an eye on our events page for the next one.',
-      ],
-      action: { label: 'See upcoming events', url: siteUrl('/events') },
-      dataUrl: r.token ? myDataUrl(r.token) : undefined,
-    })),
-  );
+  const text = await loadTemplateText('event.cancelled');
+  return sendEmailBatch(rows.map((r) => eventCancelledEmail(e, r, text)));
+}
+
+/** `text` is the edited wording (loadTemplateText('event.cancelled')); null = the default. */
+export function eventCancelledEmail(
+  e: Event,
+  r: { name: string; email: string; token?: string | null },
+  text: EmailText | null = null,
+): EmailMessage {
+  const w = applyTemplate(EMAIL_TEMPLATES['event.cancelled'], text, eventVars(e, r.name));
+  return {
+    to: r.email,
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: { label: w.buttonLabel, url: siteUrl('/events') },
+    dataUrl: r.token ? myDataUrl(r.token) : undefined,
+  };
 }
 
 /**

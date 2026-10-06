@@ -9,6 +9,7 @@ import { claims } from '../../../db/schema';
 import { consumeToken } from '../../../lib/tokens';
 import { audit, moderatorEmails, orgById, siteUrl } from '../../../lib/orgs';
 import { sendEmail } from '../../../lib/email';
+import { renderTemplate } from '../../../lib/email-templates';
 
 const token = Astro.url.searchParams.get('token');
 let state: 'ask' | 'ok' | 'invalid' = 'ask';
@@ -26,16 +27,20 @@ if (Astro.request.method === 'POST') {
     if (!claim) state = 'invalid';
     else {
       await audit(row.email, 'claim_verified', 'organisation', org.id, null, { claimId: claim.id });
+      const w = await renderTemplate('admin.claim-to-review', {
+        name: claim.name ?? row.email,
+        role: claim.role ?? 'no role given',
+        email: row.email,
+        org: org.name,
+        'domain-check': claim.domainMatches
+          ? 'The email domain matches the website.'
+          : 'The email domain does NOT match the website. Check before approving.',
+      });
       await sendEmail({
         to: await moderatorEmails(),
-        subject: `Listing claim to review: ${org.name}`,
-        paragraphs: [
-          `${claim.name ?? row.email} (${claim.role ?? 'no role given'}) verified ${row.email} and asks to manage ${org.name}.`,
-          claim.domainMatches
-            ? 'The email domain matches the website.'
-            : 'The email domain does NOT match the website. Check before approving.',
-        ],
-        action: { label: 'Review in the admin', url: siteUrl('/admin/ecosystem') },
+        subject: w.subject,
+        paragraphs: w.paragraphs,
+        action: { label: w.buttonLabel, url: siteUrl('/admin/ecosystem') },
       });
       state = 'ok';
     }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Event } from '../db/schema';
 import type { EmailMessage } from './email';
 import { myDataUrl, siteUrl } from './registrations';
+import { EMAIL_TEMPLATES, applyTemplate, type EmailText } from './email-templates';
 
 export const RATINGS = [1, 2, 3, 4, 5] as const;
 export const RATING_LABELS: Record<number, string> = {
@@ -36,18 +37,23 @@ export const feedbackUrl = (e: Pick<Event, 'slug'>, token: string, rating?: numb
     `/events/${e.slug}/feedback?token=${encodeURIComponent(token)}${rating ? `&rating=${rating}` : ''}`,
   );
 
-/** The day-after email: five one-click ratings, then a page to add a comment. */
+/**
+ * The day-after email: five one-click ratings, then a page to add a comment. `text` is the edited
+ * wording (loadTemplateText('event.feedback')); null = the default.
+ */
 export function feedbackEmail(
   e: Pick<Event, 'slug' | 'title'>,
   r: { name: string; email: string; token: string },
+  text: EmailText | null = null,
 ): EmailMessage {
+  const w = applyTemplate(EMAIL_TEMPLATES['event.feedback'], text, {
+    name: r.name,
+    event: e.title,
+  });
   return {
     to: r.email,
-    subject: `How was ${e.title}?`,
-    paragraphs: [
-      `Hi ${r.name}, thanks for joining us at ${e.title} yesterday.`,
-      'How was it? One click on a number is enough. You can add a comment on the next page if you like: it helps us choose the next topics, and we share it with speakers and sponsors without your name.',
-    ],
+    subject: w.subject,
+    paragraphs: w.paragraphs,
     choices: {
       question: 'Your rating',
       options: RATINGS.map((n) => ({
