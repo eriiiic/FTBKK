@@ -10,6 +10,6 @@ export const DEFAULT_JOIN_MEMBERSHIP = `Free membership is coming soon. It will 
 Until then, register for events as usual and sign up for the newsletter below to hear when membership opens.`;
 
 /** The membership card's text once sign-up is open (Settings), unless edited in Site texts. */
-export const DEFAULT_JOIN_MEMBERSHIP_OPEN = `Membership is free, for individuals. It gives you access to the members' WhatsApp community and to your member page, and it will soon be how you register for our events.
+export const DEFAULT_JOIN_MEMBERSHIP_OPEN = `Membership is free, for individuals. It gives you access to the members' WhatsApp community and to your member page, and it is how you register for our events.
 
 Sign up below: we'll email you a link to confirm, then a welcome with the WhatsApp invitation.`;

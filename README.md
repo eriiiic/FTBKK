@@ -12,7 +12,8 @@ Public pages:
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. Texts are edited in the admin (Site texts).
 - **Join the community** at `/join`, opened by the header's button and linked from Home and the
-  footer: why join, free membership, the WhatsApp community, listing a company in the directory,
+  footer: a navy hero with a "Ways to join" index, the free membership (perks, three steps and the
+  form side by side), the WhatsApp community, listing a company in the directory,
   ways to get involved (volunteer, host an event, become a partner, speak), the newsletter and the
   contact form. The WhatsApp group is for members, so its invite link is never shown publicly
   (not in the header, footer or Home): members get it in their welcome email and on their member
