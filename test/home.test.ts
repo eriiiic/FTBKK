@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickPartners, pickPhotos } from '../src/lib/home';
+import { carouselGroups, highlightParts, pickPartners, pickPhotos } from '../src/lib/home';
 
 describe('home page', () => {
   it('uses the picked photos first, then one photo per recent event, then covers', () => {
@@ -39,5 +39,35 @@ describe('home page', () => {
       ],
     );
     expect(partners.map((p) => p.name)).toEqual(['Embassy', 'Cowork', 'Bank']);
+  });
+});
+
+describe('home page helpers', () => {
+  it('picks up to n organisations at random for All and each category', () => {
+    const orgs = Array.from({ length: 40 }, (_, i) => ({
+      name: `Org ${i}`,
+      category: i % 4 === 0 ? 'investor' : 'french_startup',
+    }));
+    let seed = 1;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const groups = carouselGroups(orgs, ['french_startup', 'investor', 'school'], 15, rand);
+    expect(groups.map((g) => [g.key, g.items.length])).toEqual([
+      ['', 15],
+      ['french_startup', 15],
+      ['investor', 10],
+    ]);
+    expect(groups[2]!.items.every((o) => o.category === 'investor')).toBe(true);
+    // Not simply the first ones in alphabetical order.
+    expect(groups[0]!.items.map((o) => o.name)).not.toEqual(orgs.slice(0, 15).map((o) => o.name));
+    expect(new Set(groups[0]!.items).size).toBe(15);
+  });
+
+  it('marks the starred words of a heading', () => {
+    expect(highlightParts('The tech ecosystem connecting *Bangkok*, France')).toEqual([
+      { text: 'The tech ecosystem connecting ', mark: false },
+      { text: 'Bangkok', mark: true },
+      { text: ', France', mark: false },
+    ]);
+    expect(highlightParts('Plain')).toEqual([{ text: 'Plain', mark: false }]);
   });
 });

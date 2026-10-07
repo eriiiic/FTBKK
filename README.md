@@ -8,14 +8,16 @@ https://ft-bkk-site.edelattre.workers.dev until the domain moves over.
 
 Public pages:
 
-- **Home**: a full-width photo hero with Join the community and Our mission; the mission, values
-  and pillars next to a photo; a navy band of up to four key numbers typed in Site texts (for example
-  "300+ Members"; no numbers, no band); the next four events (or the latest recaps when none is scheduled); the ecosystem
-  directory as a navy carousel with category chips; the latest three posts; a community block
-  with a photo collage and the "You can join us" cards; a strip of partner logos (institutions,
-  then the hosts and sponsors of our events); and a closing band with Join and Contact us. Photos
-  come from Site texts > Home page photos, then from recent event recaps and covers
-  (`lib/home.ts`).
+- **Home**, after the board's mockup: a full-width photo hero (words between \*stars\* in the
+  heading show in red; the photo's description shows as a caption); "About us" with the first
+  paragraph of About, the values, an arched photo and the pillars; a band of up to four key
+  numbers typed in Site texts (for example "300+ Members"; no numbers, no band); the next four
+  events (or the latest recaps when none is scheduled); the ecosystem directory as a navy carousel
+  with category chips, showing 15 organisations picked at random for All and for each category,
+  so it isn't always the same names; the latest three posts; a community block with a photo
+  collage; a strip of partner logos (institutions, then the hosts and sponsors of our events); and
+  a red closing band with Contact us and Join. Photos come from Site texts > Home page photos, then
+  from recent event recaps and covers (`lib/home.ts`).
 - **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the

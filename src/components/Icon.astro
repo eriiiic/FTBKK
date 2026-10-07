@@ -20,7 +20,12 @@ interface Props {
     | 'bulb'
     | 'users'
     | 'chart'
-    | 'building';
+    | 'building'
+    | 'rocket'
+    | 'handshake'
+    | 'globe'
+    | 'chevron-left'
+    | 'chevron-right';
   class?: string;
   label?: string;
 }
@@ -52,6 +57,14 @@ const paths: Record<Props['name'], string> = {
     'M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm13 9v-1.5a4 4 0 0 0-3-3.9M15.5 4.1a3.5 3.5 0 0 1 0 6.8',
   chart: 'M3 20h18M5 16l4.5-4.5 3 3L19 8m-4.5 0H19v4.5',
   building: 'M2 21h20M5 21V4h10v17M15 9h4v12M8 8h4M8 12h4M8 16h4',
+  rocket:
+    'M14 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM10 14l-2-2m2 2 2 2m-2-2 9.5-9.5c.3 3.7-1 7-4.5 9.5l-1 4-2-2m-2-2-2-2m0 0-4-1 4-1c2.5-3.5 5.8-4.8 9.5-4.5M6 16c-1.5.5-2.5 2-3 5 3-.5 4.5-1.5 5-3',
+  handshake:
+    'M2 11l4-4h3l3 2 3-2h3l4 4M2 11l3 3m17-3-7 7a1.5 1.5 0 0 1-2.1 0l-.9-.9M5 14l3 3a1.5 1.5 0 0 0 2.1 0M8 12l4 4m-1-7 4 4',
+  globe:
+    'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.5 9h17M3.5 15h17M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z',
+  'chevron-left': 'M15 5l-7 7 7 7',
+  'chevron-right': 'M9 5l7 7-7 7',
 };
 const filled = ['instagram', 'whatsapp', 'facebook', 'linkedin', 'youtube'].includes(name);
 ---

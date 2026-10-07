@@ -115,3 +115,45 @@ export async function homeData(chosen: RecapPhoto[]) {
     partners: pickPartners(institutions, sponsorRows),
   };
 }
+
+/** Fisher-Yates shuffle into a new array; `rand` is injectable for tests. */
+export function shuffled<T>(list: readonly T[], rand: () => number = Math.random): T[] {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
+ * The ecosystem carousel: up to `n` organisations picked at random for "All" and for each
+ * category, so the home page doesn't always show the same (alphabetically first) names.
+ */
+export function carouselGroups<T extends { category: string }>(
+  orgs: readonly T[],
+  categories: readonly string[],
+  n = 15,
+  rand: () => number = Math.random,
+) {
+  return [
+    { key: '', items: shuffled(orgs, rand).slice(0, n) },
+    ...categories
+      .map((key) => ({
+        key,
+        items: shuffled(
+          orgs.filter((o) => o.category === key),
+          rand,
+        ).slice(0, n),
+      }))
+      .filter((g) => g.items.length > 0),
+  ];
+}
+
+/** Splits a heading on *stars* so the starred words can be shown in red. */
+export function highlightParts(text: string) {
+  return text
+    .split(/\*([^*]+)\*/)
+    .map((t, i) => ({ text: t, mark: i % 2 === 1 }))
+    .filter((p) => p.text);
+}

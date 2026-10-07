@@ -162,6 +162,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         maxlength={300}
         value={str('heroTagline')}
         error={errors.heroTagline}
+        hint="Put a word between stars to show it in red, for example: The tech ecosystem connecting *Bangkok* and France."
       />
       <FormField
         name="mission"
@@ -170,7 +171,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         maxlength={2000}
         value={str('mission')}
         error={errors.mission}
-        hint="Under the heading, and in the footer."
+        hint="Under the heading, and in the footer. The About us block next to it shows the first paragraph of About > Who we are."
       />
       <FormField
         name="values"
@@ -182,11 +183,11 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       />
       <FormField
         name="ecosystemHeading"
-        label="Navy section heading"
+        label="About us heading"
         maxlength={200}
         value={str('ecosystemHeading')}
         error={errors.ecosystemHeading}
-        hint="The big title above the three pillars."
+        hint="The heading of the About us block, next to its photo and the pillars."
       />
       <CardFields prefix="pillar" legend="Pillars" items={pillars} error={errors.pillars} />
       <CardFields
@@ -218,7 +219,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         maxlength={600}
         value={str('homeCommunityText')}
         error={errors.homeCommunityText}
-        hint={`Above the "You can join us" cards, next to the photo collage. Empty = "${DEFAULT_COMMUNITY_TEXT}"`}
+        hint={`Under the Community heading, next to the photo collage. Empty = "${DEFAULT_COMMUNITY_TEXT}"`}
       />
       <FormField
         name="homeClosingTitle"
@@ -233,9 +234,10 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     <section class="admin-panel grid gap-4" id="home-photos">
       <h2 class="text-lg">Home page photos</h2>
       <p class="text-sm text-muted">
-        The first photo is the big one at the top, the second goes next to the mission and the next
-        four make the community collage. Until there are enough, photos from recent event recaps
-        fill in. Use your own or licensed photos of our events, at least 1600 px wide.
+        The first photo is the big one at the top (its description shows as a caption), the second
+        is the arched photo in About us and the next three make the community collage. Until there
+        are enough, photos from recent event recaps fill in. Use your own or licensed photos of our
+        events, at least 1600 px wide.
       </p>
       {homePhotos.length > 0 && (
         <ol class="grid gap-3 sm:grid-cols-2" data-home-photos>
