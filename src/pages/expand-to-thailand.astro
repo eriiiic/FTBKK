@@ -1,0 +1,462 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/Button.astro';
+import Icon from '../components/Icon.astro';
+import Checklist from '../components/guide/Checklist.astro';
+import Faq from '../components/guide/Faq.astro';
+import GuideHero from '../components/guide/GuideHero.astro';
+import HelpLists from '../components/guide/HelpLists.astro';
+import SectionHead from '../components/guide/SectionHead.astro';
+import SourceLinks from '../components/guide/SourceLinks.astro';
+import TaxCards from '../components/guide/TaxCards.astro';
+import TipCards from '../components/guide/TipCards.astro';
+import VisaCards from '../components/guide/VisaCards.astro';
+import {
+  CHECKLIST,
+  EXTRA_SOURCES,
+  FAQ,
+  GROUP_TAXES,
+  MODELS,
+  QUESTIONS,
+  ROADMAP,
+  SELLING,
+  STATS,
+} from '../lib/expansion-guide';
+import {
+  GUIDE_CHECKED_LABEL,
+  SOURCES,
+  TAXES,
+  VISA,
+  sourceList,
+  type SourceKey,
+} from '../lib/thailand-guides';
+
+// Expanding to Thailand: the guide for established tech companies (often French) opening an
+// office or a business in Thailand. An entry-model chooser, the seven ways in compared, a
+// roadmap, people, selling, taxes and a launch checklist that remembers ticks in the browser.
+// Startups have their own guide, /founders-guide. Both share lib/thailand-guides.ts.
+const visas = [VISA.nonB, VISA.ltrHsp, VISA.ltrWft, VISA.vie];
+const toc = [
+  { href: '#why', label: 'Why Thailand' },
+  { href: '#choose', label: 'Find your entry model' },
+  { href: '#models', label: 'Entry models compared' },
+  { href: '#roadmap', label: 'Your first 18 months' },
+  { href: '#people', label: 'Sending your people' },
+  { href: '#selling', label: 'Selling in Thailand' },
+  { href: '#tax', label: 'Taxes' },
+  { href: '#checklist', label: 'Launch checklist' },
+  { href: '#help', label: 'Who can help' },
+  { href: '#faq', label: 'Questions' },
+];
+const sourceLinks = (keys: SourceKey[]) => keys.map((k) => SOURCES[k]);
+const allSources = sourceList(
+  [
+    ...STATS.map((s) => s.sources),
+    ...MODELS.map((m) => m.sources),
+    ...visas.map((v) => v.sources),
+    ...SELLING.map((s) => s.sources),
+    ...TAXES.map((t) => t.sources),
+    ...GROUP_TAXES.map((t) => t.sources),
+  ],
+  EXTRA_SOURCES,
+);
+const modelName = Object.fromEntries(MODELS.map((m) => [m.id, m.name]));
+const specs = (m: (typeof MODELS)[number]) => [
+  { label: 'Invoice Thai clients', value: m.invoice },
+  { label: 'Ownership', value: m.ownership },
+  { label: 'Capital', value: m.capital },
+  { label: 'Setup', value: m.setup },
+];
+---
+
+<BaseLayout
+  title="Expanding to Thailand"
+  description="La French Tech Bangkok's guide for established tech companies opening an office or a business in Thailand: entry models, BOI, Foreign Business License, visas for your team, selling, taxes and a launch checklist."
+>
+  <GuideHero
+    eyebrow="Expansion guide"
+    title="Expanding your company to Thailand"
+    intro="For tech companies already established elsewhere, often in France, that want to sell in Thailand or open an office. Find the right way in, who to send, how to sell and what to file, from the French companies already here."
+    checked={GUIDE_CHECKED_LABEL}
+    toc={toc}
+    other={{
+      href: '/founders-guide',
+      question: 'Starting a new company from scratch?',
+      label: "Read the Founder's Guide",
+    }}
+  />
+
+  <!-- 01 Why Thailand -->
+  <section id="why" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead eyebrow="01 · Why Thailand" title="A connected, mobile-first market">
+        <p class="mt-3 text-lg text-muted">
+          Online, mobile and social first, with incentives for foreign tech companies. Our{' '}
+          <a href="/tech-pulse" class="text-accent">
+            Tech Pulse
+          </a>{' '}
+          reports follow the market through the year.
+        </p>
+      </SectionHead>
+      <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {STATS.map((s) => (
+          <div class="flex flex-col rounded-card border border-line bg-paper p-6 shadow-card">
+            <dt class="order-2 mt-2 text-ink">{s.label}</dt>
+            <dd class="order-1 font-display text-4xl font-bold text-brand">{s.value}</dd>
+            <SourceLinks sources={sourceLinks(s.sources)} label="" class="order-3 mt-auto pt-4" />
+          </div>
+        ))}
+      </dl>
+    </div>
+  </section>
+
+  <!-- 02 Chooser: yes/no questions point to one entry model. Hidden until JavaScript runs. -->
+  <section
+    id="choose"
+    class="scroll-mt-20 bg-navy py-14 text-paper md:py-20"
+    data-model-names={JSON.stringify(modelName)}
+  >
+    <div class="container-page">
+      <SectionHead
+        eyebrow="02 · Find your entry model"
+        title="Five questions, one place to start"
+        intro="Answer what you know today. The suggestion updates as you go and points to the matching card below."
+        light
+      />
+      <p class="text-paper/85" data-chooser-fallback>
+        <a href="#models" class="font-semibold text-paper underline">
+          Compare the seven models
+        </a>{' '}
+        below to find yours.
+      </p>
+      <div class="grid gap-8 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]" data-chooser hidden>
+        <ol class="grid gap-3">
+          {QUESTIONS.map((q, i) => (
+            <li class="rounded-card bg-paper/5 p-5">
+              <p class="flex gap-3 font-semibold" id={`q-${q.id}`}>
+                <span class="font-display text-accent-soft tabular-nums">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span>{q.q}</span>
+              </p>
+              <p class="mt-1 pl-9 text-sm text-paper/75">{q.help}</p>
+              <div class="mt-3 flex gap-2 pl-9" role="group" aria-labelledby={`q-${q.id}`}>
+                {['yes', 'no'].map((v) => (
+                  <button
+                    type="button"
+                    class="chip cursor-pointer border-paper/30 bg-transparent text-paper aria-pressed:border-paper aria-pressed:bg-paper aria-pressed:text-navy"
+                    data-question={q.id}
+                    data-answer={v}
+                    aria-pressed="false"
+                  >
+                    {v === 'yes' ? 'Yes' : 'No'}
+                  </button>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div class="lg:sticky lg:top-24 lg:self-start" aria-live="polite">
+          <div class="rounded-card bg-paper p-6 text-ink md:p-8" data-result-empty>
+            <p class="font-display text-xl font-bold text-navy">Answer a question to start</p>
+            <p class="mt-2 text-muted">
+              Not sure yet? Most companies begin by selling from home or through a distributor, then
+              open an entity once the first Thai clients sign.
+            </p>
+          </div>
+          {MODELS.map((m) => (
+            <div class="rounded-card bg-paper p-6 text-ink md:p-8" data-result={m.id} hidden>
+              <p class="eyebrow">Start by looking at</p>
+              <p class="font-display text-2xl font-bold text-navy">{m.name}</p>
+              <p class="mt-1 text-muted">{m.tagline}</p>
+              <p class="mt-4" data-why />
+              <dl class="mt-5 grid grid-cols-2 gap-3 text-sm">
+                {specs(m).map((x) => (
+                  <div class="rounded-xl bg-surface p-3">
+                    <dt class="text-muted">{x.label}</dt>
+                    <dd class="mt-0.5 font-semibold text-navy">{x.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p class="mt-5 text-sm font-semibold text-navy" data-also-title>
+                Also consider
+              </p>
+              <ul class="mt-2 grid gap-2 text-sm" data-also />
+              <p class="mt-6">
+                <a href={`#model-${m.id}`} class="font-semibold text-accent">
+                  Read the full card <Icon name="arrow" class="inline size-4" />
+                </a>
+              </p>
+            </div>
+          ))}
+          <p class="mt-4 text-sm text-paper/75">
+            A first orientation, not advice: confirm the structure with a Thai lawyer and your tax
+            adviser.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 Entry models -->
+  <section id="models" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead
+        eyebrow="03 · Entry models compared"
+        title="Seven ways into Thailand"
+        intro="From no entity at all to a regional headquarters. The Foreign Business Act limits foreign ownership in most services, so the model decides who can own and invoice what."
+      />
+      <div class="grid gap-5 lg:grid-cols-2">
+        {MODELS.map((m) => (
+          <article
+            id={`model-${m.id}`}
+            class="flex scroll-mt-24 flex-col rounded-card border border-line bg-paper p-6 transition-shadow data-[suggested]:border-brand data-[suggested]:shadow-card"
+            data-model-card={m.id}
+          >
+            <p
+              class="mb-3 hidden self-start rounded-full bg-brand px-3 py-1 text-xs font-semibold text-paper"
+              data-suggested-badge
+            >
+              Suggested for you
+            </p>
+            <h3 class="text-xl">{m.name}</h3>
+            <p class="mt-1 text-muted">{m.tagline}</p>
+            <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+              {specs(m).map((x) => (
+                <div class="rounded-xl bg-surface p-3">
+                  <dt class="text-muted">{x.label}</dt>
+                  <dd class="mt-0.5 font-semibold text-navy">{x.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p class="mt-4">
+              <strong class="text-navy">Good for:</strong> {m.goodFor}
+            </p>
+            <p class="mt-3 flex gap-3 rounded-xl bg-surface p-3 text-sm">
+              <span class="shrink-0 font-semibold whitespace-nowrap text-warning">Watch out</span>
+              <span>{m.watch}</span>
+            </p>
+            <SourceLinks sources={sourceLinks(m.sources)} />
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 Roadmap -->
+  <section id="roadmap" class="scroll-mt-20 bg-surface py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead
+        eyebrow="04 · Roadmap"
+        title="Your first 18 months"
+        intro="The order most companies in our community followed: prove demand, then commit."
+      />
+      <div class="relative">
+        <div
+          aria-hidden="true"
+          class="absolute top-6 right-[16%] left-[16%] hidden h-0.5 bg-line lg:block"
+        ></div>
+        <ol class="relative grid gap-6 lg:grid-cols-3">
+          {ROADMAP.map((r, i) => (
+            <li class="relative flex flex-col">
+              <span
+                aria-hidden="true"
+                class="mx-auto mb-4 hidden size-12 items-center justify-center rounded-full bg-navy font-display text-lg font-bold text-paper lg:flex"
+              >
+                {i + 1}
+              </span>
+              <article class="flex flex-1 flex-col rounded-card border border-line bg-paper p-6">
+                <p class="text-sm font-semibold tracking-[0.15em] text-brand-dark uppercase">
+                  {r.when}
+                </p>
+                <h3 class="mt-1 text-2xl">{r.title}</h3>
+                <p class="mt-2 text-muted">{r.goal}</p>
+                <ul class="mt-4 grid gap-2">
+                  {r.steps.map((step) => (
+                    <li class="flex gap-3">
+                      <Icon name="check" class="mt-0.5 size-5 shrink-0 text-success" />
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 People -->
+  <section id="people" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead
+        eyebrow="05 · People"
+        title="Sending your people"
+        intro="Anyone working in Thailand needs a visa that allows it, tied to your Thai entity. These four cover most expansion teams."
+      />
+      <VisaCards visas={visas} workLabel="Work in Thailand:" />
+    </div>
+  </section>
+
+  <!-- 06 Selling -->
+  <section id="selling" class="scroll-mt-20 bg-surface py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead
+        eyebrow="06 · Go to market"
+        title="Selling in Thailand"
+        intro="What French companies here say made the difference with Thai buyers."
+      />
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {SELLING.map((t) => (
+          <article class="flex flex-col rounded-card border border-line bg-paper p-5">
+            <Icon name="handshake" class="size-6 text-brand" />
+            <h3 class="mt-3 text-lg">{t.title}</h3>
+            <p class="mt-2 text-sm">{t.body}</p>
+            <SourceLinks sources={sourceLinks(t.sources)} label="" class="mt-auto pt-3" />
+          </article>
+        ))}
+      </div>
+      <h2 class="mt-14 text-2xl leading-tight md:text-3xl">Doing business the Thai way</h2>
+      <TipCards />
+    </div>
+  </section>
+
+  <!-- 07 Taxes -->
+  <section id="tax" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead
+        eyebrow="07 · Taxes"
+        title="Taxes for your Thai business"
+        intro="The local rates first, then what applies when money moves between Thailand and your group."
+      />
+      <TaxCards taxes={TAXES} />
+      <h3 class="mt-12 mb-6 text-2xl">When money crosses the border</h3>
+      <TaxCards taxes={GROUP_TAXES} />
+    </div>
+  </section>
+
+  <!-- 08 Checklist -->
+  <section id="checklist" class="scroll-mt-20 bg-surface py-14 md:py-20">
+    <div class="container-page">
+      <Checklist
+        eyebrow="08 · Checklist"
+        title="Your launch checklist"
+        phases={CHECKLIST}
+        storageKey="ftbkk-expansion-guide-checklist"
+      />
+    </div>
+  </section>
+
+  <!-- 09 Who can help -->
+  <section id="help" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <SectionHead eyebrow="09 · Who can help" title="Your support network">
+        <p class="mt-3 text-lg text-muted">
+          Lawyers, accountants, recruiters and relocation services are listed in our{' '}
+          <a href="/ecosystem" class="text-accent">
+            Ecosystem directory
+          </a>
+          .
+        </p>
+      </SectionHead>
+      <HelpLists />
+    </div>
+  </section>
+
+  <!-- 10 FAQ -->
+  <section id="faq" class="scroll-mt-20 bg-surface py-14 md:py-20">
+    <div class="container-page max-w-3xl">
+      <p class="eyebrow">10 · Questions</p>
+      <h2 class="text-3xl leading-tight md:text-4xl">Questions companies ask us</h2>
+      <Faq items={FAQ} sources={allSources} checked={GUIDE_CHECKED_LABEL} />
+    </div>
+  </section>
+
+  <section class="relative isolate overflow-hidden bg-brand py-16 text-paper md:py-20">
+    <div class="container-page flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+      <div class="max-w-2xl">
+        <h2 class="text-3xl leading-snug text-paper md:text-4xl">Put your company on the map</h2>
+        <p class="mt-3 text-lg text-paper/90">
+          List your Thai office in our Ecosystem directory and meet the French tech companies
+          already here.
+        </p>
+      </div>
+      <div class="flex shrink-0 flex-wrap gap-3">
+        <Button href="/ecosystem/submit" variant="light">
+          List your company
+        </Button>
+        <Button href="/join#membership" variant="light">
+          Company membership <Icon name="arrow" class="size-4" />
+        </Button>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { suggestModel, type Answers, type QuestionId } from '../lib/expansion-guide';
+
+  // Entry-model chooser: yes/no buttons, one suggestion card, and the matching model card below
+  // gets a "Suggested for you" badge.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-chooser]')) {
+    const section = root.closest('section');
+    const names: Record<string, string> = JSON.parse(section?.dataset.modelNames ?? '{}');
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-question]')];
+    const empty = root.querySelector<HTMLElement>('[data-result-empty]');
+    const results = [...root.querySelectorAll<HTMLElement>('[data-result]')];
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-model-card]')];
+    const answers: Answers = {};
+
+    const update = () => {
+      const any = Object.keys(answers).length > 0;
+      if (empty) empty.hidden = any;
+      const s = any ? suggestModel(answers) : null;
+      for (const r of results) {
+        r.hidden = r.dataset.result !== s?.id;
+        if (!s || r.hidden) continue;
+        const why = r.querySelector('[data-why]');
+        if (why) why.textContent = s.why;
+        const list = r.querySelector('[data-also]');
+        if (!list) continue;
+        list.replaceChildren(
+          ...s.also.map((a) => {
+            const li = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = `#model-${a.id}`;
+            link.className = 'font-semibold text-accent';
+            link.textContent = names[a.id] ?? a.id;
+            li.appendChild(link);
+            li.appendChild(document.createTextNode(` ${a.why}`));
+            return li;
+          }),
+        );
+      }
+      for (const c of cards) {
+        const on = c.dataset.modelCard === s?.id;
+        c.toggleAttribute('data-suggested', on);
+        c.querySelector('[data-suggested-badge]')?.classList.toggle('hidden', !on);
+      }
+    };
+
+    for (const b of buttons) {
+      b.addEventListener('click', () => {
+        const q = b.dataset.question as QuestionId;
+        const yes = b.dataset.answer === 'yes';
+        const same = b.getAttribute('aria-pressed') === 'true';
+        // Clicking the pressed answer again clears it.
+        if (same) delete answers[q];
+        else answers[q] = yes;
+        for (const other of buttons) {
+          if (other.dataset.question !== q) continue;
+          other.setAttribute('aria-pressed', !same && other === b ? 'true' : 'false');
+        }
+        update();
+      });
+    }
+
+    root.hidden = false;
+    section?.querySelector<HTMLElement>('[data-chooser-fallback]')?.remove();
+    update();
+  }
+</script>

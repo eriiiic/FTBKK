@@ -1,0 +1,44 @@
+---
+import Icon from '../Icon.astro';
+import type { Source } from '../../lib/thailand-guides';
+
+interface Props {
+  items: { q: string; a: string }[];
+  sources: Source[];
+  checked: string;
+}
+const { items, sources, checked } = Astro.props;
+---
+
+<div class="mt-8 divide-y divide-line border-y border-line">
+  {items.map((f) => (
+    <details class="group py-4">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-navy">
+        {f.q}
+        <Icon
+          name="chevron-right"
+          class="size-4 shrink-0 transition-transform group-open:rotate-90"
+        />
+      </summary>
+      <p class="mt-3 text-ink">{f.a}</p>
+    </details>
+  ))}
+</div>
+
+<h2 class="mt-16 text-2xl">Sources</h2>
+<p class="mt-2 text-sm text-muted">
+  Checked on {checked}. Spotted something out of date?{' '}
+  <a href="/about#contact" class="text-accent">
+    Tell us
+  </a>
+  .
+</p>
+<ul class="mt-4 grid gap-1 text-sm">
+  {sources.map((s) => (
+    <li>
+      <a href={s.url} rel="noopener" target="_blank" class="text-accent">
+        {s.label}
+      </a>
+    </li>
+  ))}
+</ul>

@@ -27,6 +27,7 @@ export const GET: APIRoute = async () => {
     { loc: 'blog' },
     { loc: 'tech-pulse' },
     { loc: 'founders-guide' },
+    { loc: 'expand-to-thailand' },
     { loc: 'about' },
     { loc: 'th' },
     { loc: 'join' },

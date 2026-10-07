@@ -1,0 +1,22 @@
+---
+import type { Source } from '../../lib/thailand-guides';
+
+interface Props {
+  sources: Source[];
+  label?: string;
+  class?: string;
+}
+const { sources, label = 'Sources:', class: cls = 'mt-auto pt-4' } = Astro.props;
+---
+
+<p class={`text-xs text-muted ${cls}`}>
+  {label}{' '}
+  {sources.map((s, i) => (
+    <>
+      {i > 0 && ' · '}
+      <a href={s.url} class="underline" rel="noopener" target="_blank">
+        {s.label}
+      </a>
+    </>
+  ))}
+</p>

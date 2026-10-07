@@ -27,21 +27,30 @@ Public pages:
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the
   same style as `/join`. Texts are edited in the admin (Site texts).
-- **Resources** menu in the header (a drop-down; flat in the mobile menu): Tech Pulse and the
-  Founder's Guide.
+- **Resources** menu in the header (a drop-down; flat in the mobile menu): Tech Pulse, the
+  Founder's Guide and Expanding to Thailand.
 - **Thailand Tech Pulse** at `/tech-pulse` (Resources menu): our quarterly report. The latest
   edition leads with a Download button, then every edition with its quarter, a link to the summary
   post and the PDF. Editions are the published blog posts with "Tech Pulse" in their title; the
   PDF is the post's first PDF attachment (or the first PDF linked in its text). The introduction
   is edited in Site texts.
-- **Founder's Guide** at `/founders-guide` (Resources menu, footer, sitemap): practical notes for
-  founders setting up in Thailand. A "Where are you?" picker (exploring, remote work, setting up a
-  company, hiring and raising) shows the visa, structure and next steps; then visas compared,
-  company structures (BOI, Foreign Business Act), a first-year budget estimator, taxes at a
-  glance, a setup checklist whose ticks are kept in the browser (localStorage),
-  hiring, money and culture tips, who can help and a FAQ, with sources on every card and a "last
-  checked" date. The content and that date live in `src/lib/founders-guide.ts` (edited in code,
-  not in the admin).
+- **Founder's Guide** at `/founders-guide` (Resources menu, footer, sitemap): for founders
+  starting or growing a startup in Thailand. A "Where are you?" picker (testing an idea, remote
+  work, setting up a company, hiring and raising) shows the visa, structure and next steps; then
+  visas compared, company structures (BOI or a Thai partner), a first-year budget estimator, taxes
+  at a glance, a setup checklist, hiring, money and culture tips, who can help and a FAQ.
+- **Expanding to Thailand** at `/expand-to-thailand` (Resources menu, footer, sitemap): for
+  established tech companies, often French, opening an office or a business in Thailand. Market
+  figures, a five-question chooser that suggests an entry model and highlights its card, seven
+  entry models compared (sell from home, distributor, representative office, branch, BOI
+  subsidiary, Thai partner, regional hub) with invoicing, ownership, capital and setup time, an
+  18-month roadmap, visas for the people you send, selling tips, local and cross-border taxes, a
+  launch checklist, who can help and a FAQ.
+- Both guides link to each other, cite sources on every card and show a "last checked" date. Each
+  checklist keeps its ticks in the browser (localStorage, one key per guide). Content is edited in
+  code, not in the admin: shared visas, taxes, tips, helpers, sources and the date in
+  `src/lib/thailand-guides.ts`; page content in `src/lib/founders-guide.ts` and
+  `src/lib/expansion-guide.ts`; shared blocks in `src/components/guide/`.
 - **Thai page** at `/th` (ภาษาไทย in the header menu, `lang="th"`): La French Tech Bangkok, La
   French Tech and the Mission French Tech, our role, objectives and activities, in Thai, with
   Contact us buttons to the About contact form. Each `## ` heading of its text becomes a numbered

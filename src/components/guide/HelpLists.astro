@@ -1,0 +1,38 @@
+---
+import Icon from '../Icon.astro';
+import { HELP_FRENCH, HELP_THAI } from '../../lib/thailand-guides';
+
+const groups = [
+  { title: 'French network', items: HELP_FRENCH },
+  { title: 'Thai institutions', items: HELP_THAI },
+];
+const external = (url: string) => /^https?:\/\//.test(url);
+---
+
+<div class="grid gap-8 lg:grid-cols-2">
+  {groups.map((group) => (
+    <div>
+      <h3 class="mb-4 text-xl">{group.title}</h3>
+      <ul class="grid gap-3">
+        {group.items.map((h) => (
+          <li>
+            <a
+              href={h.url}
+              class="group flex items-start gap-4 rounded-card border border-line bg-paper p-4 no-underline transition-colors hover:border-navy"
+              {...(external(h.url) ? { rel: 'noopener', target: '_blank' } : {})}
+            >
+              <span class="min-w-0 flex-1">
+                <span class="block font-semibold text-navy group-hover:text-brand">{h.name}</span>
+                <span class="mt-1 block text-sm text-ink">{h.what}</span>
+              </span>
+              <Icon
+                name={external(h.url) ? 'external' : 'arrow'}
+                class="mt-1 size-4 shrink-0 text-muted"
+              />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ))}
+</div>

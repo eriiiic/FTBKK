@@ -1,0 +1,74 @@
+---
+import Icon from '../Icon.astro';
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  /** "Last checked on …" date, already formatted. */
+  checked: string;
+  toc: { href: string; label: string }[];
+  /** Link to the other guide, for readers who landed on the wrong one. */
+  other: { href: string; question: string; label: string };
+}
+const { eyebrow, title, intro, checked, toc, other } = Astro.props;
+---
+
+<!-- The navy header of the two Thailand guides: title, warning, other guide and the page index. -->
+<section class="relative isolate overflow-hidden bg-navy text-paper">
+  <div
+    aria-hidden="true"
+    class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+  ></div>
+  <div
+    aria-hidden="true"
+    class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+  ></div>
+  <div class="container-page grid gap-12 py-16 md:py-24 lg:grid-cols-[1fr_22rem] lg:items-start">
+    <div>
+      <p class="eyebrow eyebrow-light">{eyebrow}</p>
+      <h1 class="text-4xl leading-[1.1] text-paper md:text-6xl">{title}</h1>
+      <div class="hero-intro mt-8 max-w-2xl">
+        <p>{intro}</p>
+      </div>
+      <p class="mt-8 flex max-w-2xl items-start gap-3 rounded-card border border-paper/15 bg-paper/5 p-4 text-sm text-paper/85">
+        <Icon name="bulb" class="mt-0.5 size-5 shrink-0 text-accent-soft" />
+        <span>
+          Last checked on {checked}. Rules on visas, tax and foreign ownership change often: this
+          guide is a starting point, not legal or tax advice. Confirm with a lawyer or accountant
+          before you act.
+        </span>
+      </p>
+      <p class="mt-6 text-paper/85">
+        {other.question}{' '}
+        <a href={other.href} class="font-semibold text-paper underline">
+          {other.label}
+        </a>
+      </p>
+    </div>
+    <nav
+      aria-label="On this page"
+      class="rounded-card border border-paper/15 bg-paper/5 p-2 backdrop-blur lg:mt-14"
+    >
+      <ol>
+        {toc.map((t, i) => (
+          <li>
+            <a
+              href={t.href}
+              class="group flex items-center gap-4 rounded-xl px-4 py-2.5 text-paper no-underline transition-colors hover:bg-paper/10"
+            >
+              <span class="font-display text-sm font-bold text-accent-soft tabular-nums">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span class="min-w-0 flex-1 font-semibold">{t.label}</span>
+              <Icon
+                name="arrow"
+                class="size-4 text-paper/50 transition-transform group-hover:translate-x-1 group-hover:text-paper"
+              />
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  </div>
+</section>
