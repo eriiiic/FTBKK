@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
+import { siteUrl } from '../lib/site';
 
-export const GET: APIRoute = ({ site }) =>
+export const GET: APIRoute = () =>
   new Response(
     `User-agent: *
 Allow: /
@@ -12,7 +13,7 @@ Disallow: /ecosystem/confirm
 Disallow: /ecosystem/claim/
 Disallow: /my-data
 
-Sitemap: ${new URL('/sitemap.xml', site).href}
+Sitemap: ${siteUrl('/sitemap.xml')}
 `,
     {
       headers: {

@@ -1,6 +1,9 @@
 import { defineMiddleware } from 'astro:middleware';
 import { redirectFor } from './lib/redirects';
 import { checkAdmin } from './lib/auth';
+import { siteOrigin } from './lib/site';
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname, search } = context.url;
@@ -40,5 +43,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return res;
   }
 
-  return next();
+  const res = await next();
+  // Only the public address (SITE_URL) should be indexed: preview and version URLs of the Worker,
+  // and the workers.dev address once the domain is live, tell search engines to stay away.
+  if (context.url.host !== siteOrigin().host && !LOCAL_HOSTS.has(context.url.hostname)) {
+    try {
+      res.headers.set('X-Robots-Tag', 'noindex');
+    } catch {
+      // Immutable headers (e.g. Response.redirect): nothing to index anyway.
+    }
+  }
+  return res;
 });

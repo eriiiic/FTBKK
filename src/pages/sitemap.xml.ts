@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { siteUrl } from '../lib/site';
 import {
   allPosts,
   categoriesWithCounts,
@@ -10,8 +11,7 @@ import {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 /** Built from D1 on each request (edge-cached for an hour). */
-export const GET: APIRoute = async ({ site }) => {
-  const base = site?.href ?? 'https://www.french-tech-bangkok.com/';
+export const GET: APIRoute = async () => {
   const [up, past, posts, cats, orgs] = await Promise.all([
     upcomingEvents(),
     pastEvents(),
@@ -41,7 +41,7 @@ export const GET: APIRoute = async ({ site }) => {
 ${urls
   .map(
     (u) =>
-      `  <url><loc>${esc(new URL(u.loc, base).href)}</loc>${u.lastmod ? `<lastmod>${u.lastmod.toISOString().slice(0, 10)}</lastmod>` : ''}</url>`,
+      `  <url><loc>${esc(siteUrl(`/${u.loc}`))}</loc>${u.lastmod ? `<lastmod>${u.lastmod.toISOString().slice(0, 10)}</lastmod>` : ''}</url>`,
   )
   .join('\n')}
 </urlset>

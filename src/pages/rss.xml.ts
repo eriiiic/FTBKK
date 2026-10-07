@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { allPosts } from '../lib/queries';
 import { plainText } from '../lib/markdown';
 import { getSettings } from '../lib/settings';
+import { siteUrl } from '../lib/site';
 
 const esc = (s: string) =>
   s.replace(
@@ -9,9 +10,9 @@ const esc = (s: string) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!,
   );
 
-export const GET: APIRoute = async ({ site }) => {
+export const GET: APIRoute = async () => {
   const [posts, settings] = await Promise.all([allPosts(), getSettings()]);
-  const link = (p: string) => new URL(p, site).href;
+  const link = siteUrl;
   const items = posts
     .slice(0, 30)
     .map(

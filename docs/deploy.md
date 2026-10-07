@@ -119,5 +119,7 @@ Until this is done, no email is sent (confirmations, reminders and listing links
 When the site is ready to replace Wix: move `french-tech-bangkok.com` DNS to Cloudflare (or add a
 CNAME), add `www.french-tech-bangkok.com` as a Custom Domain on the Worker, add the hostname to
 the Access application and the Turnstile widget, set `SITE_URL` in `wrangler.jsonc` back to
-`https://www.french-tech-bangkok.com` (links in emails use it), then run
-`npm run check:redirects -- https://www.french-tech-bangkok.com`.
+`https://www.french-tech-bangkok.com` (links in emails, canonical URLs, the sitemap and social
+images use it; the workers.dev address then answers with `noindex`), then run
+`npm run check:redirects -- https://www.french-tech-bangkok.com`. Finally add the domain in Google
+Search Console and submit `https://www.french-tech-bangkok.com/sitemap.xml`.

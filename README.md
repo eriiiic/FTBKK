@@ -132,7 +132,13 @@ Public pages:
   their email (with Turnstile and a rate limit) and, only if the site holds data for it, emails a
   link that works for 24 hours (`/my-data?code=…`, a single-use `data` code in `magic_tokens`). The
   page always answers the same way, so it doesn't reveal whether an address is known.
-- Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
+- Old Wix URLs redirect to their new pages; `sitemap.xml`, `robots.txt` and `rss.xml` are
+  generated. Every absolute link (canonical URL, social image, sitemap, structured data, emails)
+  uses `SITE_URL` (`src/lib/site.ts`), so the domain switch is one line. Any other host serving the
+  Worker (version previews, workers.dev after the switch) sends `X-Robots-Tag: noindex`. Pages
+  without their own description use a default one (Admin > Settings > Site description overrides
+  it); posts, events and listings carry schema.org data (BlogPosting, Event with speakers,
+  Organization) and the home page adds the WebSite name Google shows in results.
 
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
 events, registrations, check-in, stats), **Community** (members, contacts, messages, reports, board and speakers),

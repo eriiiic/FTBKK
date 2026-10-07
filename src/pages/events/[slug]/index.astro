@@ -1,4 +1,5 @@
 ---
+import { siteUrl } from '../../../lib/site';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
@@ -190,16 +191,19 @@ const jsonLd = {
     name: event.venue ?? 'Bangkok',
     address: event.address ?? 'Bangkok, Thailand',
   },
-  image: cover ? new URL(cover, Astro.site).href : undefined,
+  image: cover ? siteUrl(cover) : undefined,
   description,
   offers: {
     '@type': 'Offer',
     price: 0,
     priceCurrency: 'THB',
     availability: 'https://schema.org/InStock',
-    url: new URL(`/events/${event.slug}`, Astro.site).href,
+    url: siteUrl(`/events/${event.slug}`),
   },
-  organizer: { '@type': 'Organization', name: 'La French Tech Bangkok', url: Astro.site?.href },
+  organizer: { '@type': 'Organization', name: 'La French Tech Bangkok', url: siteUrl('/') },
+  performer: speakers.length
+    ? speakers.map((p) => ({ '@type': 'Person', name: p.name, sameAs: p.linkedin ?? undefined }))
+    : undefined,
 };
 ---
 

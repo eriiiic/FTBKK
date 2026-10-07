@@ -1,4 +1,5 @@
 ---
+import { siteUrl } from '../../../lib/site';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Section from '../../../components/Section.astro';
 import OrgCard from '../../../components/OrgCard.astro';
@@ -38,7 +39,7 @@ const jsonLd = {
   name: org.name,
   description: org.pitch ?? undefined,
   url: org.website ?? undefined,
-  logo: logo ? new URL(logo, Astro.site).href : undefined,
+  logo: logo ? siteUrl(logo) : undefined,
   foundingDate: org.foundedYear ? String(org.foundedYear) : undefined,
   sameAs: [org.linkedin].filter(Boolean),
   email: org.publicEmail ?? undefined,
