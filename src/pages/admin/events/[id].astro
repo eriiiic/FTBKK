@@ -1,4 +1,5 @@
 ---
+import { CONNECT, TALK, eventKind, seriesFor } from '../../../lib/event-covers';
 import { asc, desc, eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import FormField from '../../../components/FormField.astro';
@@ -415,6 +416,7 @@ if (bodyTooLarge) {
     }
   } else {
     values = formToObject(form);
+    values.series = seriesFor(String(values.kind ?? ''), String(values.seriesName ?? ''));
     const parsed = EventSchema.safeParse(values);
     if (!parsed.success) errors = fieldErrors(parsed.error);
     // Cancelling goes through "Cancel the event", which tells the people registered.
@@ -487,7 +489,19 @@ const rstr = (k: string) =>
 const recap = event?.recap ?? null;
 const eventPast = event ? (event.endsAt ?? event.startsAt) < new Date() : false;
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
-const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Other'];
+// The type: Connect and Talk get their default cover; any other series keeps its own name.
+const kindNow = values.kind ? String(values.kind) : eventKind(str('series'));
+const otherName =
+  values.seriesName !== undefined
+    ? String(values.seriesName)
+    : eventKind(str('series')) === 'other'
+      ? str('series')
+      : '';
+const KINDS = [
+  { value: 'connect', label: CONNECT },
+  { value: 'talk', label: TALK },
+  { value: 'other', label: 'Other' },
+];
 ---
 
 <AdminLayout title={isNew ? 'New event' : 'Edit event'}>
@@ -523,13 +537,31 @@ const SERIES = ['French Tech Connect', 'Workshop', 'Talk', 'Partner event', 'Oth
     <div class="grid content-start gap-6">
       <div class="admin-panel grid content-start gap-4">
         <FormField name="title" label="Title" required value={str('title')} error={errors.title} />
-        <FormField
-          name="series"
-          label="Type"
-          required
-          value={str('series')}
-          options={SERIES.map((s) => ({ value: s, label: s }))}
-        />
+        <fieldset class="grid gap-2">
+          <legend class="text-sm font-semibold text-ink">Type</legend>
+          <div class="flex flex-wrap gap-x-6 gap-y-2">
+            {KINDS.map((k) => (
+              <label class="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="kind"
+                  value={k.value}
+                  checked={kindNow === k.value}
+                  class="size-4 accent-brand"
+                />
+                {k.label}
+              </label>
+            ))}
+          </div>
+          <FormField
+            name="seriesName"
+            label="Series name, for Other"
+            value={otherName}
+            maxlength={60}
+            placeholder="Workshop, AI Agent, Partner event…"
+            hint="Connect and Talk events without a cover of their own show the default image from Settings."
+          />
+        </fieldset>
         <div class="grid gap-4 sm:grid-cols-2">
           <FormField
             name="startsAt"

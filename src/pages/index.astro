@@ -1,9 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/Button.astro';
-import PillarIcon from '../components/PillarIcon.astro';
 import Icon from '../components/Icon.astro';
-import { getSettings } from '../lib/settings';
+import { getSettings, type Photo } from '../lib/settings';
 import {
   latestPosts,
   pastEvents,
@@ -15,12 +14,17 @@ import { CATEGORIES, CATEGORY_KEYS, type Category } from '../lib/directory';
 import { hasRecap } from '../lib/recap';
 import { formatDate, initials, mediaUrl, TZ } from '../lib/format';
 import { plainText } from '../lib/markdown';
+import { eventCover } from '../lib/event-covers';
 import {
   DEFAULT_CLOSING_TITLE,
   DEFAULT_COMMUNITY_TEXT,
   DEFAULT_COMMUNITY_TITLE,
   DEFAULT_HOME_NUMBERS,
-  HERO,
+  ABOUT_ITEM_ICONS,
+  DEFAULT_ABOUT_ITEMS,
+  DEFAULT_COMMUNITY_PHOTOS,
+  DEFAULT_HERO,
+  DEFAULT_PARTNERS,
   carouselGroups,
   highlightParts,
   homeData,
@@ -28,10 +32,10 @@ import {
 
 // Home, after the board's mockup: hero, about with the pillars, key numbers, next events, the
 // ecosystem directory, news, the community, partners and a closing call. Texts come from Site
-// texts; photos from Site texts > Home page photos, then from event recaps (lib/home.ts).
+// texts; photos from the photo slots in Website pages > Home, else the defaults (lib/home.ts).
 const settings = await getSettings();
 const [home, upcoming, posts, postCats, orgs] = await Promise.all([
-  homeData(settings.homePhotos),
+  homeData(settings.homePartners.length ? settings.homePartners : DEFAULT_PARTNERS),
   upcomingEvents(4),
   latestPosts(3),
   postCategoryNames(),
@@ -43,9 +47,14 @@ const recaps = upcoming.length
   : (await pastEvents()).filter((e) => hasRecap(e.recap)).slice(0, 4);
 const shownEvents = upcoming.length ? upcoming : recaps;
 
-// The hero is always the Bangkok skyline; Site texts photos go to About us and the collage.
-const [aboutPhoto, ...others] = home.photos;
-const collage = others.slice(0, 3);
+const slot = (p: Photo | null | undefined) =>
+  p ? { src: mediaUrl(p.key)!, srcset: undefined, alt: p.alt ?? '' } : null;
+const hero = slot(settings.homeHeroPhoto) ?? DEFAULT_HERO;
+const aboutPhoto = slot(settings.homeAboutPhoto) ?? home.eventPhotos[0];
+const collage = DEFAULT_COMMUNITY_PHOTOS.map((d, i) => slot(settings.homeCommunityPhotos[i]) ?? d);
+const aboutItems = (
+  settings.homeAboutItems.length ? settings.homeAboutItems : DEFAULT_ABOUT_ITEMS
+).slice(0, 4);
 
 const headline = highlightParts(settings.heroTagline);
 const aboutText = plainText(settings.aboutIntro.split(/\n\s*\n/)[0] ?? '', 320);
@@ -77,8 +86,8 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   {/* Hero */}
   <section class="relative isolate overflow-hidden bg-navy text-paper">
     <img
-      src={HERO.src}
-      srcset={HERO.srcset}
+      src={hero.src}
+      srcset={hero.srcset}
       sizes="100vw"
       alt=""
       width="1920"
@@ -107,9 +116,11 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
           Discover our mission
         </a>
       </div>
-      <p class="mt-12 max-w-56 self-end border-l-2 border-paper/60 pl-3 text-xs text-paper/85">
-        {HERO.caption}
-      </p>
+      {hero.alt && (
+        <p class="mt-12 max-w-56 self-end border-l-2 border-paper/60 pl-3 text-xs text-paper/85">
+          {hero.alt}
+        </p>
+      )}
     </div>
   </section>
 
@@ -157,21 +168,24 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
           />
         </div>
       )}
-      {settings.pillars.length > 0 && (
-        <ul class="grid gap-6">
-          {settings.pillars.map((p, i) => (
-            <li class="flex items-start gap-4">
-              <span class="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-                <PillarIcon index={i} class="size-6" />
-              </span>
-              <span>
-                <span class="block font-display font-bold text-navy">{p.title}</span>
-                {p.text && <span class="mt-1 line-clamp-2 block text-sm text-muted">{p.text}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul class="grid gap-6">
+        {aboutItems.map((p, i) => (
+          <li class="flex items-center gap-4">
+            <img
+              src={ABOUT_ITEM_ICONS[i]}
+              alt=""
+              width="64"
+              height="64"
+              loading="lazy"
+              class="size-16 shrink-0"
+            />
+            <span class="leading-snug">
+              <span class="block font-display font-bold text-navy">{p.title}</span>
+              {p.text && <span class="block text-sm text-muted">{p.text}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   </section>
 
@@ -214,7 +228,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
       {shownEvents.length ? (
         <ul class="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {shownEvents.map((e) => {
-            const cover = mediaUrl(e.coverKey);
+            const cover = eventCover(e, settings.eventCovers);
             return (
               <li class="group relative flex flex-col overflow-hidden rounded-card border border-line bg-paper shadow-card transition has-[a:hover]:-translate-y-0.5">
                 <div class="relative aspect-[16/10] bg-navy">
@@ -545,27 +559,31 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
           tabindex="0"
           aria-label="Partners"
         >
-          {home.partners.map((p) => (
-            <li class="shrink-0 snap-start">
-              {p.url ? (
-                <a href={p.url} rel="noopener" class="block" title={p.name}>
-                  <img
-                    src={p.logo}
-                    alt={p.name}
-                    loading="lazy"
-                    class="h-14 w-auto max-w-40 object-contain"
-                  />
-                </a>
-              ) : (
-                <img
-                  src={p.logo}
-                  alt={p.name}
-                  loading="lazy"
-                  class="h-14 w-auto max-w-40 object-contain"
-                />
-              )}
-            </li>
-          ))}
+          {home.partners.map((p) => {
+            const mark = p.logo ? (
+              <img
+                src={p.logo}
+                alt={p.name}
+                loading="lazy"
+                class="h-14 w-auto max-w-40 object-contain"
+              />
+            ) : (
+              <span class="block max-w-48 font-display text-lg leading-tight font-bold text-navy">
+                {p.name}
+              </span>
+            );
+            return (
+              <li class="shrink-0 snap-start">
+                {p.url ? (
+                  <a href={p.url} rel="noopener" class="block no-underline" title={p.name}>
+                    {mark}
+                  </a>
+                ) : (
+                  mark
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </section>
@@ -574,8 +592,8 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   {/* Closing band */}
   <section class="relative isolate overflow-hidden bg-brand py-16 text-paper md:py-20">
     <img
-      src={HERO.src}
-      srcset={HERO.srcset}
+      src={hero.src}
+      srcset={hero.srcset}
       sizes="100vw"
       alt=""
       loading="lazy"

@@ -8,8 +8,10 @@ import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
 import Icon from '../../components/Icon.astro';
 import { pastEvents, publishedPostIds, upcomingEvents } from '../../lib/queries';
-import { TZ, formatEventDate, mediaUrl } from '../../lib/format';
+import { TZ, formatEventDate } from '../../lib/format';
 import { hasRecap } from '../../lib/recap';
+import { getSettings } from '../../lib/settings';
+import { eventCover } from '../../lib/event-covers';
 
 const series = Astro.url.searchParams.get('series');
 const [upcoming, past] = await Promise.all([upcomingEvents(), pastEvents()]);
@@ -29,7 +31,8 @@ const pastByYear = Object.entries(
   }, {}),
 ).sort((a, b) => Number(b[0]) - Number(a[0]));
 const [next, ...later] = bySeries(upcoming);
-const nextCover = mediaUrl(next?.coverKey);
+const settings = await getSettings();
+const nextCover = next ? eventCover(next, settings.eventCovers) : null;
 ---
 
 <BaseLayout

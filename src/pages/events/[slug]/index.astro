@@ -24,6 +24,7 @@ import { clientIp, fieldErrors, formToObject } from '../../../lib/forms';
 import { verifyTurnstile } from '../../../lib/turnstile';
 import { rateLimit } from '../../../lib/ratelimit';
 import { getSettings } from '../../../lib/settings';
+import { eventCover } from '../../../lib/event-covers';
 import {
   MemberRegisterSchema,
   RegisterSchema,
@@ -168,7 +169,7 @@ const recap = !upcoming && hasRecap(event.recap, (id) => writeUp?.id === id) ? e
 const embed = videoEmbed(recap?.videoUrl);
 const photoAlt = (alt: string | undefined, i: number) =>
   alt || `Photo ${i + 1} of ${recap?.photos.length} from ${event.title}`;
-const cover = mediaUrl(event.coverKey);
+const cover = eventCover(event, settings.eventCovers);
 const mapUrl =
   event.mapUrl ??
   (event.address
