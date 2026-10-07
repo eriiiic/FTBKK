@@ -151,3 +151,22 @@
     @apply text-paper underline;
   }
 }
+
+/* Home page: section eyebrows with a short red rule, and the ecosystem category chips. */
+@layer components {
+  .eyebrow {
+    @apply mb-4 flex items-center gap-3 text-xs font-semibold tracking-[0.2em] text-brand-dark uppercase;
+  }
+  .eyebrow::before {
+    @apply h-0.5 w-8 shrink-0 bg-brand content-[''];
+  }
+  .eyebrow-light {
+    @apply text-paper/80;
+  }
+  .eyebrow-light::before {
+    @apply bg-paper/70;
+  }
+  .eco-chip {
+    @apply cursor-pointer rounded-full border border-paper/30 px-4 py-1.5 text-sm font-semibold text-paper transition-colors hover:border-paper aria-pressed:border-brand aria-pressed:bg-brand;
+  }
+}

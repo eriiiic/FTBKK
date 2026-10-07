@@ -1,79 +1,171 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Section from '../components/Section.astro';
 import Button from '../components/Button.astro';
-import EventCard from '../components/EventCard.astro';
-import PostCard from '../components/PostCard.astro';
-import OrgCard from '../components/OrgCard.astro';
-import JoinUs from '../components/JoinUs.astro';
 import PillarIcon from '../components/PillarIcon.astro';
 import Icon from '../components/Icon.astro';
 import { getSettings } from '../lib/settings';
 import {
-  featuredOrganisations,
   latestPosts,
-  organisationCounts,
+  pastEvents,
   postCategoryNames,
+  publishedOrganisations,
   upcomingEvents,
 } from '../lib/queries';
-import { CATEGORIES, CATEGORY_KEYS } from '../lib/directory';
+import { CATEGORIES, CATEGORY_KEYS, type Category } from '../lib/directory';
+import { hasRecap } from '../lib/recap';
+import { formatDate, initials, mediaUrl, TZ } from '../lib/format';
+import { plainText } from '../lib/markdown';
+import {
+  DEFAULT_CLOSING_TITLE,
+  DEFAULT_COMMUNITY_TEXT,
+  DEFAULT_COMMUNITY_TITLE,
+  FALLBACK_HERO,
+  carouselGroups,
+  highlightParts,
+  homeData,
+} from '../lib/home';
 
+// Home, after the board's mockup: hero, about with the pillars, key numbers, next events, the
+// ecosystem directory, news, the community, partners and a closing call. Texts come from Site
+// texts; photos from Site texts > Home page photos, then from event recaps (lib/home.ts).
 const settings = await getSettings();
-const [nextEvents, posts, featured, counts, postCats] = await Promise.all([
-  upcomingEvents(2),
+const [home, upcoming, posts, postCats, orgs] = await Promise.all([
+  homeData(settings.homePhotos),
+  upcomingEvents(4),
   latestPosts(3),
-  featuredOrganisations(6),
-  organisationCounts(),
   postCategoryNames(),
+  publishedOrganisations(),
 ]);
-const totalOrgs = Object.values(counts).reduce((a, b) => a + b, 0);
-const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
-  key: k,
-  label: CATEGORIES[k].label,
-  n: counts[k]!,
-}));
+// No event scheduled: show the latest events that have a recap instead.
+const recaps = upcoming.length
+  ? []
+  : (await pastEvents()).filter((e) => hasRecap(e.recap)).slice(0, 4);
+const shownEvents = upcoming.length ? upcoming : recaps;
+
+const [hero = FALLBACK_HERO, ...others] = home.photos;
+const aboutPhoto = others[0];
+const collage = others.slice(1, 4);
+
+const headline = highlightParts(settings.heroTagline);
+const aboutText = plainText(settings.aboutIntro.split(/\n\s*\n/)[0] ?? '', 320);
+
+// Key numbers, typed in Site texts; icons follow their position.
+const numbers = settings.homeNumbers.filter((n) => n.title).slice(0, 4);
+const numberIcons = ['users', 'rocket', 'handshake', 'globe'] as const;
+
+// The directory carousel: 15 at random for All and for each category (companies, not
+// institutions, which show in the partners strip).
+const companies = orgs.filter((o) => o.category !== 'institution');
+const groups = carouselGroups(
+  companies,
+  CATEGORY_KEYS.filter((k) => k !== 'institution'),
+);
+const label = (k: string) => CATEGORIES[k as Category]?.label ?? k;
+const short = (k: string) => CATEGORIES[k as Category]?.short ?? k;
+
+const day = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: TZ, ...opts }).format(d);
+
+const communityTitle = settings.homeCommunityTitle || DEFAULT_COMMUNITY_TITLE;
+const communityText = settings.homeCommunityText || DEFAULT_COMMUNITY_TEXT;
+const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
 ---
 
 <BaseLayout>
-  <section class="relative overflow-hidden bg-navy text-paper">
+  {/* Hero */}
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
     <img
-      src="/brand/hero-bangkok.jpg"
-      srcset="/brand/hero-bangkok-960.jpg 960w, /brand/hero-bangkok.jpg 1920w"
-      sizes="100vw"
+      src={hero.src}
       alt=""
       width="1920"
       height="1080"
       fetchpriority="high"
-      class="absolute inset-0 size-full object-cover"
+      class="absolute inset-0 -z-10 size-full object-cover"
     />
     <div
-      class="absolute inset-0 bg-gradient-to-r from-navy via-navy/85 to-navy/55"
+      class="absolute inset-0 -z-10 bg-gradient-to-r from-navy via-navy/80 to-navy/10"
       aria-hidden="true"
     ></div>
-    <div class="container-page relative py-20 md:py-28">
-      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">
-        {settings.heroTitle}
-      </p>
-      <h1 class="max-w-3xl text-4xl text-paper md:text-6xl">{settings.heroTagline}</h1>
-      {settings.mission && (
-        <p class="mt-6 max-w-2xl text-lg whitespace-pre-line text-accent-soft">
-          {settings.mission}
+    <div class="container-page flex min-h-[34rem] flex-col justify-center py-20 md:min-h-[40rem] md:py-28">
+      <p class="eyebrow eyebrow-light">{settings.heroTitle}</p>
+      <h1 class="max-w-3xl text-4xl leading-[1.08] text-paper md:text-6xl lg:text-7xl">
+        {headline.map((p) => (p.mark ? <span class="text-brand">{p.text}</span> : p.text))}
+      </h1>
+      {settings.mission && <p class="mt-6 max-w-xl text-lg text-paper/85">{settings.mission}</p>}
+      <div class="mt-10 flex flex-wrap gap-3">
+        <Button href="/join">
+          Join the community <Icon name="arrow" class="size-4" />
+        </Button>
+        <a
+          href="#about"
+          class="inline-flex items-center justify-center rounded-button border border-paper/70 px-6 py-2.5 font-semibold text-paper no-underline transition-colors hover:bg-paper hover:text-navy"
+        >
+          Discover our mission
+        </a>
+      </div>
+      {hero.alt && (
+        <p class="mt-12 max-w-56 self-end border-l-2 border-paper/60 pl-3 text-xs text-paper/85">
+          {hero.alt}
         </p>
       )}
-      <div class="mt-8 flex flex-wrap gap-3">
-        <Button href="/events">See upcoming events</Button>
-        <Button href="/join" variant="light">
-          Join the community
-        </Button>
+    </div>
+  </section>
+
+  {/* About and pillars */}
+  <section id="about" class="scroll-mt-20 overflow-hidden bg-surface py-16 md:py-24">
+    <div class="container-page grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)] lg:items-center lg:gap-10">
+      <div>
+        <p class="eyebrow">About us</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">
+          {settings.ecosystemHeading || 'A community committed to innovation without borders.'}
+        </h2>
+        {aboutText && <p class="mt-5 text-muted">{aboutText}</p>}
+        {settings.values.length > 0 && (
+          <ul class="mt-5 grid gap-2 text-sm">
+            {settings.values.map((v) => (
+              <li class="flex items-start gap-2">
+                <Icon name="check" class="mt-0.5 size-4 shrink-0 text-brand" />
+                {v}
+              </li>
+            ))}
+          </ul>
+        )}
+        <a
+          href="/about"
+          class="mt-8 inline-flex items-center gap-2 rounded-button border border-brand px-5 py-2 text-sm font-semibold text-brand-dark no-underline transition-colors hover:bg-brand hover:text-paper"
+        >
+          Learn more <Icon name="arrow" class="size-4" />
+        </a>
       </div>
-      {settings.values.length > 0 && (
-        <ul class="mt-12 flex flex-col gap-3 border-t border-paper/15 pt-8 sm:flex-row sm:flex-wrap sm:gap-x-10">
-          {settings.values.map((v) => (
-            <li class="flex items-center gap-2 text-sm font-medium text-paper">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand">
-                <Icon name="check" class="size-3.5" />
+      {aboutPhoto && (
+        <div class="relative mx-auto w-full max-w-sm">
+          <div
+            class="absolute -bottom-6 -left-6 size-40 rounded-tr-full bg-brand md:size-48"
+            aria-hidden="true"
+          ></div>
+          <div
+            class="absolute -top-6 -right-6 size-24 rounded-full bg-accent/15"
+            aria-hidden="true"
+          ></div>
+          <img
+            src={aboutPhoto.src}
+            alt={aboutPhoto.alt}
+            loading="lazy"
+            class="relative aspect-[4/5] w-full rounded-t-full object-cover shadow-card"
+          />
+        </div>
+      )}
+      {settings.pillars.length > 0 && (
+        <ul class="grid gap-6">
+          {settings.pillars.map((p, i) => (
+            <li class="flex items-start gap-4">
+              <span class="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
+                <PillarIcon index={i} class="size-6" />
               </span>
-              {v}
+              <span>
+                <span class="block font-display font-bold text-navy">{p.title}</span>
+                {p.text && <span class="mt-1 line-clamp-2 block text-sm text-muted">{p.text}</span>}
+              </span>
             </li>
           ))}
         </ul>
@@ -81,39 +173,395 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
     </div>
   </section>
 
-  <Section eyebrow="Events" title="Coming up next">
-    {nextEvents.length ? (
-      <div class="grid gap-6 md:grid-cols-2">
-        {nextEvents.map((e) => (
-          <EventCard event={e} />
+  {/* Key numbers */}
+  {numbers.length > 0 && (
+    <section aria-label="La French Tech Bangkok in numbers" class="bg-brand/5">
+      <ul
+        class={`container-page grid grid-cols-2 gap-y-10 py-12 md:py-14 ${['', 'md:grid-cols-1', 'md:grid-cols-2', 'md:grid-cols-3', 'md:grid-cols-4'][numbers.length]}`}
+      >
+        {numbers.map((s, i) => (
+          <li class="flex flex-col items-center px-3 text-center md:border-l md:border-brand/15 md:first:border-l-0">
+            <Icon name={numberIcons[i]!} class="size-10 text-brand" />
+            <span class="mt-3 font-display text-4xl font-bold text-navy tabular-nums md:text-5xl">
+              {s.title}
+            </span>
+            <span class="mt-2 max-w-48 text-sm text-ink">{s.text}</span>
+          </li>
         ))}
-      </div>
-    ) : (
-      <p class="text-muted">
-        No event scheduled yet. Join the WhatsApp group to hear about the next one.
-      </p>
-    )}
-    <p class="mt-8">
-      <a href="/events" class="font-semibold text-accent">
-        All events →
-      </a>
-    </p>
-  </Section>
+      </ul>
+    </section>
+  )}
 
-  {settings.pillars.length > 0 && (
-    <section class="bg-navy py-16 text-paper md:py-24">
-      <div class="container-page">
-        {settings.ecosystemHeading && (
-          <h2 class="mx-auto max-w-4xl text-center text-3xl leading-tight text-balance text-paper uppercase md:text-5xl">
-            {settings.ecosystemHeading}
+  {/* Events */}
+  <section class="bg-paper py-16 md:py-24" aria-labelledby="events-title">
+    <div class="container-page">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="eyebrow">Events</p>
+          <h2 id="events-title" class="max-w-xl text-3xl leading-tight md:text-4xl">
+            {upcoming.length ? 'Meetings that move the ecosystem forward.' : 'Our latest events.'}
           </h2>
+        </div>
+        <a
+          href="/events"
+          class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-dark no-underline"
+        >
+          See all events <Icon name="arrow" class="size-4" />
+        </a>
+      </div>
+      {shownEvents.length ? (
+        <ul class="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+          {shownEvents.map((e) => {
+            const cover = mediaUrl(e.coverKey);
+            return (
+              <li class="group relative flex flex-col overflow-hidden rounded-card border border-line bg-paper shadow-card transition has-[a:hover]:-translate-y-0.5">
+                <div class="relative aspect-[16/10] bg-navy">
+                  {cover && (
+                    <img src={cover} alt="" loading="lazy" class="size-full object-cover" />
+                  )}
+                  <span
+                    class="absolute top-3 left-3 flex w-14 flex-col items-center rounded-lg bg-paper py-1.5 leading-none text-navy shadow-card"
+                    aria-hidden="true"
+                  >
+                    <span class="font-display text-xl font-bold">
+                      {day(e.startsAt, { day: '2-digit' })}
+                    </span>
+                    <span class="mt-1 text-[0.65rem] font-bold tracking-wider text-brand uppercase">
+                      {day(e.startsAt, { month: 'short' })}
+                    </span>
+                  </span>
+                </div>
+                <div class="flex flex-1 flex-col gap-2 p-5">
+                  <span class="self-start rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand-dark">
+                    {e.series}
+                  </span>
+                  <h3 class="text-base leading-snug">
+                    <a
+                      href={`/events/${e.slug}`}
+                      class="text-navy no-underline after:absolute after:inset-0 group-hover:text-brand"
+                    >
+                      {e.title}
+                    </a>
+                  </h3>
+                  <p class="text-xs text-muted">
+                    <time datetime={e.startsAt.toISOString()}>{formatDate(e.startsAt)}</time>
+                  </p>
+                  <div class="mt-auto flex items-center justify-between gap-3 pt-2">
+                    <span class="flex min-w-0 items-center gap-1.5 text-sm text-muted">
+                      <Icon name="pin" class="size-4 shrink-0 text-brand" />
+                      <span class="truncate">{e.venue ?? 'Bangkok'}</span>
+                    </span>
+                    <span
+                      class="flex size-8 shrink-0 items-center justify-center rounded-full border border-brand text-brand transition-colors group-hover:bg-brand group-hover:text-paper"
+                      aria-hidden="true"
+                    >
+                      <Icon name="arrow" class="size-4" />
+                    </span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p class="mt-6 text-muted">
+          No event scheduled yet. <a href="/join">Join the community</a> to hear about the next one.
+        </p>
+      )}
+    </div>
+  </section>
+
+  {/* Ecosystem directory */}
+  {companies.length > 0 && (
+    <section class="bg-navy py-16 text-paper md:py-24" aria-labelledby="eco-title" data-eco>
+      <div class="container-page">
+        <div class="grid gap-6 md:grid-cols-2 md:items-end">
+          <div>
+            <p class="eyebrow eyebrow-light">Directory</p>
+            <h2 id="eco-title" class="text-3xl leading-tight text-paper md:text-4xl">
+              Discover the players of the ecosystem.
+            </h2>
+          </div>
+          <div class="md:text-right">
+            <p class="text-paper/80">
+              Startups, companies, investors, coworkings and service providers working between
+              France and Thailand.
+            </p>
+            <a
+              href="/ecosystem"
+              class="mt-5 inline-flex items-center gap-2 rounded-button border border-brand px-5 py-2 text-sm font-semibold text-paper no-underline transition-colors hover:bg-brand"
+            >
+              See the full directory <Icon name="arrow" class="size-4" />
+            </a>
+          </div>
+        </div>
+        {groups.length > 1 && (
+          <div class="mt-10 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+            {groups.map((g, i) => (
+              <button
+                type="button"
+                class="eco-chip"
+                aria-pressed={i === 0 ? 'true' : 'false'}
+                data-chip={g.key}
+              >
+                {g.key ? label(g.key) : 'All'}
+              </button>
+            ))}
+          </div>
         )}
-        <ul class="mt-12 grid gap-12 md:mt-16 md:grid-cols-3 md:gap-8">
-          {settings.pillars.map((p, i) => (
-            <li class="flex flex-col items-center text-center">
-              <PillarIcon index={i} class="size-14 text-paper" />
-              <h3 class="mt-6 text-xl text-paper">{p.title}</h3>
-              <p class="mt-3 max-w-xs text-paper/90">{p.text}</p>
+        <div class="mt-8">
+          {groups.map((g, i) => (
+            <ul
+              class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-4 md:mx-0 md:px-0"
+              data-eco-list={g.key}
+              hidden={i > 0}
+              tabindex="0"
+              aria-label={g.key ? label(g.key) : 'Organisations in the directory'}
+            >
+              {g.items.map((o) => {
+                const logo = mediaUrl(o.logoKey);
+                return (
+                  <li class="w-64 shrink-0 snap-start md:w-[calc((100%-3rem)/4)]">
+                    <a
+                      href={`/ecosystem/${o.slug}`}
+                      class="group flex h-full flex-col rounded-card bg-paper p-5 text-ink no-underline transition hover:-translate-y-0.5"
+                    >
+                      <span class="flex items-center gap-3">
+                        <span class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-paper">
+                          {logo ? (
+                            <img
+                              src={logo}
+                              alt=""
+                              loading="lazy"
+                              class="max-h-10 max-w-10 object-contain"
+                            />
+                          ) : (
+                            <span
+                              class="font-display text-sm font-bold text-navy"
+                              aria-hidden="true"
+                            >
+                              {initials(o.name)}
+                            </span>
+                          )}
+                        </span>
+                        <span class="line-clamp-2 font-display font-bold text-navy group-hover:text-brand">
+                          {o.name}
+                        </span>
+                      </span>
+                      {o.sectors.length > 0 && (
+                        <span class="mt-4 flex flex-wrap gap-1.5">
+                          {o.sectors.slice(0, 2).map((s) => (
+                            <span class="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">
+                              {s}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                      {o.pitch && <span class="mt-3 line-clamp-2 text-sm text-ink">{o.pitch}</span>}
+                      <span class="mt-auto flex items-center gap-1.5 pt-4 text-xs text-muted">
+                        <Icon name="building" class="size-3.5 shrink-0 text-brand" />
+                        {short(o.category)}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          ))}
+          <div class="mt-4 hidden justify-end gap-2 md:flex">
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full border border-paper/40 text-paper transition-colors hover:bg-paper hover:text-navy"
+              data-eco-scroll="-1"
+            >
+              <Icon name="chevron-left" class="size-5" />
+              <span class="sr-only">Previous organisations</span>
+            </button>
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full border border-paper/40 text-paper transition-colors hover:bg-paper hover:text-navy"
+              data-eco-scroll="1"
+            >
+              <Icon name="chevron-right" class="size-5" />
+              <span class="sr-only">Next organisations</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-6 text-sm text-paper/70">
+          Your company works between France and Thailand?{' '}
+          <a href="/ecosystem/submit" class="font-semibold text-paper">
+            Get listed for free
+          </a>
+          .
+        </p>
+      </div>
+    </section>
+  )}
+
+  {/* News */}
+  {posts.length > 0 && (
+    <section class="bg-paper py-16 md:py-24" aria-labelledby="news-title">
+      <div class="container-page">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">News</p>
+            <h2 id="news-title" class="max-w-xl text-3xl leading-tight md:text-4xl">
+              The latest from La French Tech Bangkok.
+            </h2>
+          </div>
+          <a
+            href="/blog"
+            class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-dark no-underline"
+          >
+            See all news <Icon name="arrow" class="size-4" />
+          </a>
+        </div>
+        <ul class="mt-10 grid gap-6 md:grid-cols-3">
+          {posts.map((p) => {
+            const cover = mediaUrl(p.coverKey);
+            const cat = postCats.get(p.id)?.[0];
+            return (
+              <li class="group relative flex flex-col overflow-hidden rounded-card border border-line bg-paper shadow-card transition has-[a:hover]:-translate-y-0.5">
+                <div class="aspect-[16/9] bg-surface">
+                  {cover && (
+                    <img src={cover} alt="" loading="lazy" class="size-full object-cover" />
+                  )}
+                </div>
+                <div class="flex flex-1 flex-col gap-2 p-5">
+                  {p.publishedAt && (
+                    <p class="text-xs text-muted">
+                      <time datetime={p.publishedAt.toISOString()}>
+                        {formatDate(p.publishedAt)}
+                      </time>
+                    </p>
+                  )}
+                  <h3 class="text-base leading-snug">
+                    <a
+                      href={`/blog/${p.slug}`}
+                      class="text-navy no-underline after:absolute after:inset-0 group-hover:text-brand"
+                    >
+                      {p.title}
+                    </a>
+                  </h3>
+                  {cat && (
+                    <span class="mt-auto self-start rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand-dark">
+                      {cat}
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  {/* Community */}
+  <section class="overflow-hidden bg-brand/5 py-16 md:py-24" aria-labelledby="community-title">
+    <div class="container-page grid gap-12 lg:grid-cols-2 lg:items-center">
+      <div>
+        <p class="eyebrow">Community</p>
+        <h2 id="community-title" class="text-3xl leading-tight md:text-4xl">
+          {communityTitle}
+        </h2>
+        <p class="mt-5 max-w-xl text-muted">{communityText}</p>
+        {settings.joinPaths.some((p) => p.link) && (
+          <ul class="mt-6 flex flex-wrap gap-2">
+            {settings.joinPaths
+              .filter((p) => p.link)
+              .map((p) => (
+                <li>
+                  <a
+                    href={p.link}
+                    class="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-sm font-semibold text-navy no-underline hover:border-navy"
+                  >
+                    {p.title} <Icon name="arrow" class="size-3.5 text-brand" />
+                  </a>
+                </li>
+              ))}
+          </ul>
+        )}
+        <div class="mt-8">
+          <Button href="/join">
+            Join the community <Icon name="arrow" class="size-4" />
+          </Button>
+        </div>
+      </div>
+      {collage.length > 0 && (
+        <div
+          class={`grid items-center gap-4 ${collage.length === 3 ? 'grid-cols-3' : collage.length === 2 ? 'grid-cols-2' : ''}`}
+        >
+          {collage.map((p, i) => (
+            <img
+              src={p.src}
+              alt={p.alt}
+              loading="lazy"
+              class={`w-full rounded-card object-cover shadow-card ${
+                collage.length === 3 && i === 1 ? 'aspect-[3/5]' : 'aspect-[3/4]'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+
+  {/* Partners */}
+  {home.partners.length > 0 && (
+    <section class="bg-paper py-14 md:py-20" aria-labelledby="partners-title" data-partners>
+      <div class="container-page">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Our partners</p>
+            <h2 id="partners-title" class="text-2xl md:text-3xl">
+              They support La French Tech Bangkok.
+            </h2>
+          </div>
+          <div class="hidden gap-2 md:flex">
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full border border-line text-navy transition-colors hover:border-navy"
+              data-partners-scroll="-1"
+            >
+              <Icon name="chevron-left" class="size-5" />
+              <span class="sr-only">Previous partners</span>
+            </button>
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full border border-line text-navy transition-colors hover:border-navy"
+              data-partners-scroll="1"
+            >
+              <Icon name="chevron-right" class="size-5" />
+              <span class="sr-only">Next partners</span>
+            </button>
+          </div>
+        </div>
+        <ul
+          class="-mx-4 mt-10 flex snap-x items-center gap-12 overflow-x-auto scroll-smooth px-4 pb-2 md:mx-0 md:px-0"
+          data-partners-list
+          tabindex="0"
+          aria-label="Partners"
+        >
+          {home.partners.map((p) => (
+            <li class="shrink-0 snap-start">
+              {p.url ? (
+                <a href={p.url} rel="noopener" class="block" title={p.name}>
+                  <img
+                    src={p.logo}
+                    alt={p.name}
+                    loading="lazy"
+                    class="h-14 w-auto max-w-40 object-contain"
+                  />
+                </a>
+              ) : (
+                <img
+                  src={p.logo}
+                  alt={p.name}
+                  loading="lazy"
+                  class="h-14 w-auto max-w-40 object-contain"
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -121,55 +569,59 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
     </section>
   )}
 
-  <JoinUs paths={settings.joinPaths} />
-
-  <Section
-    eyebrow="Ecosystem"
-    title="The French Tech ecosystem in Thailand"
-    intro={`${totalOrgs} organisations listed in our open directory.`}
-  >
-    {stats.length > 0 && (
-      <ul class="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
-        {stats.map((s) => (
-          <li>
-            <a
-              href={`/ecosystem?category=${s.key}`}
-              class="block h-full rounded-card border border-line p-4 no-underline hover:border-navy"
-            >
-              <span class="block font-display text-3xl font-bold text-brand">{s.n}</span>
-              <span class="text-sm text-muted">{s.label}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    )}
-    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {featured.map((o) => (
-        <OrgCard org={o} />
-      ))}
-    </div>
-    <div class="mt-8 flex flex-wrap gap-3">
-      <Button href="/ecosystem" variant="secondary">
-        Explore the directory
-      </Button>
-      <Button href="/ecosystem/submit" variant="ghost">
-        Get your organisation listed
-      </Button>
-    </div>
-  </Section>
-
-  {posts.length > 0 && (
-    <Section tone="surface" eyebrow="Blog" title="Latest from the community">
-      <div class="grid gap-6 md:grid-cols-3">
-        {posts.map((p) => (
-          <PostCard post={p} categories={postCats.get(p.id)} />
-        ))}
+  {/* Closing band */}
+  <section class="relative isolate overflow-hidden bg-brand py-16 text-paper md:py-20">
+    <img
+      src={hero.src}
+      alt=""
+      loading="lazy"
+      class="absolute inset-0 -z-10 size-full object-cover opacity-15 mix-blend-multiply"
+    />
+    <div class="container-page flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+      <div>
+        <p class="eyebrow eyebrow-light">Join us</p>
+        <h2 class="max-w-2xl text-3xl leading-tight text-paper md:text-5xl">{closingTitle}</h2>
       </div>
-      <p class="mt-8">
-        <a href="/blog" class="font-semibold text-accent">
-          All articles →
+      <div class="flex flex-wrap gap-3">
+        <Button href="/about#contact" variant="light">
+          Contact us <Icon name="arrow" class="size-4" />
+        </Button>
+        <a
+          href="/join"
+          class="inline-flex items-center justify-center rounded-button border border-paper px-6 py-2.5 font-semibold text-paper no-underline transition-colors hover:bg-paper hover:text-brand-dark"
+        >
+          Join the community
         </a>
-      </p>
-    </Section>
-  )}
+      </div>
+    </div>
+  </section>
 </BaseLayout>
+
+<script>
+  // Ecosystem carousel: chips switch between the "All" list and each category's list; the
+  // arrows scroll the visible list. The partners strip arrows scroll the logos.
+  const scrollList = (list: HTMLElement | null | undefined, dir: number) =>
+    list?.scrollBy({ left: dir * list.clientWidth * 0.8, behavior: 'smooth' });
+  for (const root of document.querySelectorAll<HTMLElement>('[data-eco]')) {
+    const chips = root.querySelectorAll<HTMLButtonElement>('[data-chip]');
+    const lists = root.querySelectorAll<HTMLElement>('[data-eco-list]');
+    for (const chip of chips) {
+      chip.addEventListener('click', () => {
+        for (const c of chips) c.setAttribute('aria-pressed', String(c === chip));
+        for (const l of lists) l.hidden = l.dataset.ecoList !== chip.dataset.chip;
+      });
+    }
+    for (const b of root.querySelectorAll<HTMLButtonElement>('[data-eco-scroll]'))
+      b.addEventListener('click', () =>
+        scrollList(
+          [...lists].find((l) => !l.hidden),
+          Number(b.dataset.ecoScroll),
+        ),
+      );
+  }
+  for (const root of document.querySelectorAll<HTMLElement>('[data-partners]')) {
+    const list = root.querySelector<HTMLElement>('[data-partners-list]');
+    for (const b of root.querySelectorAll<HTMLButtonElement>('[data-partners-scroll]'))
+      b.addEventListener('click', () => scrollList(list, Number(b.dataset.partnersScroll)));
+  }
+</script>

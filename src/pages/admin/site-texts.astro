@@ -10,6 +10,14 @@ import { cardsFromForm, getSettings, saveSettings, type Settings } from '../../l
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
 import { DEFAULT_THAI_PAGE } from '../../lib/thai-page';
+import { IMAGE_TYPES, storeUpload } from '../../lib/uploads';
+import { mediaUrl } from '../../lib/format';
+import {
+  DEFAULT_CLOSING_TITLE,
+  DEFAULT_COMMUNITY_TEXT,
+  DEFAULT_COMMUNITY_TITLE,
+  MAX_HOME_PHOTOS,
+} from '../../lib/home';
 
 // The texts of the public pages: home, Join, About, Tech Pulse, Thai page, code of conduct,
 // privacy notice.
@@ -43,6 +51,17 @@ const Schema = z.object({
   mission: longText(2000),
   values: z.string().transform(lines),
   ecosystemHeading: z.string().max(200),
+  homeNumbers: z
+    .array(
+      z.object({
+        title: z.string().min(1, 'Give every number a figure.').max(20),
+        text: z.string().min(1, 'Give every number a label.').max(80),
+      }),
+    )
+    .max(4),
+  homeCommunityTitle: z.string().max(200),
+  homeCommunityText: z.string().max(600),
+  homeClosingTitle: z.string().max(200),
   pillars: z.array(card.omit({ link: true })).max(6),
   joinPaths: z.array(card).max(6),
   joinIntro: longText(4000),
@@ -59,21 +78,57 @@ let errors: Record<string, string> = {};
 let values: Record<string, unknown> = { ...current, values: current.values.join('\n') };
 let pillars = current.pillars;
 let joinPaths = current.joinPaths;
+let homePhotos = current.homePhotos;
+let homeNumbers = current.homeNumbers;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 if (Astro.request.method === 'POST') {
-  values = formToObject(await Astro.request.formData(), [
+  const form = await Astro.request.formData();
+  values = formToObject(form, [
     'pillarTitle',
     'pillarText',
     'joinTitle',
     'joinText',
     'joinLink',
+    'numberTitle',
+    'numberText',
+    'homePhotoKey',
+    'homePhotoAlt',
+    'homePhotoRemove',
   ]);
   pillars = cardsFromForm(values, 'pillar');
   joinPaths = cardsFromForm(values, 'join', true);
-  const parsed = Schema.safeParse({ ...values, pillars, joinPaths });
-  if (!parsed.success) errors = fieldErrors(parsed.error);
-  else {
-    const next: Partial<Settings> = parsed.data;
+  homeNumbers = cardsFromForm(values, 'number').map(({ title, text }) => ({ title, text }));
+  // Home photos: the kept ones in their new order (only keys already saved), then new uploads.
+  const saved = new Set(current.homePhotos.map((p) => p.key));
+  const keys = (values.homePhotoKey as string[]).filter((k) => saved.has(k));
+  const alts = values.homePhotoAlt as string[];
+  const removed = values.homePhotoRemove as string[];
+  homePhotos = keys
+    .map((key, i) => ({ key, alt: (alts[i] ?? '').slice(0, 200) }))
+    .filter((p) => !removed.includes(p.key));
+  const files = form.getAll('homePhotoFiles').filter((f) => f instanceof File && f.size > 0);
+  if (homePhotos.length + files.length > MAX_HOME_PHOTOS)
+    errors.homePhotos = `Keep at most ${MAX_HOME_PHOTOS} photos: remove some first.`;
+  const parsed = Schema.safeParse({ ...values, pillars, joinPaths, homeNumbers });
+  if (!parsed.success) errors = { ...fieldErrors(parsed.error), ...errors };
+  if (!errors.homePhotos && !Object.keys(errors).length) {
+    for (const f of files) {
+      const up = await storeUpload(f, {
+        prefix: 'home',
+        maxBytes: MAX_PHOTO_BYTES,
+        types: IMAGE_TYPES.filter((t) => t !== 'image/svg+xml'),
+      });
+      if (up.error) {
+        errors.homePhotos = `${(f as File).name}: ${up.error}`;
+        break;
+      }
+      if (up.key) homePhotos.push({ key: up.key, alt: '' });
+    }
+  } else if (files.length && !errors.homePhotos)
+    errors.homePhotos = 'Choose the photos again after fixing the other fields.';
+  if (parsed.success && !Object.keys(errors).length) {
+    const next: Partial<Settings> = { ...parsed.data, homePhotos };
     await saveSettings(next);
     await audit(actor, 'update', 'settings', null, null, Object.keys(next));
     return Astro.redirect('/admin/site-texts?saved=1');
@@ -88,7 +143,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       Please fix the highlighted fields.
     </Alert>
   )}
-  <form method="post" data-warn-unsaved class="grid max-w-3xl gap-6">
+  <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid max-w-3xl gap-6">
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Home page</h2>
       <FormField
@@ -107,6 +162,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         maxlength={300}
         value={str('heroTagline')}
         error={errors.heroTagline}
+        hint="Put a word between stars to show it in red, for example: The tech ecosystem connecting *Bangkok* and France."
       />
       <FormField
         name="mission"
@@ -115,7 +171,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         maxlength={2000}
         value={str('mission')}
         error={errors.mission}
-        hint="Under the heading, and in the footer."
+        hint="Under the heading, and in the footer. The About us block next to it shows the first paragraph of About > Who we are."
       />
       <FormField
         name="values"
@@ -127,13 +183,114 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       />
       <FormField
         name="ecosystemHeading"
-        label="Navy section heading"
+        label="About us heading"
         maxlength={200}
         value={str('ecosystemHeading')}
         error={errors.ecosystemHeading}
-        hint="The big title above the three pillars."
+        hint="The heading of the About us block, next to its photo and the pillars."
       />
       <CardFields prefix="pillar" legend="Pillars" items={pillars} error={errors.pillars} />
+      <CardFields
+        prefix="number"
+        legend="Numbers"
+        items={homeNumbers}
+        error={errors.homeNumbers}
+        max={4}
+        item="number"
+        titleLabel="figure"
+        textLabel="Label"
+        textRows={0}
+        titleMax={20}
+        textMax={80}
+        hint="The navy band under the mission, up to four. Type each figure as it should appear (for example 300+ or 2019) and what it counts (for example Members). No numbers = no band."
+      />
+      <FormField
+        name="homeCommunityTitle"
+        label="Community block heading"
+        maxlength={200}
+        value={str('homeCommunityTitle')}
+        error={errors.homeCommunityTitle}
+        hint={`Empty = "${DEFAULT_COMMUNITY_TITLE}".`}
+      />
+      <FormField
+        name="homeCommunityText"
+        label="Community block text"
+        rows={3}
+        maxlength={600}
+        value={str('homeCommunityText')}
+        error={errors.homeCommunityText}
+        hint={`Under the Community heading, next to the photo collage. Empty = "${DEFAULT_COMMUNITY_TEXT}"`}
+      />
+      <FormField
+        name="homeClosingTitle"
+        label="Closing band heading"
+        maxlength={200}
+        value={str('homeClosingTitle')}
+        error={errors.homeClosingTitle}
+        hint={`The navy band at the bottom, with Join and Contact us. Empty = "${DEFAULT_CLOSING_TITLE}".`}
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4" id="home-photos">
+      <h2 class="text-lg">Home page photos</h2>
+      <p class="text-sm text-muted">
+        The first photo is the big one at the top (its description shows as a caption), the second
+        is the arched photo in About us and the next three make the community collage. Until there
+        are enough, photos from recent event recaps fill in. Use your own or licensed photos of our
+        events, at least 1600 px wide.
+      </p>
+      {homePhotos.length > 0 && (
+        <ol class="grid gap-3 sm:grid-cols-2" data-home-photos>
+          {homePhotos.map((p, i) => (
+            <li class="grid grid-cols-[5rem_1fr] gap-3 rounded-lg border border-line p-2">
+              <img
+                src={mediaUrl(p.key)}
+                alt={p.alt || `Photo ${i + 1}`}
+                loading="lazy"
+                class="aspect-square w-20 rounded object-cover"
+              />
+              <div class="grid min-w-0 content-start gap-2">
+                <input type="hidden" name="homePhotoKey" value={p.key} />
+                <label class="text-sm">
+                  <span class="sr-only">Photo {i + 1}: </span>Description
+                  <input
+                    name="homePhotoAlt"
+                    value={p.alt ?? ''}
+                    maxlength={200}
+                    class="admin-input mt-1"
+                  />
+                </label>
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                  <button type="button" data-move="-1" class="rounded border border-line px-2">
+                    ↑<span class="sr-only"> Move photo {i + 1} earlier</span>
+                  </button>
+                  <button type="button" data-move="1" class="rounded border border-line px-2">
+                    ↓<span class="sr-only"> Move photo {i + 1} later</span>
+                  </button>
+                  <label class="ml-auto flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      name="homePhotoRemove"
+                      value={p.key}
+                      class="size-4 accent-brand"
+                    />
+                    Remove<span class="sr-only"> photo {i + 1}</span>
+                  </label>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+      <FormField
+        name="homePhotoFiles"
+        label="Add photos"
+        type="file"
+        multiple
+        accept="image/png,image/jpeg,image/webp"
+        error={errors.homePhotos}
+        hint={`Up to ${MAX_HOME_PHOTOS} photos in all, 5 MB each. Use the arrows to reorder. The description is read to people using screen readers.`}
+      />
     </section>
 
     <section class="admin-panel grid gap-4">
@@ -255,3 +412,21 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     </div>
   </form>
 </AdminLayout>
+
+<script>
+  // Home photos: the arrows move a photo; the order of the hidden fields is the saved order.
+  document.querySelectorAll<HTMLElement>('[data-home-photos]').forEach((list) => {
+    list.addEventListener('click', (e) => {
+      const b = (e.target as Element | null)?.closest<HTMLButtonElement>('button[data-move]');
+      const item = b?.closest('li');
+      if (!b || !item) return;
+      const sibling =
+        b.dataset.move === '-1' ? item.previousElementSibling : item.nextElementSibling;
+      if (!sibling) return;
+      if (b.dataset.move === '-1') list.insertBefore(item, sibling);
+      else list.insertBefore(sibling, item);
+      b.focus();
+      list.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+</script>

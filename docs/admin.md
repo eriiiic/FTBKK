@@ -341,6 +341,16 @@ enrolment at check-in.
   WhatsApp invite link is kept here for the team and the welcome email to members), membership
   switches (individual sign-up on the Join page, company membership applications, member
   priority on events) and the analytics token.
+- **Home page photos** (in Site texts): upload up to 8 photos and order them with the arrows. The
+  first is the big photo at the top of Home (its description shows as a small caption), the second
+  is the arched photo in About us and the next three make the community collage. In the main
+  heading, put a word between stars (\*Bangkok\*) to show it in red. The home directory carousel
+  picks 15 organisations at random (for All and each category) on every refresh. Until there are enough, photos from recent event recaps and event
+  covers fill in, so the page never looks empty. Add a short description to each photo for screen
+  readers. The Home page section also has the **Numbers** band (up to four, each a figure
+  typed as it should appear, such as 300+, and a label, such as Members; the band is hidden while
+  there are none), the community block's heading and text, and the closing band's heading (empty
+  = a default text).
 - **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
   and the membership block; empty = a default text), the About page, the Tech Pulse page's
   introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**
