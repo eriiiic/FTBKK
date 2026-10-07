@@ -96,6 +96,10 @@ Until this is done, no email is sent (confirmations, reminders and listing links
    account: register and submit forms with that address to test. Once verified, set it to
    `La French Tech Bangkok <hello@french-tech-bangkok.com>`. Verifying the domain only adds DNS
    records: the Wix site and the domain's existing mailboxes keep working.
+5. Until we control the DNS of french-tech-bangkok.com, the site sends from
+   `noreply@mail.delattre.me` (Eric's domain, verified in Resend with its records in Cloudflare).
+   Any verified domain works: change `EMAIL_FROM` in `wrangler.jsonc` and deploy. A value set only
+   in the Cloudflare dashboard is overwritten by the next deploy.
 
 ## 7. In the admin
 
