@@ -8,8 +8,20 @@ import { mediaUrl } from './format';
 
 export const MAX_HOME_PHOTOS = 8;
 
-/** Used for the hero while no home photo nor event photo exists. */
-export const FALLBACK_HERO = { src: '/brand/hero-bangkok.jpg', alt: '' };
+/** The hero photo at the top of Home: the Chao Phraya and the Bangkok skyline. */
+export const HERO = {
+  src: '/brand/hero-bangkok.jpg',
+  srcset: '/brand/hero-bangkok-960.jpg 960w, /brand/hero-bangkok.jpg 1920w',
+  caption: 'Bangkok, innovation hub of Southeast Asia',
+};
+
+/** The numbers band, from the board's mockup, until Site texts > Numbers has some. */
+export const DEFAULT_HOME_NUMBERS = [
+  { title: '300+', text: 'community members' },
+  { title: '120+', text: 'startups supported' },
+  { title: '50+', text: 'institutional and private partners' },
+  { title: '3', text: 'regions connected (France, Thailand, Southeast Asia)' },
+];
 
 /** Texts of the home page blocks when Site texts leaves them empty. */
 export const DEFAULT_COMMUNITY_TITLE =
@@ -24,8 +36,8 @@ export interface HomePhoto {
 }
 
 /**
- * The photos the page uses, in order: the ones picked in Site texts, then photos from recent event
- * recaps, then event covers, without repeats.
+ * The photos for About us and the community collage, in order: the ones picked in Site texts, then
+ * photos from recent event recaps, then event covers, without repeats.
  */
 export function pickPhotos(
   chosen: RecapPhoto[],

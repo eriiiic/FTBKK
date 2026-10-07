@@ -17,6 +17,7 @@ import {
   DEFAULT_COMMUNITY_TEXT,
   DEFAULT_COMMUNITY_TITLE,
   MAX_HOME_PHOTOS,
+  DEFAULT_HOME_NUMBERS,
 } from '../../lib/home';
 
 // The texts of the public pages: home, Join, About, Tech Pulse, Thai page, code of conduct,
@@ -79,7 +80,7 @@ let values: Record<string, unknown> = { ...current, values: current.values.join(
 let pillars = current.pillars;
 let joinPaths = current.joinPaths;
 let homePhotos = current.homePhotos;
-let homeNumbers = current.homeNumbers;
+let homeNumbers = current.homeNumbers.length ? current.homeNumbers : DEFAULT_HOME_NUMBERS;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 if (Astro.request.method === 'POST') {
@@ -202,7 +203,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         textRows={0}
         titleMax={20}
         textMax={80}
-        hint="The navy band under the mission, up to four. Type each figure as it should appear (for example 300+ or 2019) and what it counts (for example Members). No numbers = no band."
+        hint="The band under About us, up to four, with the people, rocket, handshake and globe icons in that order. Type each figure as it should appear (for example 300+) and what it counts. Empty = the mockup's numbers shown here."
       />
       <FormField
         name="homeCommunityTitle"
@@ -234,10 +235,10 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     <section class="admin-panel grid gap-4" id="home-photos">
       <h2 class="text-lg">Home page photos</h2>
       <p class="text-sm text-muted">
-        The first photo is the big one at the top (its description shows as a caption), the second
-        is the arched photo in About us and the next three make the community collage. Until there
-        are enough, photos from recent event recaps fill in. Use your own or licensed photos of our
-        events, at least 1600 px wide.
+        The first photo is the arched one in About us and the next three make the community collage
+        (the top of the page always shows the Bangkok skyline). Until there are enough, photos from
+        recent event recaps fill in. Use your own or licensed photos of our events, at least 1600 px
+        wide.
       </p>
       {homePhotos.length > 0 && (
         <ol class="grid gap-3 sm:grid-cols-2" data-home-photos>
