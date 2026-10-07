@@ -1,0 +1,96 @@
+---
+import type { ChecklistPhase } from '../../lib/thailand-guides';
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  phases: ChecklistPhase[];
+  /** localStorage key; each guide keeps its own ticks. */
+  storageKey: string;
+}
+const { eyebrow, title, phases, storageKey } = Astro.props;
+---
+
+<!-- Checklist: ticks are remembered in this browser only. -->
+<div data-checklist={storageKey}>
+  <header class="mb-8 flex max-w-none flex-col gap-6 md:flex-row md:items-end md:justify-between">
+    <div class="max-w-3xl">
+      <p class="eyebrow">{eyebrow}</p>
+      <h2 class="text-3xl leading-tight md:text-4xl">{title}</h2>
+      <p class="mt-3 text-lg text-muted">
+        Tick as you go. Your progress is saved in this browser only.
+      </p>
+    </div>
+    <div class="w-full max-w-xs">
+      <p class="mb-2 flex justify-between text-sm font-semibold text-navy">
+        <span>Progress</span>
+        <span data-progress-label>0%</span>
+      </p>
+      <div class="h-2 overflow-hidden rounded-full bg-line" aria-hidden="true">
+        <div class="h-full w-0 bg-brand transition-all" data-progress-bar></div>
+      </div>
+      <button type="button" class="mt-3 cursor-pointer text-sm text-accent underline" data-reset>
+        Clear my ticks
+      </button>
+    </div>
+  </header>
+  <div class="grid gap-5 md:grid-cols-2">
+    {phases.map((phase, pi) => (
+      <fieldset class="rounded-card border border-line bg-paper p-6">
+        <legend class="sr-only">{phase.title}</legend>
+        <p aria-hidden="true" class="font-display text-lg font-bold text-navy">
+          {phase.title}
+        </p>
+        <ul class="mt-4 grid gap-3">
+          {phase.items.map((item, ii) => (
+            <li>
+              <label class="flex cursor-pointer gap-3">
+                <input
+                  type="checkbox"
+                  class="mt-1 size-4 shrink-0 accent-brand"
+                  data-item={`${pi}-${ii}`}
+                />
+                <span>{item}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+    ))}
+  </div>
+</div>
+
+<script>
+  // Ticks saved in localStorage under the key in data-checklist (may be unavailable in private
+  // windows).
+  for (const root of document.querySelectorAll<HTMLElement>('[data-checklist]')) {
+    const key = root.dataset.checklist ?? '';
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-item]')];
+    const label = root.querySelector<HTMLElement>('[data-progress-label]');
+    const bar = root.querySelector<HTMLElement>('[data-progress-bar]');
+    let saved: string[] = [];
+    try {
+      saved = JSON.parse(localStorage.getItem(key) ?? '[]');
+    } catch {
+      saved = [];
+    }
+    for (const box of boxes) box.checked = saved.includes(box.dataset.item ?? '');
+    const refresh = () => {
+      const done = boxes.filter((x) => x.checked);
+      const pct = boxes.length ? Math.round((done.length / boxes.length) * 100) : 0;
+      if (label) label.textContent = `${pct}%`;
+      if (bar) bar.style.width = `${pct}%`;
+      try {
+        localStorage.setItem(key, JSON.stringify(done.map((x) => x.dataset.item)));
+      } catch {
+        // Storage blocked: ticks just won't survive a reload.
+      }
+    };
+    for (const box of boxes) box.addEventListener('change', refresh);
+    root.querySelector('[data-reset]')?.addEventListener('click', () => {
+      for (const box of boxes) box.checked = false;
+      refresh();
+    });
+    refresh();
+  }
+</script>

@@ -1,0 +1,20 @@
+---
+import SourceLinks from './SourceLinks.astro';
+import { SOURCES, type TaxRow } from '../../lib/thailand-guides';
+
+interface Props {
+  taxes: TaxRow[];
+}
+const { taxes } = Astro.props;
+---
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {taxes.map((t) => (
+    <article class="flex flex-col rounded-card border border-line bg-paper p-5">
+      <p class="text-sm font-semibold text-muted">{t.label}</p>
+      <p class="mt-1 font-display text-2xl font-bold text-navy">{t.value}</p>
+      {t.note && <p class="mt-2 text-sm">{t.note}</p>}
+      <SourceLinks sources={t.sources.map((k) => SOURCES[k])} label="" class="mt-auto pt-3" />
+    </article>
+  ))}
+</div>

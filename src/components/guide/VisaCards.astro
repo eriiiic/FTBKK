@@ -1,0 +1,33 @@
+---
+import Icon from '../Icon.astro';
+import SourceLinks from './SourceLinks.astro';
+import { SOURCES, type Visa } from '../../lib/thailand-guides';
+
+interface Props {
+  visas: Visa[];
+  /** Label of the last line of each card. */
+  workLabel?: string;
+}
+const { visas, workLabel = 'Work for Thai clients:' } = Astro.props;
+---
+
+<div class="grid gap-5 md:grid-cols-2">
+  {visas.map((v) => (
+    <article class="flex flex-col rounded-card border border-line bg-paper p-6">
+      <h3 class="text-xl">{v.name}</h3>
+      <p class="mt-2 text-muted">{v.forWho}</p>
+      <ul class="mt-4 grid gap-2">
+        {v.facts.map((f) => (
+          <li class="flex gap-3">
+            <Icon name="check" class="mt-0.5 size-5 shrink-0 text-success" />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
+      <p class="mt-4 rounded-xl bg-surface p-3 text-sm">
+        <strong class="text-navy">{workLabel}</strong> {v.thaiWork}
+      </p>
+      <SourceLinks sources={v.sources.map((k) => SOURCES[k])} />
+    </article>
+  ))}
+</div>

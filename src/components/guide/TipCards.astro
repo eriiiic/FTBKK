@@ -1,0 +1,12 @@
+---
+import { TIPS } from '../../lib/thailand-guides';
+---
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {TIPS.map((t) => (
+    <article class="rounded-card bg-surface p-5">
+      <h3 class="text-lg">{t.title}</h3>
+      <p class="mt-2 text-sm">{t.body}</p>
+    </article>
+  ))}
+</div>
