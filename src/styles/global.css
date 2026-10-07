@@ -151,3 +151,10 @@
     @apply text-paper underline;
   }
 }
+
+/* Category chips on the home page's ecosystem carousel (navy background). */
+@layer components {
+  .eco-chip {
+    @apply cursor-pointer rounded-full border border-paper/30 px-3 py-1 text-sm font-semibold text-paper transition-colors hover:border-paper aria-pressed:border-paper aria-pressed:bg-paper aria-pressed:text-navy;
+  }
+}

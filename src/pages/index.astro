@@ -1,79 +1,153 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Section from '../components/Section.astro';
 import Button from '../components/Button.astro';
 import EventCard from '../components/EventCard.astro';
 import PostCard from '../components/PostCard.astro';
-import OrgCard from '../components/OrgCard.astro';
-import JoinUs from '../components/JoinUs.astro';
 import PillarIcon from '../components/PillarIcon.astro';
 import Icon from '../components/Icon.astro';
 import { getSettings } from '../lib/settings';
 import {
-  featuredOrganisations,
   latestPosts,
-  organisationCounts,
+  pastEvents,
   postCategoryNames,
+  publishedOrganisations,
   upcomingEvents,
 } from '../lib/queries';
-import { CATEGORIES, CATEGORY_KEYS } from '../lib/directory';
+import { CATEGORIES, CATEGORY_KEYS, type Category } from '../lib/directory';
+import { hasRecap } from '../lib/recap';
+import { initials, mediaUrl } from '../lib/format';
+import {
+  DEFAULT_CLOSING_TITLE,
+  DEFAULT_COMMUNITY_TEXT,
+  DEFAULT_COMMUNITY_TITLE,
+  FALLBACK_HERO,
+  homeData,
+} from '../lib/home';
 
+// Home: hero, mission and pillars, live numbers, next events, the ecosystem directory, news, the
+// community, partners and a closing call to join. Texts come from Site texts; photos from Site
+// texts > Home photos, then from event recaps (lib/home.ts).
 const settings = await getSettings();
-const [nextEvents, posts, featured, counts, postCats] = await Promise.all([
-  upcomingEvents(2),
+const [home, upcoming, posts, postCats, orgs] = await Promise.all([
+  homeData(settings.homePhotos, settings.memberSignupOpen),
+  upcomingEvents(4),
   latestPosts(3),
-  featuredOrganisations(6),
-  organisationCounts(),
   postCategoryNames(),
+  publishedOrganisations(),
 ]);
-const totalOrgs = Object.values(counts).reduce((a, b) => a + b, 0);
-const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
-  key: k,
-  label: CATEGORIES[k].label,
-  n: counts[k]!,
-}));
+// No event scheduled: show the latest events that have a recap instead.
+const recaps = upcoming.length
+  ? []
+  : (await pastEvents()).filter((e) => hasRecap(e.recap)).slice(0, 4);
+const shownEvents = upcoming.length ? upcoming : recaps;
+
+const [hero = FALLBACK_HERO, ...others] = home.photos;
+const missionPhoto = others[0];
+const collage = others.slice(1, 5);
+
+// The directory carousel: companies (not institutions), those with a logo first.
+const listed = orgs
+  .filter((o) => o.category !== 'institution')
+  .sort((a, b) => Number(!!b.logoKey) - Number(!!a.logoKey))
+  .slice(0, 24);
+const chips = CATEGORY_KEYS.filter(
+  (k) => k !== 'institution' && listed.some((o) => o.category === k),
+);
+const label = (k: string) => CATEGORIES[k as Category]?.short ?? k;
+
+const communityTitle = settings.homeCommunityTitle || DEFAULT_COMMUNITY_TITLE;
+const communityText = settings.homeCommunityText || DEFAULT_COMMUNITY_TEXT;
+const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
+const external = (href: string) => /^https?:/.test(href);
 ---
 
 <BaseLayout>
-  <section class="relative overflow-hidden bg-navy text-paper">
+  {/* 1. Hero */}
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
     <img
-      src="/brand/hero-bangkok.jpg"
-      srcset="/brand/hero-bangkok-960.jpg 960w, /brand/hero-bangkok.jpg 1920w"
-      sizes="100vw"
+      src={hero.src}
       alt=""
       width="1920"
       height="1080"
       fetchpriority="high"
-      class="absolute inset-0 size-full object-cover"
+      class="absolute inset-0 -z-10 size-full object-cover"
     />
     <div
-      class="absolute inset-0 bg-gradient-to-r from-navy via-navy/85 to-navy/55"
+      class="absolute inset-0 -z-10 bg-gradient-to-r from-navy via-navy/85 to-navy/40"
       aria-hidden="true"
     ></div>
-    <div class="container-page relative py-20 md:py-28">
-      <p class="mb-4 text-sm font-semibold tracking-widest text-accent-soft uppercase">
+    <div class="container-page py-24 md:py-36">
+      <p class="mb-5 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase">
         {settings.heroTitle}
       </p>
-      <h1 class="max-w-3xl text-4xl text-paper md:text-6xl">{settings.heroTagline}</h1>
+      <h1 class="max-w-3xl text-4xl leading-[1.1] text-paper md:text-6xl">
+        {settings.heroTagline}
+      </h1>
       {settings.mission && (
-        <p class="mt-6 max-w-2xl text-lg whitespace-pre-line text-accent-soft">
-          {settings.mission}
-        </p>
+        <p class="mt-6 max-w-2xl text-lg text-paper/85 md:text-xl">{settings.mission}</p>
       )}
-      <div class="mt-8 flex flex-wrap gap-3">
-        <Button href="/events">See upcoming events</Button>
-        <Button href="/join" variant="light">
-          Join the community
+      <div class="mt-10 flex flex-wrap gap-3">
+        <Button href="/join">Join the community</Button>
+        <Button href="#mission" variant="light">
+          Our mission
         </Button>
       </div>
-      {settings.values.length > 0 && (
-        <ul class="mt-12 flex flex-col gap-3 border-t border-paper/15 pt-8 sm:flex-row sm:flex-wrap sm:gap-x-10">
-          {settings.values.map((v) => (
-            <li class="flex items-center gap-2 text-sm font-medium text-paper">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand">
-                <Icon name="check" class="size-3.5" />
-              </span>
-              {v}
+    </div>
+  </section>
+
+  {/* 2. Mission and pillars */}
+  <section id="mission" class="scroll-mt-20 bg-paper py-16 md:py-24">
+    <div class="container-page">
+      <div class="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
+        <div>
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            Our mission
+          </p>
+          <h2 class="text-3xl leading-tight md:text-4xl">
+            {settings.ecosystemHeading || 'Building bridges between French and Thai tech'}
+          </h2>
+          {settings.values.length > 0 && (
+            <ul class="mt-8 grid gap-4">
+              {settings.values.map((v) => (
+                <li class="flex items-start gap-3 text-lg">
+                  <span class="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-brand text-paper">
+                    <Icon name="check" class="size-3.5" />
+                  </span>
+                  {v}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p class="mt-8">
+            <a href="/about" class="inline-flex items-center gap-1.5 font-semibold no-underline">
+              More about us <Icon name="arrow" class="size-4" />
+            </a>
+          </p>
+        </div>
+        {missionPhoto && (
+          <div class="relative">
+            <div
+              class="absolute -right-3 -bottom-3 hidden size-full rounded-card bg-accent/15 md:block"
+              aria-hidden="true"
+            ></div>
+            <img
+              src={missionPhoto.src}
+              alt={missionPhoto.alt}
+              loading="lazy"
+              class="relative aspect-[4/3] w-full rounded-card object-cover shadow-card"
+            />
+          </div>
+        )}
+      </div>
+      {settings.pillars.length > 0 && (
+        <ul
+          class={`mt-14 grid gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-2 ${settings.pillars.length === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
+        >
+          {settings.pillars.map((p, i) => (
+            <li class="bg-paper p-8">
+              <PillarIcon index={i} class="size-10 text-brand" />
+              <h3 class="mt-5 text-xl">{p.title}</h3>
+              <p class="mt-2 text-muted">{p.text}</p>
             </li>
           ))}
         </ul>
@@ -81,39 +155,260 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
     </div>
   </section>
 
-  <Section eyebrow="Events" title="Coming up next">
-    {nextEvents.length ? (
-      <div class="grid gap-6 md:grid-cols-2">
-        {nextEvents.map((e) => (
-          <EventCard event={e} />
+  {/* 3. Live numbers */}
+  {home.stats.length > 0 && (
+    <section aria-label="La French Tech Bangkok in numbers" class="bg-navy text-paper">
+      <ul
+        class={`container-page grid grid-cols-2 gap-y-10 py-12 md:py-16 ${home.stats.length === 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}
+      >
+        {home.stats.map((s) => (
+          <li class="px-2 text-center md:border-l md:border-paper/15 md:first:border-l-0">
+            <span class="block font-display text-4xl font-bold text-paper tabular-nums md:text-5xl">
+              {s.value.toLocaleString('en-US')}
+            </span>
+            <span class="mt-2 block text-sm text-accent-soft">{s.label}</span>
+          </li>
         ))}
-      </div>
-    ) : (
-      <p class="text-muted">
-        No event scheduled yet. Join the WhatsApp group to hear about the next one.
-      </p>
-    )}
-    <p class="mt-8">
-      <a href="/events" class="font-semibold text-accent">
-        All events →
-      </a>
-    </p>
-  </Section>
+      </ul>
+    </section>
+  )}
 
-  {settings.pillars.length > 0 && (
-    <section class="bg-navy py-16 text-paper md:py-24">
-      <div class="container-page">
-        {settings.ecosystemHeading && (
-          <h2 class="mx-auto max-w-4xl text-center text-3xl leading-tight text-balance text-paper uppercase md:text-5xl">
-            {settings.ecosystemHeading}
+  {/* 4. Events */}
+  <section class="bg-surface py-16 md:py-24" aria-labelledby="events-title">
+    <div class="container-page">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+            Events
+          </p>
+          <h2 id="events-title" class="text-3xl md:text-4xl">
+            {upcoming.length ? 'Coming up next' : 'Our latest events'}
           </h2>
+        </div>
+        <a href="/events" class="inline-flex items-center gap-1.5 font-semibold no-underline">
+          All events <Icon name="arrow" class="size-4" />
+        </a>
+      </div>
+      {shownEvents.length ? (
+        <div class="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+          {shownEvents.map((e) => (
+            <EventCard event={e} />
+          ))}
+        </div>
+      ) : (
+        <p class="mt-6 text-muted">
+          No event scheduled yet. <a href="/join">Join the community</a> to hear about the next one.
+        </p>
+      )}
+    </div>
+  </section>
+
+  {/* 5. Ecosystem directory */}
+  {listed.length > 0 && (
+    <section
+      class="relative isolate overflow-hidden bg-navy py-16 text-paper md:py-24"
+      aria-labelledby="eco-title"
+      data-eco
+    >
+      <div
+        aria-hidden="true"
+        class="absolute -top-40 -left-40 -z-10 size-[32rem] rounded-full bg-accent/20 blur-3xl"
+      ></div>
+      <div class="container-page">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div class="max-w-2xl">
+            <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase">
+              Ecosystem
+            </p>
+            <h2 id="eco-title" class="text-3xl text-paper md:text-4xl">
+              The French tech ecosystem in Thailand
+            </h2>
+            <p class="mt-3 text-paper/80">
+              Startups, companies, investors and coworkings in our open directory.
+            </p>
+          </div>
+          <Button href="/ecosystem" variant="light">
+            See the full directory
+          </Button>
+        </div>
+        {chips.length > 1 && (
+          <div class="mt-8 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+            <button type="button" class="eco-chip" aria-pressed="true" data-chip="">
+              All
+            </button>
+            {chips.map((k) => (
+              <button type="button" class="eco-chip" aria-pressed="false" data-chip={k}>
+                {CATEGORIES[k].label}
+              </button>
+            ))}
+          </div>
         )}
-        <ul class="mt-12 grid gap-12 md:mt-16 md:grid-cols-3 md:gap-8">
-          {settings.pillars.map((p, i) => (
-            <li class="flex flex-col items-center text-center">
-              <PillarIcon index={i} class="size-14 text-paper" />
-              <h3 class="mt-6 text-xl text-paper">{p.title}</h3>
-              <p class="mt-3 max-w-xs text-paper/90">{p.text}</p>
+        <ul
+          class="-mx-4 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-4 md:mx-0 md:px-0"
+          data-eco-list
+          tabindex="0"
+          aria-label="Organisations in the directory"
+        >
+          {listed.map((o) => {
+            const logo = mediaUrl(o.logoKey);
+            return (
+              <li class="w-60 shrink-0 snap-start" data-category={o.category}>
+                <a
+                  href={`/ecosystem/${o.slug}`}
+                  class="group flex h-full flex-col rounded-card bg-paper p-5 text-ink no-underline transition hover:-translate-y-0.5"
+                >
+                  <span class="flex h-16 items-center">
+                    {logo ? (
+                      <img
+                        src={logo}
+                        alt=""
+                        loading="lazy"
+                        class="max-h-14 max-w-36 object-contain"
+                      />
+                    ) : (
+                      <span
+                        class="flex size-14 items-center justify-center rounded-xl bg-surface font-display font-bold text-navy"
+                        aria-hidden="true"
+                      >
+                        {initials(o.name)}
+                      </span>
+                    )}
+                  </span>
+                  <span class="mt-4 line-clamp-2 font-display font-bold text-navy group-hover:text-brand">
+                    {o.name}
+                  </span>
+                  <span class="mt-1 text-xs text-muted">{label(o.category)}</span>
+                  {o.pitch && <span class="mt-2 line-clamp-2 text-sm text-muted">{o.pitch}</span>}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+        <p class="mt-4 text-sm text-paper/70">
+          Your company is French or works with France in Thailand?{' '}
+          <a href="/ecosystem/submit" class="font-semibold text-paper">
+            Get listed for free
+          </a>
+          .
+        </p>
+      </div>
+    </section>
+  )}
+
+  {/* 6. Latest news */}
+  {posts.length > 0 && (
+    <section class="bg-paper py-16 md:py-24" aria-labelledby="news-title">
+      <div class="container-page">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+              News
+            </p>
+            <h2 id="news-title" class="text-3xl md:text-4xl">
+              Latest from the community
+            </h2>
+          </div>
+          <a href="/blog" class="inline-flex items-center gap-1.5 font-semibold no-underline">
+            All articles <Icon name="arrow" class="size-4" />
+          </a>
+        </div>
+        <div class="mt-10 grid gap-6 md:grid-cols-3">
+          {posts.map((p) => (
+            <PostCard post={p} categories={postCats.get(p.id)} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {/* 7. Community */}
+  <section class="bg-surface py-16 md:py-24" aria-labelledby="community-title">
+    <div class="container-page grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
+      {collage.length > 0 && (
+        <div class={`grid gap-3 ${collage.length > 1 ? 'grid-cols-2' : ''}`}>
+          {collage.map((p, i) => (
+            <img
+              src={p.src}
+              alt={p.alt}
+              loading="lazy"
+              class={`w-full rounded-card object-cover ${
+                collage.length === 3 && i === 0 ? 'col-span-2 aspect-[2/1]' : 'aspect-square'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+      <div class={collage.length ? '' : 'lg:col-span-2 lg:max-w-3xl'}>
+        <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">
+          Community
+        </p>
+        <h2 id="community-title" class="text-3xl leading-tight md:text-4xl">
+          {communityTitle}
+        </h2>
+        <p class="mt-4 text-lg text-muted">{communityText}</p>
+        {settings.joinPaths.length > 0 && (
+          <ul class="mt-8 grid gap-3">
+            {settings.joinPaths.map((p) => (
+              <li class="group relative rounded-card border border-line bg-paper p-5 transition-colors has-[a:hover]:border-navy has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-navy">
+                <p class="font-display font-bold text-navy">
+                  {p.link ? (
+                    <a
+                      href={p.link}
+                      class="flex items-center justify-between gap-3 text-navy no-underline after:absolute after:inset-0 focus-visible:outline-none"
+                      rel={external(p.link) ? 'noopener' : undefined}
+                    >
+                      {p.title}
+                      <Icon
+                        name="arrow"
+                        class="size-4 shrink-0 text-brand transition-transform group-hover:translate-x-1"
+                      />
+                    </a>
+                  ) : (
+                    p.title
+                  )}
+                </p>
+                {p.text && <p class="mt-1 text-sm text-muted">{p.text}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div class="mt-8">
+          <Button href="/join">Join the community</Button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* 8. Partners */}
+  {home.partners.length > 0 && (
+    <section class="bg-paper py-14 md:py-16" aria-labelledby="partners-title">
+      <div class="container-page">
+        <h2
+          id="partners-title"
+          class="text-center text-sm font-semibold tracking-[0.2em] text-muted uppercase"
+        >
+          With the support of our partners and hosts
+        </h2>
+        <ul class="mt-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-8">
+          {home.partners.map((p) => (
+            <li>
+              {p.url ? (
+                <a href={p.url} rel="noopener" class="block" title={p.name}>
+                  <img
+                    src={p.logo}
+                    alt={p.name}
+                    loading="lazy"
+                    class="h-12 w-auto max-w-36 object-contain opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
+                  />
+                </a>
+              ) : (
+                <img
+                  src={p.logo}
+                  alt={p.name}
+                  loading="lazy"
+                  class="h-12 w-auto max-w-36 object-contain opacity-80 grayscale"
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -121,55 +416,43 @@ const stats = CATEGORY_KEYS.filter((k) => counts[k]).map((k) => ({
     </section>
   )}
 
-  <JoinUs paths={settings.joinPaths} />
-
-  <Section
-    eyebrow="Ecosystem"
-    title="The French Tech ecosystem in Thailand"
-    intro={`${totalOrgs} organisations listed in our open directory.`}
-  >
-    {stats.length > 0 && (
-      <ul class="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
-        {stats.map((s) => (
-          <li>
-            <a
-              href={`/ecosystem?category=${s.key}`}
-              class="block h-full rounded-card border border-line p-4 no-underline hover:border-navy"
-            >
-              <span class="block font-display text-3xl font-bold text-brand">{s.n}</span>
-              <span class="text-sm text-muted">{s.label}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    )}
-    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {featured.map((o) => (
-        <OrgCard org={o} />
-      ))}
-    </div>
-    <div class="mt-8 flex flex-wrap gap-3">
-      <Button href="/ecosystem" variant="secondary">
-        Explore the directory
-      </Button>
-      <Button href="/ecosystem/submit" variant="ghost">
-        Get your organisation listed
-      </Button>
-    </div>
-  </Section>
-
-  {posts.length > 0 && (
-    <Section tone="surface" eyebrow="Blog" title="Latest from the community">
-      <div class="grid gap-6 md:grid-cols-3">
-        {posts.map((p) => (
-          <PostCard post={p} categories={postCats.get(p.id)} />
-        ))}
+  {/* 9. Closing band */}
+  <section class="relative isolate overflow-hidden bg-navy py-16 text-paper md:py-24">
+    <div
+      aria-hidden="true"
+      class="absolute -right-32 -bottom-40 -z-10 size-[30rem] rounded-full bg-brand/25 blur-3xl"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="absolute -top-40 -left-32 -z-10 size-[28rem] rounded-full bg-accent/20 blur-3xl"
+    ></div>
+    <div class="container-page text-center">
+      <h2 class="mx-auto max-w-3xl text-3xl leading-tight text-balance text-paper md:text-5xl">
+        {closingTitle}
+      </h2>
+      <div class="mt-10 flex flex-wrap justify-center gap-3">
+        <Button href="/join">Join the community</Button>
+        <Button href="/about#contact" variant="light">
+          Contact us
+        </Button>
       </div>
-      <p class="mt-8">
-        <a href="/blog" class="font-semibold text-accent">
-          All articles →
-        </a>
-      </p>
-    </Section>
-  )}
+    </div>
+  </section>
 </BaseLayout>
+
+<script>
+  // Category chips on the ecosystem carousel: show only that category's cards.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-eco]')) {
+    const chips = root.querySelectorAll<HTMLButtonElement>('[data-chip]');
+    const list = root.querySelector<HTMLElement>('[data-eco-list]');
+    for (const chip of chips) {
+      chip.addEventListener('click', () => {
+        const cat = chip.dataset.chip ?? '';
+        for (const c of chips) c.setAttribute('aria-pressed', String(c === chip));
+        for (const li of list?.querySelectorAll<HTMLElement>('[data-category]') ?? [])
+          li.hidden = !!cat && li.dataset.category !== cat;
+        list?.scrollTo({ left: 0 });
+      });
+    }
+  }
+</script>

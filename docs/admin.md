@@ -341,6 +341,12 @@ enrolment at check-in.
   WhatsApp invite link is kept here for the team and the welcome email to members), membership
   switches (individual sign-up on the Join page, company membership applications, member
   priority on events) and the analytics token.
+- **Home page photos** (in Site texts): upload up to 8 photos and order them with the arrows. The
+  first is the big photo at the top of Home, the second sits next to the mission and the next four
+  make the community collage. Until there are enough, photos from recent event recaps and event
+  covers fill in, so the page never looks empty. Add a short description to each photo for screen
+  readers. The community block's heading and text and the closing band's heading are in the
+  Home page section (empty = a default text).
 - **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
   and the membership block; empty = a default text), the About page, the Tech Pulse page's
   introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**
