@@ -19,7 +19,8 @@ import {
   DEFAULT_CLOSING_TITLE,
   DEFAULT_COMMUNITY_TEXT,
   DEFAULT_COMMUNITY_TITLE,
-  FALLBACK_HERO,
+  DEFAULT_HOME_NUMBERS,
+  HERO,
   carouselGroups,
   highlightParts,
   homeData,
@@ -42,15 +43,16 @@ const recaps = upcoming.length
   : (await pastEvents()).filter((e) => hasRecap(e.recap)).slice(0, 4);
 const shownEvents = upcoming.length ? upcoming : recaps;
 
-const [hero = FALLBACK_HERO, ...others] = home.photos;
-const aboutPhoto = others[0];
-const collage = others.slice(1, 4);
+// The hero is always the Bangkok skyline; Site texts photos go to About us and the collage.
+const [aboutPhoto, ...others] = home.photos;
+const collage = others.slice(0, 3);
 
 const headline = highlightParts(settings.heroTagline);
 const aboutText = plainText(settings.aboutIntro.split(/\n\s*\n/)[0] ?? '', 320);
 
-// Key numbers, typed in Site texts; icons follow their position.
-const numbers = settings.homeNumbers.filter((n) => n.title).slice(0, 4);
+// Key numbers, typed in Site texts (the mockup's until then); icons follow their position.
+const typed = settings.homeNumbers.filter((n) => n.title);
+const numbers = (typed.length ? typed : DEFAULT_HOME_NUMBERS).slice(0, 4);
 const numberIcons = ['users', 'rocket', 'handshake', 'globe'] as const;
 
 // The directory carousel: 15 at random for All and for each category (companies, not
@@ -75,7 +77,9 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   {/* Hero */}
   <section class="relative isolate overflow-hidden bg-navy text-paper">
     <img
-      src={hero.src}
+      src={HERO.src}
+      srcset={HERO.srcset}
+      sizes="100vw"
       alt=""
       width="1920"
       height="1080"
@@ -103,11 +107,9 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
           Discover our mission
         </a>
       </div>
-      {hero.alt && (
-        <p class="mt-12 max-w-56 self-end border-l-2 border-paper/60 pl-3 text-xs text-paper/85">
-          {hero.alt}
-        </p>
-      )}
+      <p class="mt-12 max-w-56 self-end border-l-2 border-paper/60 pl-3 text-xs text-paper/85">
+        {HERO.caption}
+      </p>
     </div>
   </section>
 
@@ -572,7 +574,9 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   {/* Closing band */}
   <section class="relative isolate overflow-hidden bg-brand py-16 text-paper md:py-20">
     <img
-      src={hero.src}
+      src={HERO.src}
+      srcset={HERO.srcset}
+      sizes="100vw"
       alt=""
       loading="lazy"
       class="absolute inset-0 -z-10 size-full object-cover opacity-15 mix-blend-multiply"
