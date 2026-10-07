@@ -192,7 +192,11 @@ moves it. **Merge…** (2 to 10 selected)
 folds duplicates into one contact: you pick the main email, the other emails to keep and, field by
 field, the name, phone, company, role and LinkedIn to keep; registrations, attendance and feedback
 move over (same event twice: came > registered > waitlist > cancelled wins, and a freed seat goes
-to the waitlist), tags are combined, notes joined and the membership moves to the main email. A
+to the waitlist), tags are combined, notes joined and the membership moves to the main email. **Possible
+duplicates** (`/admin/contacts/duplicates`, `lib/contact-duplicates.ts`) lists contacts that look
+like the same person (same name, phone, LinkedIn, email before the @, or first name + company),
+suggests the main one and links each group to the merge page; "Not the same person" is kept in
+the `notDuplicates` setting. A
 contact can have **other emails** (`contacts.other_emails`, migration 0030): registrations,
 sign-ups and members-only registrations made with any of them count as that person. Contacts can be added by hand,
 edited (with tags, team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows

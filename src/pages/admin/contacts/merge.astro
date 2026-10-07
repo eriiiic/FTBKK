@@ -51,6 +51,8 @@ if (Astro.request.method === 'POST') {
     const choice: MergeChoice = picked;
     const result = await mergeContacts(k, main, actor, new Date(), choice);
     if ('error' in result) error = result.error;
+    else if (form.get('next') === 'duplicates')
+      return Astro.redirect('/admin/contacts/duplicates?saved=merged', 303);
     else
       return Astro.redirect(
         `/admin/contacts/view?c=${encodeURIComponent(result.key)}&saved=merged`,
@@ -59,11 +61,22 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-if (!Keys.safeParse(keys).success) return Astro.redirect('/admin/contacts');
+if (!Keys.safeParse(keys).success)
+  return Astro.redirect(
+    Astro.url.searchParams.get('next') === 'duplicates'
+      ? '/admin/contacts/duplicates'
+      : '/admin/contacts',
+  );
 const all = await loadContacts();
 const list = all.filter((c) => keys.includes(c.key));
-// Default choice: the one with an email who came the most (the list is sorted that way).
-const keep = list.find((c) => c.email)?.key ?? list[0]?.key;
+// Default choice: the one suggested by Possible duplicates (?keep=), else the one with an email
+// who came the most (the list is sorted that way).
+const suggested = Astro.url.searchParams.get('keep');
+const keep =
+  list.find((c) => c.key === suggested)?.key ?? list.find((c) => c.email)?.key ?? list[0]?.key;
+// Coming from Possible duplicates: go back there after merging.
+const next = Astro.url.searchParams.get('next') === 'duplicates' ? 'duplicates' : '';
+const back = next ? '/admin/contacts/duplicates' : '/admin/contacts';
 const emails = mergeEmails(list);
 // Each detail, field by field: the different values they have (keep's first).
 const labels = {
@@ -104,6 +117,7 @@ const options = MERGE_FIELDS.map((f) => ({
       {keys.map((k) => (
         <input type="hidden" name="c" value={k} />
       ))}
+      {next && <input type="hidden" name="next" value={next} />}
       <section class="grid gap-3" aria-labelledby="merging-title">
         <h2 id="merging-title" class="font-semibold">
           The contacts
@@ -228,7 +242,7 @@ const options = MERGE_FIELDS.map((f) => ({
         >
           Merge {list.length} contacts
         </Button>
-        <Button href="/admin/contacts" variant="ghost">
+        <Button href={back} variant="ghost">
           Cancel
         </Button>
       </div>
