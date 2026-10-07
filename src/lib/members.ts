@@ -26,7 +26,7 @@ import { confirmNewsletter } from './newsletter';
 import { getSettings } from './settings';
 import { upcomingEvents } from './queries';
 import { formatDate, formatEventDate } from './format';
-import type { Contact } from './contacts';
+import { loadContact, mainEmailFor, type Contact } from './contacts';
 import { DAY_MS } from './lifecycle';
 
 export const PROFILE_TYPES = {
@@ -113,9 +113,19 @@ export function signupInput(values: Record<string, unknown>) {
 
 export const memberPagePath = (token: string) => `/member?token=${encodeURIComponent(token)}`;
 
+/**
+ * The membership for this email, or for the contact who has it as one of their other emails (so
+ * a member typing another of their emails is still recognised).
+ */
 export async function memberByEmail(address: string) {
-  const [m] = await getDb().select().from(members).where(eq(members.email, address.toLowerCase()));
-  return m ?? null;
+  const db = getDb();
+  const email = address.trim().toLowerCase();
+  const [m] = await db.select().from(members).where(eq(members.email, email));
+  if (m) return m;
+  const main = await mainEmailFor(email);
+  if (!main) return null;
+  const [byMain] = await db.select().from(members).where(eq(members.email, main));
+  return byMain ?? null;
 }
 
 /** A member's details as an event registration (members-only registration). */
@@ -145,6 +155,10 @@ export async function requestMembership(
   join: { event: { id: number; title: string }; note: string } | null = null,
 ) {
   const db = getDb();
+  // Typed one of a contact's other emails: the membership goes under their main email, and the
+  // confirmation to the address they typed.
+  const sendTo = data.email;
+  data = { ...data, email: (await mainEmailFor(data.email)) ?? data.email };
   const existing = await memberByEmail(data.email);
   if (existing && (existing.status === 'active' || existing.status === 'suspended')) {
     await sendMemberLink(existing, true);
@@ -167,7 +181,7 @@ export async function requestMembership(
     ? await renderTemplate('member.confirm-event', { name: data.name, event: join.event.title })
     : await renderTemplate('member.confirm', { name: data.name });
   await sendEmail({
-    to: data.email,
+    to: sendTo,
     subject: w.subject,
     paragraphs: w.paragraphs,
     action: {
@@ -437,7 +451,17 @@ export async function deleteMembers(ids: number[], actor: string) {
 }
 
 /** A member's events, newest first. */
+/** A member's email and the other emails on their contact card (see contacts.otherEmails). */
+async function emailsOfMember(address: string) {
+  const [card] = await getDb()
+    .select({ otherEmails: contacts.otherEmails })
+    .from(contacts)
+    .where(eq(contacts.email, address));
+  return [address, ...(card?.otherEmails ?? [])];
+}
+
 export async function memberEvents(address: string) {
+  const emails = await emailsOfMember(address);
   return getDb()
     .select({
       id: registrations.id,
@@ -449,7 +473,7 @@ export async function memberEvents(address: string) {
     })
     .from(registrations)
     .innerJoin(events, eq(events.id, registrations.eventId))
-    .where(eq(registrations.email, address))
+    .where(inArray(registrations.email, emails))
     .orderBy(desc(events.startsAt));
 }
 
@@ -462,7 +486,12 @@ export async function memberCancel(member: Pick<Member, 'email'>, registrationId
     .select({ id: registrations.id, status: registrations.status, event: events })
     .from(registrations)
     .innerJoin(events, eq(events.id, registrations.eventId))
-    .where(and(eq(registrations.id, registrationId), eq(registrations.email, member.email)));
+    .where(
+      and(
+        eq(registrations.id, registrationId),
+        inArray(registrations.email, await emailsOfMember(member.email)),
+      ),
+    );
   if (!row || (row.status !== 'registered' && row.status !== 'waitlist')) return null;
   if (row.event.startsAt <= new Date()) return null;
   const settings = await getSettings();
@@ -631,19 +660,86 @@ export async function claimEmail(token: string, now = new Date()) {
   return (await peekToken(token, 'member_claim', now))?.email ?? null;
 }
 
+/** The event a "claim your membership" link also registers for (see inviteForEvent), if any. */
+export async function claimEvent(token: string, now = new Date()) {
+  const row = await peekToken(token, 'member_claim', now);
+  if (!row?.ref_id) return null;
+  const [event] = await getDb().select().from(events).where(eq(events.id, row.ref_id));
+  return event ?? null;
+}
+
+/**
+ * Someone we already know (past registrations or a contact card, under any of their emails) who
+ * isn't an active or suspended member: they get a prefilled form instead of an empty one.
+ */
+export async function knownNonMember(address: string) {
+  const c = await loadContact(address.trim().toLowerCase());
+  if (!c?.email || (c.history.length === 0 && !c.savedId)) return null;
+  if (c.member?.status === 'active' || c.member?.status === 'suspended') return null;
+  return c;
+}
+
+/**
+ * A known contact registers for an event while membership is open: we email the address they
+ * typed a "claim your membership" link (60 days) for their main email, prefilled from what we
+ * know; submitting it makes them a member and registers them for the event.
+ */
+export async function inviteForEvent(
+  c: Pick<Contact, 'email' | 'name'>,
+  sendTo: string,
+  event: Pick<Event, 'id' | 'title'>,
+  now = new Date(),
+) {
+  const token = await issueToken('member_claim', c.email!, { refId: event.id, now });
+  const w = await renderTemplate('member.claim-event', { name: c.name, event: event.title });
+  await sendEmail({
+    to: sendTo,
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    action: {
+      label: w.buttonLabel,
+      url: siteUrl(`/member/claim?token=${encodeURIComponent(token)}`),
+    },
+    footer: 'The link works for 60 days.',
+  });
+}
+
 /**
  * Claims a membership from an invitation link: the email is proven by the link, so the member is
  * active at once and gets the welcome email. Returns a link token to their member page, or null
  * when the link is not valid any more (or the membership is suspended).
  */
-export async function claimMembership(token: string, data: MemberSignup, now = new Date()) {
+export async function claimMembership(
+  token: string,
+  data: MemberSignup,
+  now = new Date(),
+  note = '',
+): Promise<{
+  link: string;
+  registration: { event: Event; outcome: RegisterOutcome } | null;
+} | null> {
   const row = await consumeToken(token, 'member_claim', now);
   if (!row) return null;
   const db = getDb();
   const existing = await memberByEmail(row.email);
   if (existing?.status === 'suspended') return null;
+  // Sent from an event's registration box: register them once they are members.
+  const register = async (m: Member) => {
+    if (!row.ref_id) return null;
+    const [event] = await db.select().from(events).where(eq(events.id, row.ref_id));
+    if (!event) return null;
+    const settings = await getSettings();
+    const outcome = await registerForEvent(event, memberRegistration(m, note), {
+      memberPriority: settings.memberPriority,
+      now,
+    });
+    return { event, outcome };
+  };
   if (existing?.status === 'active')
-    return issueToken('member', existing.email, { refId: existing.id, now });
+    return {
+      link: await issueToken('member', existing.email, { refId: existing.id, now }),
+      registration: await register(existing),
+    };
   const { terms: _terms, newsletter, email: _email, ...profile } = data;
   const set = {
     ...profile,
@@ -666,7 +762,7 @@ export async function claimMembership(token: string, data: MemberSignup, now = n
   await audit('self-service', 'member_claim', 'member', m!.id, null, null);
   const link = await issueToken('member', m!.email, { refId: m!.id, now });
   await sendWelcome(m!, link);
-  return link;
+  return { link, registration: await register(m!) };
 }
 
 // ---------- yearly reconfirmation ----------

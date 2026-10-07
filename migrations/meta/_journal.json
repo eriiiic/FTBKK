@@ -141,6 +141,13 @@
       "when": 1791273649739,
       "tag": "0028_membership_events",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1791335131267,
+      "tag": "0030_contact_other_emails",
+      "breakpoints": true
     }
   ]
 }

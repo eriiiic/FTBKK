@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   ContactSchema,
+  aliasMap,
   buildContacts,
+  mergeEmails,
   contactInput,
   hashedKey,
   latestRegistrationAnswer,
@@ -140,6 +142,60 @@ describe('saved contact cards', () => {
   it('add people who never registered', () => {
     const dana = list.find((c) => c.key === 'id:2')!;
     expect(dana).toMatchObject({ registrations: 0, lastEvent: null, organisations: [] });
+  });
+});
+
+describe('other emails', () => {
+  const card: SavedContact = {
+    id: 9,
+    email: 'bob@example.com',
+    otherEmails: ['carl@example.com'],
+    name: 'Bob',
+    phone: null,
+    company: null,
+    role: null,
+    linkedin: null,
+    notes: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+  };
+
+  it('file registrations made with another email under the main one', () => {
+    const list = buildContacts(regs, orgs, now, [card]);
+    expect(list.find((c) => c.key === 'carl@example.com')).toBeUndefined();
+    const bob = list.find((c) => c.key === 'bob@example.com')!;
+    expect(bob.otherEmails).toEqual(['carl@example.com']);
+    expect(bob.history).toHaveLength(2);
+    expect(bob.cancelled).toBe(1);
+    expect(aliasMap([card]).get('carl@example.com')).toBe('bob@example.com');
+  });
+
+  it('are found by the Contacts search', () => {
+    const list = buildContacts(regs, orgs, now, [card]);
+    expect(filterContacts(list, { q: 'carl@' }).map((c) => c.key)).toEqual(['bob@example.com']);
+  });
+
+  it('are read one per line, lowercased, without the main email', () => {
+    const parsed = ContactSchema.parse({
+      name: 'Bob',
+      email: 'bob@example.com',
+      otherEmails: 'Bob.Work@Example.com\n bob@example.com, bob.work@example.com',
+    });
+    expect(parsed.otherEmails).toEqual(['bob.work@example.com', 'bob@example.com']);
+    const input = contactInput(parsed, null);
+    expect('otherEmails' in input && input.otherEmails).toEqual(['bob.work@example.com']);
+    expect(ContactSchema.safeParse({ name: 'Bob', otherEmails: 'not-an-email' }).success).toBe(
+      false,
+    );
+  });
+
+  it('are all offered when merging, main ones first', () => {
+    expect(
+      mergeEmails([
+        { email: 'a@x.io', otherEmails: ['b@x.io'] },
+        { email: null, otherEmails: [] },
+        { email: 'b@x.io', otherEmails: ['c@x.io'] },
+      ]),
+    ).toEqual(['a@x.io', 'b@x.io', 'c@x.io']);
   });
 });
 

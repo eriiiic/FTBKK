@@ -167,6 +167,7 @@ export type TemplateKey =
   | 'member.already-member'
   | 'member.confirm-event'
   | 'member.claim'
+  | 'member.claim-event'
   | 'member.renewal'
   | 'member.lapsed'
   | 'admin.contact-form'
@@ -622,6 +623,20 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     placeholders: [P.name],
     added:
       'The link to the prefilled form (the button) and a footer: "The link works for 60 days."',
+    preview: { buttonUrl: `${SITE}/member/claim`, footer: 'The link works for 60 days.' },
+  },
+  'member.claim-event': {
+    label: 'Register as a past attendee: confirm your membership',
+    group: 'Membership',
+    audience: 'Someone we know from past events (or Contacts) who is not a member yet',
+    trigger:
+      'When membership is open and a known email that is not a member registers for an event',
+    subject: 'Welcome back: confirm your membership to register for {event}',
+    body: "Hi {name}, good to see you again! Our events are now for members, and membership is free.\n\nWe've filled in what we know about you from past events: check it, accept the code of conduct, and you're a member and registered for {event}.\n\nDidn't ask for this? Ignore this email and nothing happens.",
+    buttonLabel: 'Confirm and register',
+    placeholders: [P.name, P.event],
+    added:
+      'The link to the prefilled form (the button) and a footer: "The link works for 60 days." The event confirmation with the ticket follows once they submit it.',
     preview: { buttonUrl: `${SITE}/member/claim`, footer: 'The link works for 60 days.' },
   },
   'member.renewal': {

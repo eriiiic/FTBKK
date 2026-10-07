@@ -44,8 +44,13 @@ Public pages:
   email, the optional note and the photo notice. An active member is registered at once with the
   details of their membership. Any other email gets the free membership form in the same box;
   submitting it sends one email (`member.confirm-event`), and the click makes them a member and
-  registers them (`members.pending_event_id`), then the member page says how it went. While
-  membership is closed, the full registration form works as before.
+  registers them (`members.pending_event_id`), then the member page says how it went. An email
+  we already know (past registrations or a contact card) that isn't a member gets a "Welcome
+  back" message instead and the `member.claim-event` email: a `member_claim` link whose
+  `ref_id` is the event, to `/member/claim` prefilled from what we know, which makes them a
+  member and registers them. While membership is closed, the full registration form works as
+  before. While `EMAIL_FROM` is Resend's test sender, the Dashboard and Settings warn that emails
+  only reach the Resend account owner.
 - **Claim your membership**: in Contacts, tick people and **Invite to join** to email them a
   `member_claim` link (60 days) to `/member/claim`, a form prefilled from their contact card; the
   link proves the email, so the membership is active at once. Members and people invited in the
@@ -161,10 +166,12 @@ volunteer, board, press), shown next to their name. Tick several contacts to cop
 export them to CSV, add or remove a tag, or delete them at once. A **Member** box in a contact's Edit form (and on New contact) makes them an active
 member, optionally with the welcome email; unticking ends the membership, and changing the email
 moves it. **Merge…** (2 to 10 selected)
-folds duplicates into one contact: you pick whose name and email stay, registrations,
-attendance and feedback move over (same event twice: came > registered > waitlist > cancelled
-wins, and a freed seat goes to the waitlist), empty details are filled from the others, tags are
-combined, notes joined and the membership moves to the kept email. Contacts can be added by hand,
+folds duplicates into one contact: you pick the main email, the other emails to keep and, field by
+field, the name, phone, company, role and LinkedIn to keep; registrations, attendance and feedback
+move over (same event twice: came > registered > waitlist > cancelled wins, and a freed seat goes
+to the waitlist), tags are combined, notes joined and the membership moves to the main email. A
+contact can have **other emails** (`contacts.other_emails`, migration 0030): registrations,
+sign-ups and members-only registrations made with any of them count as that person. Contacts can be added by hand,
 edited (with tags, team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
 the total number of contacts.
 

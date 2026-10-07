@@ -134,6 +134,14 @@ ${details}${logos}${ticket}${choices}${button}${links}
 }
 
 /** Sends through Resend. Without RESEND_API_KEY (local dev) the email is logged instead. */
+/**
+ * True while the sender is Resend's test address (onboarding@resend.dev): Resend then only
+ * delivers to the Resend account's own email, so members and attendees get nothing until the
+ * domain is verified in Resend and EMAIL_FROM uses it.
+ */
+export const usingTestSender = () =>
+  !!env.RESEND_API_KEY && /@resend\.dev>?\s*$/i.test(env.EMAIL_FROM ?? '');
+
 export async function sendEmail(m: EmailMessage): Promise<{ ok: boolean; error?: string }> {
   const { html, text } = renderEmail(m);
   const to = Array.isArray(m.to) ? m.to : [m.to];

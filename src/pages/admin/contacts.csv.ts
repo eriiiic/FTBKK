@@ -35,6 +35,7 @@ function csvResponse(contacts: Contact[]) {
   const header = [
     'Name',
     'Email',
+    'Other emails',
     'Phone',
     'Company',
     'Role',
@@ -60,6 +61,7 @@ function csvResponse(contacts: Contact[]) {
     [
       c.name,
       c.email,
+      c.otherEmails.join('; '),
       c.phone,
       c.company,
       c.role,

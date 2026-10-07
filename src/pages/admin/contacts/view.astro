@@ -13,6 +13,7 @@ import {
   latestRegistrationAnswer,
   deleteContacts,
   loadContacts,
+  resolveEmailKey,
   saveContact,
   whatsappUrl,
 } from '../../../lib/contacts';
@@ -21,7 +22,8 @@ import { fieldErrors, formToObject } from '../../../lib/forms';
 import { formatDate, formatEventDate } from '../../../lib/format';
 import { MEMBER_STATUSES, moveMembership, setMembershipByTeam } from '../../../lib/members';
 
-const key = Astro.url.searchParams.get('c') ?? '';
+// Opened with one of someone's other emails: show that contact.
+const key = await resolveEmailKey((Astro.url.searchParams.get('c') ?? '').slice(0, 320));
 const actor = Astro.locals.adminEmail ?? 'admin';
 const now = new Date();
 const view = (k: string, flash = 'saved=done') =>
@@ -55,7 +57,10 @@ if (Astro.request.method === 'POST') {
   else if (member && !input.email) errors = { member: 'Add an email to make them a member.' };
   else {
     const result = await saveContact(key, input);
-    if ('error' in result) errors = { email: result.error };
+    if ('error' in result)
+      errors = /other email|belongs to another|own membership/.test(result.error)
+        ? { otherEmails: result.error }
+        : { email: result.error };
     else {
       await audit(actor, 'contact_update', 'contact', null, { key }, input);
       if (input.email) {
@@ -104,6 +109,7 @@ const statusLabel = (r: (typeof c.history)[number]) =>
       : r.status;
 const details = [
   ['Email', c.email ?? 'None (walk-in)'],
+  ['Other emails', c.otherEmails.join(', ') || null],
   ['Phone', c.phone],
   ['Company', c.company],
   ['Role', c.role],
@@ -196,6 +202,7 @@ const stats = [
             values={
               values ?? {
                 ...c,
+                otherEmails: c.otherEmails.join('\n'),
                 // The menu shows the card only while it is the answer that counts.
                 newsletter: c.newsletter.source === 'card' ? (c.newsletterCard?.choice ?? '') : '',
                 newsletterAt: '',
