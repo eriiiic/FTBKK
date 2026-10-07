@@ -270,8 +270,8 @@ uses any more.
   who you spoke to, follow-ups, context for the board. Only the team sees it, it also shows on the
   listing's cards in To review, and the search covers it. Click **Save note** to keep it.
 - **Partners**: the partners of La French Tech Bangkok, by group: Institutional partners, Corporate
-  partners, Investors and VCs, Coworkings and venues, Expert partners, Schools and universities,
-  Community and media partners. They show in the same groups in the Partners section at the top of
+  partners, Investors and VCs, Coworkings and venues, Hospitality partners, Expert partners, Schools
+  and universities, Community and media partners to start with. They show in the same groups in the Partners section at the top of
   the Ecosystem page, with the logo of their listing, followed by a "Become a partner" button that
   opens the contact form on the Partnership topic. To add one, pick the listing (add the
   organisation first if it isn't in the directory, with its logo), its group, and **Add**. In each
@@ -281,6 +281,9 @@ uses any more.
   the "Partner of La French Tech Bangkok" box on each listing's page. A partner's group is
   independent of its directory category: a coworking can be listed under Incubators and coworkings
   and be a Corporate partner.
+  **Partner groups**, at the bottom of the tab, edits the groups themselves: change a name or its
+  line of text, type positions to reorder them, fill in the empty row to add one, or tick Remove
+  (only for a group with no partners; move its partners first). Then **Save groups**.
 - **Renewals**: owners confirm their listing once a year (reminders at 30 and 14 days before and on
   the day). Unconfirmed listings are hidden 30 days later and deleted after 12 months. Unclaimed
   listings get no reminders: use **Send** to invite someone you know there to claim it.

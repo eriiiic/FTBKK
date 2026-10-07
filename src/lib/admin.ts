@@ -14,8 +14,7 @@ import {
 } from '../db/schema';
 import { optionalText, optionalUrl } from './forms';
 import { slugify } from './format';
-import { PARTNER_TYPE_KEYS } from './directory';
-import { audit, orgById, siteUrl } from './orgs';
+import { audit, orgById, partnerKey, siteUrl } from './orgs';
 import { sendEmail } from './email';
 import { NO_REASON, renderTemplate } from './email-templates';
 import { issueToken } from './tokens';
@@ -168,7 +167,7 @@ export const AdminOrgExtras = z.object({
   status: z.enum(['unverified', 'pending', 'published', 'rejected', 'expired', 'hidden']),
   badges: z.array(z.enum(['member', 'sponsor', 'board'])).default([]),
   partnerType: z
-    .union([z.literal(''), z.enum(PARTNER_TYPE_KEYS)])
+    .union([z.literal(''), partnerKey])
     .optional()
     .transform((v) => v || null),
   partnerOrder: z.coerce.number().int().min(0).max(999).default(0),

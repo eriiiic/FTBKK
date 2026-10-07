@@ -6,7 +6,7 @@ import OrgCard from '../../components/OrgCard.astro';
 import Button from '../../components/Button.astro';
 import Icon from '../../components/Icon.astro';
 import { publishedOrganisations } from '../../lib/queries';
-import { publicOrg } from '../../lib/orgs';
+import { getPartnerGroups, publicOrg } from '../../lib/orgs';
 import { CATEGORIES, CATEGORY_KEYS, SECTORS, STAGES, partnerGroups } from '../../lib/directory';
 import { initials, mediaUrl } from '../../lib/format';
 
@@ -18,7 +18,7 @@ const usedSectors = SECTORS.filter((s) => orgs.some((o) => o.sectors.includes(s)
 const usedStages = STAGES.filter((s) => orgs.some((o) => o.stage === s));
 const data = orgs.map(publicOrg);
 // Partners of La French Tech Bangkok, by group (Admin > Ecosystem > Partners).
-const partners = partnerGroups(orgs);
+const partners = partnerGroups(orgs, await getPartnerGroups());
 const select =
   'mt-1 block w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm focus:border-accent';
 ---

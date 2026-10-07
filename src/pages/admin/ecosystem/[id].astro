@@ -16,13 +16,15 @@ import {
   OrgNotesForm,
   approveListing,
   audit,
+  checkPartnerGroup,
+  getPartnerGroups,
   orgById,
   saveOrgNotes,
   uniqueSlug,
 } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
-import { BADGES, ORG_STATUSES, PARTNER_TYPES, PARTNER_TYPE_KEYS } from '../../../lib/directory';
+import { BADGES, ORG_STATUSES } from '../../../lib/directory';
 import { formatDate, slugify } from '../../../lib/format';
 
 const db = getDb();
@@ -85,7 +87,9 @@ if (Astro.request.method === 'POST') {
       types: IMAGE_TYPES,
     });
     if (logo.error) errors.logo = logo.error;
-    if (base.success && extras.success && !logo.error) {
+    const groupError = extras.success ? await checkPartnerGroup(extras.data.partnerType) : null;
+    if (groupError) errors.partnerType = groupError;
+    if (base.success && extras.success && !logo.error && !groupError) {
       const x = extras.data;
       const wantedSlug = x.slug || slugify(base.data.name);
       const slug = org && wantedSlug === org.slug ? org.slug : await uniqueSlug(wantedSlug);
@@ -142,6 +146,10 @@ if (Astro.request.method === 'POST') {
   }
 }
 const pending = org ? await reviewItems(org.id) : [];
+const partnerGroupOptions = (await getPartnerGroups()).map((g) => ({
+  value: g.key,
+  label: g.label,
+}));
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 const badges = (values.badges as string[] | undefined) ?? [];
 ---
@@ -264,7 +272,8 @@ const badges = (values.badges as string[] | undefined) ?? [];
           label="Partner group"
           value={str('partnerType')}
           placeholder="Not a partner"
-          options={PARTNER_TYPE_KEYS.map((k) => ({ value: k, label: PARTNER_TYPES[k].label }))}
+          error={errors.partnerType}
+          options={partnerGroupOptions}
           hint="Partners show in the Partners section of the Ecosystem page, by group."
         />
         <FormField

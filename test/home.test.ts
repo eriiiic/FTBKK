@@ -6,7 +6,7 @@ import {
   partnerLogos,
   pickPhotos,
 } from '../src/lib/home';
-import { partnerGroups } from '../src/lib/directory';
+import { DEFAULT_PARTNER_GROUPS, editPartnerGroups, partnerGroups } from '../src/lib/directory';
 
 describe('home page', () => {
   it('uses the picked photos first, then one photo per recent event, then covers', () => {
@@ -98,15 +98,24 @@ describe('partners', () => {
   });
 
   it('groups partners by type in the set order, then by their order and name', () => {
-    const groups = partnerGroups([
-      org('Zeta VC', 'investor'),
-      org('Hub', 'coworking'),
-      org('Alpha VC', 'investor', 2),
-      org('Beta VC', 'investor'),
-      org('Startup', null),
-      org('Embassy', 'institutional'),
+    const groups = partnerGroups(
+      [
+        org('Zeta VC', 'investor'),
+        org('Hub', 'coworking'),
+        org('Alpha VC', 'investor', 2),
+        org('Beta VC', 'investor'),
+        org('Startup', null),
+        org('Embassy', 'institutional'),
+        org('Hotel', 'hospitality'),
+      ],
+      DEFAULT_PARTNER_GROUPS,
+    );
+    expect(groups.map((g) => g.key)).toEqual([
+      'institutional',
+      'investor',
+      'coworking',
+      'hospitality',
     ]);
-    expect(groups.map((g) => g.key)).toEqual(['institutional', 'investor', 'coworking']);
     expect(groups[1]!.items.map((o) => o.name)).toEqual(['Beta VC', 'Zeta VC', 'Alpha VC']);
   });
 
@@ -119,5 +128,37 @@ describe('partners', () => {
     expect(shown[0]!.logo).toBe('/media/l/Embassy.png');
     const fallback = homePartners([org('Bpifrance', 'institutional')], [{ title: 'Bpifrance' }]);
     expect(fallback).toEqual([{ name: 'Bpifrance', url: null, logo: '/media/l/Bpifrance.png' }]);
+  });
+
+  it('renames, reorders, adds and removes groups, but keeps a group that has partners', () => {
+    const current = [
+      { key: 'investor', label: 'Investors', blurb: '' },
+      { key: 'hospitality', label: 'Hospitality', blurb: '' },
+      { key: 'media', label: 'Media', blurb: '' },
+    ];
+    const row = (key: string, label: string, remove = false) => ({ key, label, blurb: '', remove });
+    const result = editPartnerGroups(
+      [
+        row('hospitality', 'Hotels and restaurants'),
+        row('investor', 'Investors'),
+        row('media', 'Media', true),
+        row('', 'Investors'),
+        row('', ''),
+      ],
+      current,
+      new Set(['investor']),
+    );
+    expect(result).toEqual({
+      groups: [
+        { key: 'hospitality', label: 'Hotels and restaurants', blurb: '' },
+        { key: 'investor', label: 'Investors', blurb: '' },
+        { key: 'investors', label: 'Investors', blurb: '' },
+      ],
+    });
+    expect(
+      editPartnerGroups([row('investor', 'Investors', true)], current, new Set(['investor'])),
+    ).toEqual({
+      error: '"Investors" still has partners: move them to another group before removing it.',
+    });
   });
 });

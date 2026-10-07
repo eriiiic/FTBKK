@@ -114,9 +114,10 @@ Public pages:
   membership: Settings > "Accept company membership applications").
   The team can keep a private note on each listing (Ecosystem > All listings or the listing's
   page; `organisations.admin_notes`, never shown on the site), also shown in the review queue.
-- **Partners**: any listing can be a partner of La French Tech Bangkok, in one of seven groups
-  (institutional, corporate, investors and VCs, coworkings and venues, experts, schools and
-  universities, community and media; `PARTNER_TYPES` in `lib/directory.ts`), whatever its
+- **Partners**: any listing can be a partner of La French Tech Bangkok, in a partner group
+  (institutional, corporate, investors and VCs, coworkings and venues, hospitality, experts, schools
+  and universities, community and media by default; the admin can add, rename, reorder and remove
+  groups, saved in `settings.partnerGroups`, defaults in `lib/directory.ts`), whatever its
   directory category. `/ecosystem` opens with a **Partners** section (`#partners`): a logo wall per
   group, then a "Become a partner" call that opens the contact form on the Partnership topic. Partner
   listings carry a Partner badge and the directory has a Partner filter. Partners ticked "Show on
