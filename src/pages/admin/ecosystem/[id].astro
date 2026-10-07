@@ -22,7 +22,7 @@ import {
 } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
-import { BADGES, ORG_STATUSES } from '../../../lib/directory';
+import { BADGES, ORG_STATUSES, PARTNER_TYPES, PARTNER_TYPE_KEYS } from '../../../lib/directory';
 import { formatDate, slugify } from '../../../lib/format';
 
 const db = getDb();
@@ -97,6 +97,9 @@ if (Astro.request.method === 'POST') {
         slug,
         status: approving ? org!.status : x.status,
         badges: x.badges,
+        partnerType: x.partnerType,
+        partnerOrder: x.partnerOrder,
+        partnerHome: !!x.partnerType && x.partnerHome,
         memberStatus: x.memberStatus,
         memberSince:
           x.memberStatus === 'member'
@@ -253,6 +256,32 @@ const badges = (values.badges as string[] | undefined) ?? [];
             </label>
           ))}
         </div>
+      </fieldset>
+      <fieldset class="admin-panel grid gap-3">
+        <legend class="text-sm font-semibold">Partner of La French Tech Bangkok</legend>
+        <FormField
+          name="partnerType"
+          label="Partner group"
+          value={str('partnerType')}
+          placeholder="Not a partner"
+          options={PARTNER_TYPE_KEYS.map((k) => ({ value: k, label: PARTNER_TYPES[k].label }))}
+          hint="Partners show in the Partners section of the Ecosystem page, by group."
+        />
+        <FormField
+          name="partnerOrder"
+          label="Order"
+          type="number"
+          value={str('partnerOrder') || '0'}
+          error={errors.partnerOrder}
+          hint="Smaller first, in its group and on Home. Same number: by name."
+        />
+        <FormField
+          name="partnerHome"
+          label="Show on Home"
+          type="checkbox"
+          checked={!!values.partnerHome}
+          hint={'In "They support La French Tech Bangkok" near the bottom of Home.'}
+        />
       </fieldset>
       <div class="admin-panel grid gap-4">
         <FormField

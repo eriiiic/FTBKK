@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { carouselGroups, highlightParts, partnerLogos, pickPhotos } from '../src/lib/home';
+import {
+  carouselGroups,
+  highlightParts,
+  homePartners,
+  partnerLogos,
+  pickPhotos,
+} from '../src/lib/home';
+import { partnerGroups } from '../src/lib/directory';
 
 describe('home page', () => {
   it('uses the picked photos first, then one photo per recent event, then covers', () => {
@@ -72,5 +79,45 @@ describe('home page helpers', () => {
       { text: ', France', mark: false },
     ]);
     expect(highlightParts('Plain')).toEqual([{ text: 'Plain', mark: false }]);
+  });
+});
+
+describe('partners', () => {
+  const org = (
+    name: string,
+    partnerType: string | null,
+    partnerOrder = 0,
+    partnerHome = false,
+  ) => ({
+    name,
+    partnerType,
+    partnerOrder,
+    partnerHome,
+    logoKey: `l/${name}.png`,
+    url: null,
+  });
+
+  it('groups partners by type in the set order, then by their order and name', () => {
+    const groups = partnerGroups([
+      org('Zeta VC', 'investor'),
+      org('Hub', 'coworking'),
+      org('Alpha VC', 'investor', 2),
+      org('Beta VC', 'investor'),
+      org('Startup', null),
+      org('Embassy', 'institutional'),
+    ]);
+    expect(groups.map((g) => g.key)).toEqual(['institutional', 'investor', 'coworking']);
+    expect(groups[1]!.items.map((o) => o.name)).toEqual(['Beta VC', 'Zeta VC', 'Alpha VC']);
+  });
+
+  it('shows the partners ticked for Home, else the older list', () => {
+    const shown = homePartners(
+      [org('Bpifrance', 'institutional', 2, true), org('Embassy', 'institutional', 1, true)],
+      [{ title: 'Ignored' }],
+    );
+    expect(shown.map((p) => p.name)).toEqual(['Embassy', 'Bpifrance']);
+    expect(shown[0]!.logo).toBe('/media/l/Embassy.png');
+    const fallback = homePartners([org('Bpifrance', 'institutional')], [{ title: 'Bpifrance' }]);
+    expect(fallback).toEqual([{ name: 'Bpifrance', url: null, logo: '/media/l/Bpifrance.png' }]);
   });
 });

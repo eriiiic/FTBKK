@@ -16,10 +16,11 @@ Public pages:
   events (or the latest recaps when none is scheduled); the ecosystem directory as a navy carousel
   with category chips, showing 15 organisations picked at random for All and for each category,
   so it isn't always the same names; the latest three posts; a community block with three
-  photos; "They support La French Tech Bangkok" (Business France, the Franco-Thai Chamber of
-  Commerce, the Embassy of France, La French Tech and Bpifrance by default, logos taken from their
-  directory listings); and a red closing band with Contact us and Join. Each photo has its own
-  slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
+  photos; "They support La French Tech Bangkok" (the partners ticked "Show on Home" in Ecosystem
+  > Partners, with a link to all partners; migration 0031 turned the earlier list of Business
+  > France, the Franco-Thai Chamber of Commerce, the Embassy of France, La French Tech and
+  > Bpifrance into partner listings); and a red closing band with Contact us and Join. Each photo has its own
+  > slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
 - **Event covers**: French Tech Connect and French Tech Talk events without a cover show a default
   image, set in Settings (built-in images until then; `lib/event-covers.ts`).
 - **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
@@ -104,6 +105,14 @@ Public pages:
   membership: Settings > "Accept company membership applications").
   The team can keep a private note on each listing (Ecosystem > All listings or the listing's
   page; `organisations.admin_notes`, never shown on the site), also shown in the review queue.
+- **Partners**: any listing can be a partner of La French Tech Bangkok, in one of seven groups
+  (institutional, corporate, investors and VCs, coworkings and venues, experts, schools and
+  universities, community and media; `PARTNER_TYPES` in `lib/directory.ts`), whatever its
+  directory category. `/ecosystem` opens with a **Partners** section (`#partners`): a logo wall per
+  group, then a "Become a partner" call that opens the contact form on the Partnership topic. Partner
+  listings carry a Partner badge and the directory has a Partner filter. Partners ticked "Show on
+  Home" feed "They support La French Tech Bangkok" on Home, in their order: the directory is the
+  only place partners are managed (Admin > Ecosystem > Partners, or the listing's page).
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
@@ -146,7 +155,7 @@ Public pages:
 
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
 events, registrations, check-in, stats), **Community** (members, contacts, messages, reports, board and speakers),
-**Ecosystem** (to review, all listings, renewals), **Blog** (posts, PDFs and files), **Website
+**Ecosystem** (to review, all listings, partners, renewals), **Blog** (posts, PDFs and files), **Website
 pages** (one screen per public page: Home, About, Join, Tech Pulse, Thai page, code of conduct
 and privacy), **Emails** (email the community, automatic emails) and Settings; the groups fold and unfold, the current one open. Anyone who can sign in to the admin can do everything; there are no roles. See
 [docs/admin.md](docs/admin.md).

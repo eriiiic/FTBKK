@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { auditLog, organisations, type Organisation } from '../db/schema';
-import { CATEGORY_KEYS, SECTORS, STAGES } from './directory';
+import { CATEGORY_KEYS, PARTNER_TYPE_KEYS, SECTORS, STAGES } from './directory';
 import { email, optionalText, optionalUrl } from './forms';
 import { getSettings } from './settings';
 import { sendEmail } from './email';
@@ -116,6 +116,45 @@ export async function saveOrgNotes({ id, adminNotes }: z.infer<typeof OrgNotesFo
     .where(eq(organisations.id, id));
 }
 
+/** One partner row of Ecosystem > Partners: its group (empty = no longer a partner), order, Home. */
+export const PartnerForm = z.object({
+  id: z.coerce.number().int().positive(),
+  partnerType: z
+    .union([z.literal(''), z.enum(PARTNER_TYPE_KEYS)])
+    .optional()
+    .transform((v) => v || null),
+  partnerOrder: z.coerce.number().int().min(0).max(999).default(0),
+  partnerHome: z
+    .literal('on')
+    .optional()
+    .transform((v) => v === 'on'),
+});
+
+export async function savePartner(
+  { id, partnerType, partnerOrder, partnerHome }: z.infer<typeof PartnerForm>,
+  actor: string,
+) {
+  const before = await orgById(id);
+  if (!before) return;
+  const after = { partnerType, partnerOrder, partnerHome: !!partnerType && partnerHome };
+  await getDb()
+    .update(organisations)
+    .set({ ...after, updatedAt: new Date() })
+    .where(eq(organisations.id, id));
+  await audit(
+    actor,
+    'partner',
+    'organisation',
+    id,
+    {
+      partnerType: before.partnerType,
+      partnerOrder: before.partnerOrder,
+      partnerHome: before.partnerHome,
+    },
+    after,
+  );
+}
+
 export async function moderatorEmails() {
   const s = await getSettings();
   return s.moderatorEmails.length ? s.moderatorEmails : [s.contactEmail];
@@ -134,6 +173,7 @@ export function publicOrg(o: Organisation) {
     raising: o.raising,
     badges: o.badges,
     member: o.memberStatus === 'member',
+    partner: !!o.partnerType,
     logoKey: o.logoKey,
   };
 }

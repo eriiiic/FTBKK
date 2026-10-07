@@ -13,6 +13,7 @@ interface Props {
     logoKey: string | null;
     badges: string[];
     memberStatus?: string;
+    partnerType?: string | null;
     hiring?: boolean;
     raising?: boolean;
   };
@@ -44,6 +45,7 @@ if (org.memberStatus === 'member') badges.unshift('member');
     </div>
     {org.pitch && <p class="line-clamp-2 text-sm">{org.pitch}</p>}
     <div class="mt-auto flex flex-wrap gap-1.5">
+      {org.partnerType && <Badge tone="brand">Partner</Badge>}
       {badges.map((b) => (
         <Badge tone={b === 'member' ? 'brand' : 'neutral'}>{BADGES[b as BadgeKey] ?? b}</Badge>
       ))}

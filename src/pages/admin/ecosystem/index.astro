@@ -9,16 +9,23 @@ import { getDb } from '../../../db';
 import { auditLog, organisations } from '../../../db/schema';
 import ReviewCard from '../../../components/admin/ReviewCard.astro';
 import { MODERATION_TARGET_DAYS, daysUntil } from '../../../lib/lifecycle';
-import { OrgNotesForm, orgById, saveOrgNotes } from '../../../lib/orgs';
+import { OrgNotesForm, PartnerForm, orgById, saveOrgNotes, savePartner } from '../../../lib/orgs';
 import { inviteToClaim } from '../../../lib/admin';
 import { DecisionForm, decide, reviewItems } from '../../../lib/moderation';
-import { CATEGORIES, ORG_STATUSES } from '../../../lib/directory';
+import {
+  CATEGORIES,
+  ORG_STATUSES,
+  PARTNER_TYPES,
+  PARTNER_TYPE_KEYS,
+  partnerGroups,
+} from '../../../lib/directory';
 import { formatDate } from '../../../lib/format';
 
 const actor = Astro.locals.adminEmail ?? 'admin';
 const tabs = [
   { key: 'queue', label: 'To review' },
   { key: 'all', label: 'All listings' },
+  { key: 'partners', label: 'Partners' },
   { key: 'renewals', label: 'Renewals' },
   { key: 'log', label: 'History' },
 ] as const;
@@ -27,7 +34,14 @@ let error = '';
 
 if (Astro.request.method === 'POST') {
   const form = Object.fromEntries(await Astro.request.formData());
-  if (form.action === 'notes') {
+  if (form.action === 'partner') {
+    const parsed = PartnerForm.safeParse(form);
+    if (parsed.success) {
+      await savePartner(parsed.data, actor);
+      return Astro.redirect(`/admin/ecosystem?tab=partners&saved=1#org-${parsed.data.id}`, 303);
+    }
+    error = 'Pick an organisation and a partner group.';
+  } else if (form.action === 'notes') {
     // Back to the same filtered list, scrolled to the listing.
     const parsed = OrgNotesForm.safeParse(form);
     if (parsed.success) {
@@ -76,6 +90,13 @@ const all =
         (o) => !q || o.name.toLowerCase().includes(q) || o.adminNotes?.toLowerCase().includes(q),
       )
     : [];
+
+// Partners: every listing with a partner group (any status, so a hidden one is not lost), and the
+// published listings that could become one.
+const partnerRows =
+  tab === 'partners' ? await db.select().from(organisations).orderBy(asc(organisations.name)) : [];
+const groups = partnerGroups(partnerRows.filter((o) => o.partnerType));
+const candidates = partnerRows.filter((o) => !o.partnerType && o.status === 'published');
 
 const renewals =
   tab === 'renewals'
@@ -206,6 +227,11 @@ const short = (v: unknown) => {
                 {o.badges.length > 0 && (
                   <span class="block text-xs text-muted">{o.badges.join(', ')}</span>
                 )}
+                {o.partnerType && (
+                  <span class="block text-xs text-muted">
+                    Partner: {PARTNER_TYPES[o.partnerType].label}
+                  </span>
+                )}
               </td>
               <td>{CATEGORIES[o.category].short}</td>
               <td>
@@ -240,6 +266,149 @@ const short = (v: unknown) => {
           ))}
         </tbody>
       </table>
+    </div>
+  )}
+
+  {tab === 'partners' && (
+    <div class="grid gap-6">
+      <p class="text-sm text-muted">
+        Partners show in their group in the Partners section of the{' '}
+        <a href="/ecosystem#partners" target="_blank" rel="noopener">
+          Ecosystem page ↗
+        </a>
+        , with the logo of their listing. Those with "Home" ticked also show in "They support La
+        French Tech Bangkok" on Home. Smaller order first; same number, by name. To stop a
+        partnership, choose "Not a partner": the listing stays in the directory.
+      </p>
+      <form method="post" class="admin-panel flex flex-wrap items-end gap-3">
+        <input type="hidden" name="action" value="partner" />
+        <div class="min-w-56 flex-1">
+          <label for="add-org" class="block text-sm font-semibold">
+            Add a partner
+          </label>
+          <select
+            id="add-org"
+            name="id"
+            required
+            class="mt-1 block w-full rounded-lg border border-line px-3 py-2"
+          >
+            <option value="">Choose a listing…</option>
+            {candidates.map((o) => (
+              <option value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label for="add-type" class="block text-sm font-semibold">
+            Group
+          </label>
+          <select
+            id="add-type"
+            name="partnerType"
+            required
+            class="mt-1 block rounded-lg border border-line px-3 py-2"
+          >
+            {PARTNER_TYPE_KEYS.map((k) => (
+              <option value={k}>{PARTNER_TYPES[k].label}</option>
+            ))}
+          </select>
+        </div>
+        <label class="flex items-center gap-2 pb-2 text-sm">
+          <input type="checkbox" name="partnerHome" class="accent-brand" /> Show on Home
+        </label>
+        <Button type="submit" size="sm">
+          Add
+        </Button>
+        <p class="w-full text-xs text-muted">
+          Not in the list? <a href="/admin/ecosystem/new">Add the organisation</a> first (with its
+          logo), then pick it here or set "Partner group" on its page.
+        </p>
+      </form>
+      {groups.length === 0 && <div class="admin-panel text-muted">No partner yet.</div>}
+      {groups.map((g) => (
+        <section class="admin-panel overflow-x-auto" aria-labelledby={`pg-${g.key}`}>
+          <h2 id={`pg-${g.key}`} class="text-lg">
+            {g.label} <span class="text-sm font-normal text-muted">({g.items.length})</span>
+          </h2>
+          <table class="admin-table mt-3">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Logo</th>
+                <th>Group</th>
+                <th>Order</th>
+                <th>Home</th>
+                <th>
+                  <span class="sr-only">Save</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.items.map((o) => (
+                <tr id={`org-${o.id}`}>
+                  <td>
+                    <a href={`/admin/ecosystem/${o.id}`} class="font-semibold">
+                      {o.name}
+                    </a>
+                    {o.status !== 'published' && (
+                      <span class="ml-2">
+                        <Badge tone={statusTone(o.status)}>{o.status}</Badge>
+                      </span>
+                    )}
+                  </td>
+                  <td>{o.logoKey ? '✓' : <span class="text-danger">missing</span>}</td>
+                  <td>
+                    <select
+                      form={`partner-${o.id}`}
+                      name="partnerType"
+                      aria-label={`Partner group of ${o.name}`}
+                      class="rounded-lg border border-line px-2 py-1 text-sm"
+                    >
+                      <option value="">Not a partner</option>
+                      {PARTNER_TYPE_KEYS.map((k) => (
+                        <option value={k} selected={k === o.partnerType}>
+                          {PARTNER_TYPES[k].label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      form={`partner-${o.id}`}
+                      name="partnerOrder"
+                      type="number"
+                      min="0"
+                      max="999"
+                      value={o.partnerOrder}
+                      aria-label={`Order of ${o.name}`}
+                      class="w-20 rounded-lg border border-line px-2 py-1 text-sm"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      form={`partner-${o.id}`}
+                      name="partnerHome"
+                      type="checkbox"
+                      checked={o.partnerHome}
+                      aria-label={`Show ${o.name} on Home`}
+                      class="accent-brand"
+                    />
+                  </td>
+                  <td>
+                    <form method="post" id={`partner-${o.id}`}>
+                      <input type="hidden" name="action" value="partner" />
+                      <input type="hidden" name="id" value={o.id} />
+                      <button type="submit" class="text-sm text-accent underline">
+                        Save
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ))}
     </div>
   )}
 

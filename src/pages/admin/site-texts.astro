@@ -26,7 +26,6 @@ import {
   DEFAULT_COMMUNITY_TITLE,
   DEFAULT_HERO,
   DEFAULT_HOME_NUMBERS,
-  DEFAULT_PARTNERS,
 } from '../../lib/home';
 
 // The texts of the public pages, one screen per page (?page=, listed under Website in the admin
@@ -84,13 +83,6 @@ const Schema = z.object({
   homeCommunityText: z.string().max(600),
   homeClosingTitle: z.string().max(200),
   homeAboutItems: z.array(card.omit({ link: true })).max(4),
-  homePartners: z
-    .array(
-      card.extend({
-        link: z.url('A partner link is a full address starting with https://').max(300).optional(),
-      }),
-    )
-    .max(12),
   joinPaths: z.array(card).max(6),
   joinIntro: longText(4000),
   joinMembership: longText(2000),
@@ -114,7 +106,6 @@ const FIELDS = {
     homeCommunityText: true,
     homeClosingTitle: true,
     homeAboutItems: true,
-    homePartners: true,
     joinPaths: true,
   },
   about: { aboutIntro: true, communityText: true },
@@ -128,7 +119,6 @@ const PageSchema = Schema.pick(FIELDS[page]);
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = { ...current, values: current.values.join('\n') };
 let aboutItems = current.homeAboutItems.length ? current.homeAboutItems : DEFAULT_ABOUT_ITEMS;
-let partners = current.homePartners.length ? current.homePartners : DEFAULT_PARTNERS;
 let joinPaths = current.joinPaths;
 let homeNumbers = current.homeNumbers.length ? current.homeNumbers : DEFAULT_HOME_NUMBERS;
 // Photo slots on the Home screen: header, About us, three community photos.
@@ -144,8 +134,6 @@ if (Astro.request.method === 'POST') {
   values = formToObject(form, [
     'aboutItemTitle',
     'aboutItemText',
-    'partnerTitle',
-    'partnerLink',
     'joinTitle',
     'joinText',
     'joinLink',
@@ -153,13 +141,11 @@ if (Astro.request.method === 'POST') {
     'numberText',
   ]);
   aboutItems = cardsFromForm(values, 'aboutItem').map(({ title, text }) => ({ title, text }));
-  partners = cardsFromForm(values, 'partner', true);
   joinPaths = cardsFromForm(values, 'join', true);
   homeNumbers = cardsFromForm(values, 'number').map(({ title, text }) => ({ title, text }));
   const parsed = PageSchema.safeParse({
     ...values,
     homeAboutItems: aboutItems,
-    homePartners: partners,
     joinPaths,
     homeNumbers,
   });
@@ -359,19 +345,11 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
 
         <section class="admin-panel grid gap-4">
           <h2 class="text-lg">Partners</h2>
-          <CardFields
-            prefix="partner"
-            legend="They support La French Tech Bangkok"
-            items={partners}
-            error={errors.homePartners}
-            withLink
-            withText={false}
-            max={12}
-            item="partner"
-            titleLabel="name"
-            linkLabel="Website"
-            hint="The logos near the bottom of Home, in this order. Each logo comes from the Ecosystem directory: the organisation with the same website (or name). Without one, the name shows instead, so add the partner to the directory with its logo."
-          />
+          <p class="text-sm text-muted">
+            The logos of "They support La French Tech Bangkok" come from the Ecosystem directory:
+            tick "Show on Home" on a partner in{' '}
+            <a href="/admin/ecosystem?tab=partners">Ecosystem &gt; Partners</a>.
+          </p>
         </section>
       </>
     )}

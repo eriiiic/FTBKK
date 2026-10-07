@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, lt } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, lt, or } from 'drizzle-orm';
 import { getDb } from '../db';
 import { events, organisations, type RecapPhoto } from '../db/schema';
 import { mediaUrl } from './format';
@@ -28,7 +28,10 @@ export const DEFAULT_ABOUT_ITEMS = [
 ];
 export const ABOUT_ITEM_ICONS = [4, 1, 3, 2].map((i) => `/brand/home/pillar-${i}.png`);
 
-/** "They support La French Tech Bangkok" until Website pages > Home lists its own. */
+/**
+ * "They support La French Tech Bangkok" until a directory listing is a partner shown on Home
+ * (Admin > Ecosystem > Partners). Migration 0031 turned this list into partner listings.
+ */
 export const DEFAULT_PARTNERS = [
   { title: 'Business France', text: '', link: 'https://www.businessfrance.fr/' },
   {
@@ -92,8 +95,25 @@ export interface Partner {
 }
 
 type LogoRow = { name: string; logoKey: string | null; url: string | null };
+type PartnerRow = LogoRow & { partnerHome: boolean; partnerOrder: number };
 
-export async function homeData(partners: readonly { title: string; link?: string }[]) {
+/**
+ * The partners strip on Home: the partner listings ticked "Show on Home", by their order then
+ * name. Until there is one, the older list (Website pages > Home, or DEFAULT_PARTNERS) with logos
+ * from the directory.
+ */
+export function homePartners(
+  orgs: readonly PartnerRow[],
+  fallback: readonly { title: string; link?: string }[],
+) {
+  const shown = orgs
+    .filter((o) => o.partnerHome)
+    .sort((a, b) => a.partnerOrder - b.partnerOrder || a.name.localeCompare(b.name));
+  if (!shown.length) return partnerLogos(fallback, orgs);
+  return shown.map((o) => ({ name: o.name, url: o.url, logo: mediaUrl(o.logoKey) }));
+}
+
+export async function homeData(fallbackPartners: readonly { title: string; link?: string }[]) {
   const db = getDb();
   const now = new Date();
   const [recent, orgs] = await Promise.all([
@@ -108,13 +128,20 @@ export async function homeData(partners: readonly { title: string; link?: string
         name: organisations.name,
         logoKey: organisations.logoKey,
         url: organisations.website,
+        partnerHome: organisations.partnerHome,
+        partnerOrder: organisations.partnerOrder,
       })
       .from(organisations)
-      .where(and(eq(organisations.status, 'published'), isNotNull(organisations.logoKey))),
+      .where(
+        and(
+          eq(organisations.status, 'published'),
+          or(isNotNull(organisations.logoKey), eq(organisations.partnerHome, true)),
+        ),
+      ),
   ]);
   return {
     eventPhotos: pickPhotos([], recent),
-    partners: partnerLogos(partners, orgs),
+    partners: homePartners(orgs, fallbackPartners),
   };
 }
 
