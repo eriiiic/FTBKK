@@ -1,0 +1,63 @@
+---
+import Icon from './Icon.astro';
+import { initials, mediaUrl } from '../lib/format';
+import { personLine, speakerRoleLabel } from '../lib/speakers';
+
+// One speaker on an event page: round portrait, role label, name, title and company, talk title
+// and the short bio written for this event. People elsewhere (About) use PersonCard.
+interface Props {
+  speaker: {
+    name: string;
+    title: string | null;
+    organisationName: string | null;
+    linkedin: string | null;
+    photoKey: string | null;
+    talkTitle: string | null;
+    role: string | null;
+    bio: string | null;
+  };
+}
+const { speaker: s } = Astro.props;
+const photo = mediaUrl(s.photoKey);
+const line = personLine(s);
+---
+
+<article class="flex h-full gap-5 rounded-2xl border border-line bg-paper p-5 shadow-card sm:gap-6 sm:p-6">
+  {photo ? (
+    <img
+      src={photo}
+      alt={`Portrait of ${s.name}`}
+      loading="lazy"
+      class="size-20 shrink-0 rounded-full object-cover ring-4 ring-surface sm:size-28"
+    />
+  ) : (
+    <div
+      class="flex size-20 shrink-0 items-center justify-center rounded-full bg-navy font-display text-xl font-bold text-paper ring-4 ring-surface sm:size-28 sm:text-2xl"
+      aria-hidden="true"
+    >
+      {initials(s.name)}
+    </div>
+  )}
+  <div class="flex min-w-0 flex-1 flex-col">
+    <p class="text-xs font-semibold tracking-[0.15em] text-brand-dark uppercase">
+      {speakerRoleLabel(s.role)}
+    </p>
+    <h3 class="mt-1 text-lg text-navy sm:text-xl">{s.name}</h3>
+    {line && <p class="mt-0.5 text-sm font-semibold text-ink">{line}</p>}
+    {s.talkTitle && (
+      <p class="mt-3 text-sm text-ink italic">
+        <span class="sr-only">Talk: </span>“{s.talkTitle}”
+      </p>
+    )}
+    {s.bio && <p class="mt-3 text-sm leading-relaxed text-muted">{s.bio}</p>}
+    {s.linkedin && (
+      <a
+        href={s.linkedin}
+        class="mt-auto self-start pt-3 text-accent hover:text-navy"
+        rel="noopener"
+      >
+        <Icon name="linkedin" class="size-5" label={`${s.name} on LinkedIn`} />
+      </a>
+    )}
+  </div>
+</article>

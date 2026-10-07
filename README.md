@@ -129,8 +129,9 @@ Public pages:
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
   check-in screen and the contact's event history), check-in flags people who aren't members and
   can enrol a walk-in as a member (they get the confirmation email), confirmation email with a calendar invite, reminder the day before, QR
-  ticket and cancel link, **speakers** (photo, title, company, talk title, LinkedIn; picked from
-  People and reused across events), **hosts, sponsors and partners** with their logo (linked to
+  ticket and cancel link, **speakers** (a "Who's taking the stage" section of cards with photo,
+  role such as Keynote speaker, Moderator or Panelist, title, company, talk title, an optional short
+  bio for the event and LinkedIn; picked from People and reused across events), **hosts, sponsors and partners** with their logo (linked to
   their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and
   named in the confirmation and reminder emails), and a **feedback email** the day after (one-click 1 to 5 rating, then
   an optional comment; results on the admin's event stats). Past events can show a **recap**: a

@@ -226,6 +226,8 @@ export async function speakersForEvent(eventId: number) {
       photoKey: people.photoKey,
       group: people.group,
       talkTitle: eventSpeakers.talkTitle,
+      role: eventSpeakers.role,
+      bio: eventSpeakers.bio,
     })
     .from(eventSpeakers)
     .innerJoin(people, eq(people.id, eventSpeakers.personId))

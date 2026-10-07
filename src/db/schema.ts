@@ -459,6 +459,10 @@ export const eventSpeakers = sqliteTable(
       .notNull()
       .references(() => people.id, { onDelete: 'cascade' }),
     talkTitle: text('talk_title'),
+    /** SPEAKER_ROLES in lib/speakers.ts; null is a plain speaker. */
+    role: text('role', { enum: ['speaker', 'keynote', 'moderator', 'panelist', 'host'] }),
+    /** Short bio written for this event, shown on the speaker card. */
+    bio: text('bio'),
     sortOrder: integer('sort_order').notNull().default(0),
   },
   (t) => [
