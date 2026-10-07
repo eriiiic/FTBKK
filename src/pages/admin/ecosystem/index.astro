@@ -9,7 +9,7 @@ import { getDb } from '../../../db';
 import { auditLog, organisations } from '../../../db/schema';
 import ReviewCard from '../../../components/admin/ReviewCard.astro';
 import { MODERATION_TARGET_DAYS, daysUntil } from '../../../lib/lifecycle';
-import { orgById } from '../../../lib/orgs';
+import { OrgNotesForm, orgById, saveOrgNotes } from '../../../lib/orgs';
 import { inviteToClaim } from '../../../lib/admin';
 import { DecisionForm, decide, reviewItems } from '../../../lib/moderation';
 import { CATEGORIES, ORG_STATUSES } from '../../../lib/directory';
@@ -27,7 +27,17 @@ let error = '';
 
 if (Astro.request.method === 'POST') {
   const form = Object.fromEntries(await Astro.request.formData());
-  if (form.action === 'invite') {
+  if (form.action === 'notes') {
+    // Back to the same filtered list, scrolled to the listing.
+    const parsed = OrgNotesForm.safeParse(form);
+    if (parsed.success) {
+      await saveOrgNotes(parsed.data);
+      const back = new URL(Astro.url);
+      back.searchParams.set('saved', '1');
+      return Astro.redirect(`${back.pathname}${back.search}#org-${parsed.data.id}`, 303);
+    }
+    error = 'That note is too long (4,000 characters at most).';
+  } else if (form.action === 'invite') {
     const id = z.coerce.number().int().safeParse(form.id);
     const to = z.email().safeParse(
       String(form.email ?? '')
@@ -62,7 +72,9 @@ const all =
             status ? eq(organisations.status, status as (typeof ORG_STATUSES)[number]) : undefined,
           )
           .orderBy(asc(organisations.name))
-      ).filter((o) => !q || o.name.toLowerCase().includes(q))
+      ).filter(
+        (o) => !q || o.name.toLowerCase().includes(q) || o.adminNotes?.toLowerCase().includes(q),
+      )
     : [];
 
 const renewals =
@@ -154,7 +166,7 @@ const short = (v: unknown) => {
           id="q"
           name="q"
           value={q}
-          placeholder="Search names"
+          placeholder="Search names and notes"
           class="rounded-lg border border-line px-3 py-1.5"
         />
         <label for="status" class="sr-only">
@@ -181,11 +193,12 @@ const short = (v: unknown) => {
             <th>Status</th>
             <th>Owners</th>
             <th>Renewal</th>
+            <th>Team notes</th>
           </tr>
         </thead>
         <tbody>
           {all.map((o) => (
-            <tr>
+            <tr id={`org-${o.id}`}>
               <td>
                 <a href={`/admin/ecosystem/${o.id}`} class="font-semibold">
                   {o.name}
@@ -206,6 +219,23 @@ const short = (v: unknown) => {
                 )}
               </td>
               <td class="whitespace-nowrap">{o.renewalDueAt ? formatDate(o.renewalDueAt) : '–'}</td>
+              <td class="min-w-48">
+                <form method="post">
+                  <input type="hidden" name="action" value="notes" />
+                  <input type="hidden" name="id" value={o.id} />
+                  <textarea
+                    aria-label={`Team notes on ${o.name}`}
+                    name="adminNotes"
+                    rows={2}
+                    maxlength={4000}
+                    class="w-full rounded-lg border border-line px-2 py-1 text-xs"
+                    set:text={o.adminNotes ?? ''}
+                  />
+                  <button type="submit" class="text-xs text-accent underline">
+                    Save note
+                  </button>
+                </form>
+              </td>
             </tr>
           ))}
         </tbody>

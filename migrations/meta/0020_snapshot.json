@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "90922130-e00e-48a1-a664-691780dd62e9",
-  "prevId": "8e6d107f-7117-4d1b-aaaf-101b4142cda7",
+  "id": "8e6d107f-7117-4d1b-aaaf-101b4142cda7",
+  "prevId": "5525e6c4-5099-4260-a7a4-cea616a0c643",
   "tables": {
     "audit_log": {
       "name": "audit_log",
@@ -346,14 +346,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "other_emails": {
-          "name": "other_emails",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
         },
         "name": {
           "name": "name",

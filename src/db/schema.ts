@@ -291,6 +291,8 @@ export const organisations = sqliteTable(
       .default('none'),
     memberSince: ts('member_since'),
     submittedAt: ts('submitted_at'),
+    /** The team's private notes on the listing (admin only, never shown on the site). */
+    adminNotes: text('admin_notes'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
