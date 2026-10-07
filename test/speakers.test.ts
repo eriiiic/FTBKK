@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { MAX_SPEAKERS, SpeakersFormSchema, personLine, planSpeakers } from '../src/lib/speakers';
 
 const prev = [
-  { personId: 1, talkTitle: 'Scaling in SEA' },
-  { personId: 2, talkTitle: null },
+  { personId: 1, talkTitle: 'Scaling in SEA', role: null, bio: 'Founder of Acme.' },
+  { personId: 2, talkTitle: null, role: 'moderator' as const, bio: null },
 ];
 const all = new Set([1, 2, 3, 4]);
 const exists = (id: number) => all.has(id);
@@ -43,8 +43,8 @@ describe('planSpeakers', () => {
       exists,
     );
     expect(plan).toEqual([
-      { personId: 2, talkTitle: 'Fundraising', sortOrder: 0 },
-      { personId: 1, talkTitle: null, sortOrder: 1 },
+      { personId: 2, talkTitle: 'Fundraising', role: null, bio: null, sortOrder: 0 },
+      { personId: 1, talkTitle: null, role: null, bio: null, sortOrder: 1 },
     ]);
   });
   it('removes ticked speakers', () => {
@@ -57,7 +57,35 @@ describe('planSpeakers', () => {
       form({ addPersonId: '3', addTalkTitle: 'AI in retail' }),
       exists,
     );
-    expect(plan.at(-1)).toEqual({ personId: 3, talkTitle: 'AI in retail', sortOrder: 2 });
+    expect(plan.at(-1)).toEqual({
+      personId: 3,
+      talkTitle: 'AI in retail',
+      role: null,
+      bio: null,
+      sortOrder: 2,
+    });
+  });
+  it('keeps the role and bio of each speaker', () => {
+    const plan = planSpeakers(
+      prev,
+      form({
+        speakerRole: ['panelist', 'speaker'],
+        speakerBio: [' Runs growth at Acme. ', ''],
+        addPersonId: '3',
+        addRole: 'moderator',
+        addBio: 'Leads the AI circle.',
+      }),
+      exists,
+    );
+    expect(plan.map((s) => [s.role, s.bio])).toEqual([
+      ['panelist', 'Runs growth at Acme.'],
+      [null, null],
+      ['moderator', 'Leads the AI circle.'],
+    ]);
+  });
+  it('refuses an unknown role and a bio that is too long', () => {
+    expect(SpeakersFormSchema.safeParse({ speakerRole: ['chef'] }).success).toBe(false);
+    expect(SpeakersFormSchema.safeParse({ addBio: 'x'.repeat(401) }).success).toBe(false);
   });
   it('uses the id of a newly created person', () => {
     const plan = planSpeakers(prev, form(), exists, 4);
@@ -80,12 +108,14 @@ describe('planSpeakers', () => {
   });
   it('drops a speaker whose person was deleted', () => {
     const plan = planSpeakers(prev, form(), (id) => id === 2);
-    expect(plan).toEqual([{ personId: 2, talkTitle: null, sortOrder: 0 }]);
+    expect(plan).toEqual([{ personId: 2, talkTitle: null, role: null, bio: null, sortOrder: 0 }]);
   });
   it('caps the list', () => {
     const many = Array.from({ length: MAX_SPEAKERS }, (_, i) => ({
       personId: i + 1,
       talkTitle: null,
+      role: null,
+      bio: null,
     }));
     const plan = planSpeakers(many, SpeakersFormSchema.parse({}), () => true, 500);
     expect(plan).toHaveLength(MAX_SPEAKERS);

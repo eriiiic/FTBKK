@@ -7,7 +7,7 @@ import Icon from '../../../components/Icon.astro';
 import Alert from '../../../components/Alert.astro';
 import RegistrationForm from '../../../components/RegistrationForm.astro';
 import PostCard from '../../../components/PostCard.astro';
-import PersonCard from '../../../components/PersonCard.astro';
+import SpeakerCard from '../../../components/SpeakerCard.astro';
 import {
   eventBySlug,
   isUpcoming,
@@ -350,21 +350,16 @@ const jsonLd = {
       </aside>
     </div>
     {speakers.length > 0 && (
-      <section aria-labelledby="speakers" class="border-t border-line">
-        <div class="container-page py-12">
-          <h2 id="speakers" class="mb-8 text-2xl md:text-3xl">
-            {speakers.length === 1 ? 'Speaker' : 'Speakers'}
+      <section aria-labelledby="speakers" class="border-t border-line bg-surface">
+        <div class="container-page py-12 md:py-16">
+          <p class="eyebrow">{speakers.length === 1 ? 'Speaker' : 'Speakers'}</p>
+          <h2 id="speakers" class="mb-8 text-2xl md:mb-10 md:text-3xl">
+            {upcoming ? 'Who’s taking the stage' : 'Who took the stage'}
           </h2>
-          <ul class="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4">
+          <ul class="grid gap-6 lg:grid-cols-2">
             {speakers.map((p) => (
               <li>
-                <PersonCard person={{ ...p, organisation: p.organisationName }}>
-                  {p.talkTitle && (
-                    <p class="mt-2 text-sm text-ink italic">
-                      <span class="sr-only">Talk: </span>“{p.talkTitle}”
-                    </p>
-                  )}
-                </PersonCard>
+                <SpeakerCard speaker={p} />
               </li>
             ))}
           </ul>

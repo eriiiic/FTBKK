@@ -46,11 +46,14 @@ uses any more.
   save button and save only that section. If another section has unsaved changes, the page asks
   before saving, since those changes would be lost: save one section at a time.
 - **Speakers** (below the event form, once the event is saved): pick someone already in People
-  (speakers, board or institutional partners) and give an optional talk title, or fill in **Or
+  (speakers, board or institutional partners) and give an optional talk title, a role (Speaker,
+  Keynote speaker, Moderator, Panelist or Host; Speaker by default) and an optional short bio
+  (one or two sentences, written for this event, 400 characters max), or fill in **Or
   someone new** (name, job title, company, LinkedIn, photo) to add them to People in the
-  Speakers group and link them in one go. Reorder with the arrows, edit talk titles, tick
+  Speakers group and link them in one go. Reorder with the arrows, edit roles, talk titles and bios, tick
   "Remove" to unlink (the person stays in People), then **Save the speakers**. They show on the
-  event page with their photo, title, company, talk title and LinkedIn. Speakers are reused
+  event page in a "Who's taking the stage" section, one card each with their photo, role, title,
+  company, talk title, bio and LinkedIn. Speakers are reused
   across events: next time, just pick them from the list. Everyone who spoke at a past
   published event appears in **Speakers we've hosted** on About (the 24 most recent).
 - **Sponsors and hosts** (below the event form, once the event is saved): choose the role

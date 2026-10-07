@@ -38,7 +38,11 @@ import {
 } from '../../../lib/recap';
 import {
   MAX_SPEAKERS,
+  MAX_SPEAKER_BIO,
   SPEAKER_ARRAYS,
+  SPEAKER_ROLES,
+  SPEAKER_ROLE_LABELS,
+  type SpeakerDetails,
   SpeakersFormSchema,
   personLine,
   planSpeakers,
@@ -317,7 +321,7 @@ if (bodyTooLarge) {
       }
       const ids = new Set(everyone.map((p) => p.id));
       const plan = planSpeakers(
-        speakers.map((s) => ({ personId: s.id, talkTitle: s.talkTitle })),
+        speakers.map((s) => ({ personId: s.id, talkTitle: s.talkTitle, role: s.role, bio: s.bio })),
         d,
         (id) => ids.has(id),
         added,
@@ -326,17 +330,26 @@ if (bodyTooLarge) {
         db.delete(eventSpeakers).where(eq(eventSpeakers.eventId, event.id)),
         ...plan.map((s) => db.insert(eventSpeakers).values({ ...s, eventId: event!.id })),
       ]);
-      const summary = (list: { personId: number; talkTitle: string | null }[]) =>
+      const summary = (list: SpeakerDetails[]) =>
         list.map((s) => ({
           person: everyone.find((p) => p.id === s.personId)?.name ?? s.personId,
           talk: s.talkTitle,
+          role: s.role,
+          bio: s.bio,
         }));
       await audit(
         actor,
         'speakers',
         'event',
         event.id,
-        summary(speakers.map((s) => ({ personId: s.id, talkTitle: s.talkTitle }))),
+        summary(
+          speakers.map((s) => ({
+            personId: s.id,
+            talkTitle: s.talkTitle,
+            role: s.role,
+            bio: s.bio,
+          })),
+        ),
         summary(plan),
       );
       return Astro.redirect(`/admin/events/${event.id}?saved=1#speakers`);
@@ -930,8 +943,9 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
           Speakers
         </h2>
         <p class="mt-1 text-sm text-muted">
-          Shown on the event page with their photo, title and company. Everyone who spoke at a past
-          event also appears in "Speakers we've hosted" on About. Edit a speaker's details in{' '}
+          Shown on the event page with their photo, role, title, company and an optional short bio
+          about what they bring to this event. Everyone who spoke at a past event also appears in
+          "Speakers we've hosted" on About. Edit a speaker's details in{' '}
           <a href="/admin/people">People</a>.
         </p>
       </div>
@@ -966,15 +980,27 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
                   <p class="font-semibold text-navy">{p.name}</p>
                   <p class="text-sm text-muted">{personLine(p)}</p>
                 </div>
-                <label class="text-sm">
-                  Talk title<span class="sr-only"> of {p.name}</span>
-                  <input
-                    name="speakerTalk"
-                    value={p.talkTitle ?? ''}
-                    maxlength={200}
-                    class="admin-input mt-1"
-                  />
-                </label>
+                <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                  <label class="text-sm">
+                    Role<span class="sr-only"> of {p.name}</span>
+                    <select name="speakerRole" class="admin-input mt-1">
+                      {SPEAKER_ROLES.map((r) => (
+                        <option value={r} selected={(p.role ?? 'speaker') === r}>
+                          {SPEAKER_ROLE_LABELS[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label class="text-sm">
+                    Talk title<span class="sr-only"> of {p.name}</span>
+                    <input
+                      name="speakerTalk"
+                      value={p.talkTitle ?? ''}
+                      maxlength={200}
+                      class="admin-input mt-1"
+                    />
+                  </label>
+                </div>
                 <div class="flex flex-wrap items-center gap-2 text-sm">
                   <button type="button" data-move="-1" class="rounded border border-line px-2">
                     ↑<span class="sr-only"> Move {p.name} earlier</span>
@@ -992,6 +1018,17 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
                     Remove<span class="sr-only"> {p.name}</span>
                   </label>
                 </div>
+                <label class="text-sm sm:col-span-4">
+                  Short bio<span class="sr-only"> of {p.name}</span>
+                  <span class="text-muted"> (optional, for this event)</span>
+                  <textarea
+                    name="speakerBio"
+                    rows="2"
+                    maxlength={MAX_SPEAKER_BIO}
+                    class="admin-input mt-1"
+                    set:text={p.bio ?? ''}
+                  />
+                </label>
               </li>
             ))}
           </ol>
@@ -1030,6 +1067,27 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
               value={sstr('addTalkTitle')}
               hint="Optional."
             />
+            <label class="text-sm font-semibold text-ink">
+              Role
+              <select name="addRole" class="admin-input mt-1 font-normal">
+                {SPEAKER_ROLES.map((r) => (
+                  <option value={r} selected={(sstr('addRole') || 'speaker') === r}>
+                    {SPEAKER_ROLE_LABELS[r]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div class="sm:col-span-2">
+              <FormField
+                name="addBio"
+                label="Short bio"
+                rows={2}
+                maxlength={MAX_SPEAKER_BIO}
+                value={sstr('addBio')}
+                error={speakerErrors.addBio}
+                hint="Optional. One or two sentences on who they are and what they bring to this event."
+              />
+            </div>
           </div>
           <p class="text-sm text-muted">Or someone new (added to People, in Speakers):</p>
           <div class="grid gap-4 sm:grid-cols-2">
