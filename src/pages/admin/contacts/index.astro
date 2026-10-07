@@ -18,6 +18,7 @@ import {
 import { formatDate } from '../../../lib/format';
 import { getSettings } from '../../../lib/settings';
 import { inviteToJoin } from '../../../lib/members';
+import { findDuplicates } from '../../../lib/contact-duplicates';
 
 const url = Astro.url;
 if (Astro.request.method === 'POST') {
@@ -113,7 +114,9 @@ const invitedText =
         .filter(Boolean)
         .join(' ')
     : '';
-const membershipOpen = (await getSettings()).memberSignupOpen;
+const settings = await getSettings();
+const membershipOpen = settings.memberSignupOpen;
+const duplicates = findDuplicates(all, new Set(settings.notDuplicates)).length;
 
 // Events people registered for, newest first, for the event filter.
 const eventOptions = [
@@ -137,9 +140,14 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       (grouped by email), plus anyone you add by hand. Nobody has to sign up: the list builds itself
       from registrations. Click a name to edit, contact or delete them.
     </p>
-    <Button href="/admin/contacts/new" size="sm">
-      New contact
-    </Button>
+    <div class="flex flex-wrap gap-2">
+      <Button href="/admin/contacts/duplicates" size="sm" variant="secondary">
+        Possible duplicates{duplicates ? ` (${duplicates})` : ''}
+      </Button>
+      <Button href="/admin/contacts/new" size="sm">
+        New contact
+      </Button>
+    </div>
   </div>
   <dl class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
     {summary.map(([k, v]) => (

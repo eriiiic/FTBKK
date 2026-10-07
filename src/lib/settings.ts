@@ -52,6 +52,8 @@ export interface Settings {
   memberSignupOpen: boolean;
   memberPriority: boolean;
   analyticsToken: string;
+  /** Contacts > Possible duplicates: pairs marked "not the same person" (see pairKey). */
+  notDuplicates: string[];
 }
 
 /** Fallbacks used when a key has never been saved (fresh database). Real copy is seeded by the import. */
@@ -85,6 +87,7 @@ export const defaultSettings: Settings = {
   memberSignupOpen: false,
   memberPriority: false,
   analyticsToken: '',
+  notDuplicates: [],
 };
 
 export type Card = Settings['joinPaths'][number];

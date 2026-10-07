@@ -147,6 +147,14 @@ uses any more.
   cancelled) and a freed seat on an upcoming event goes to the waitlist. Tags are combined, notes
   are put together and a membership moves to the main email. Ecosystem listings keep the emails
   they name as owners (change those on the listing). Merging can't be undone.
+- **Possible duplicates** (button at the top of Contacts, with how many there are): the
+  contacts that may be the same person, found in the live list. A group is flagged when they
+  have the same name (in any order, accents ignored), the same phone, the same LinkedIn, the same
+  email before the @ (jean.dupont@gmail.com and jean.dupont@company.com; info@, contact@ and the
+  like don't count), or the same first name at the same company. The suggested main contact is
+  listed first (an active member, else the one with an email who came most). **Review and merge**
+  opens the merge page with it already picked, and you come back to the list afterwards; **Not
+  the same person** hides the group for good. Nothing is merged without you.
 - **Other emails**: a contact can have several emails, one main and up to 10 others (Edit, one
   per line). Registrations and membership sign-ups made with another email count as the same
   person: they show on the contact, a member typing another of their emails is recognised, and
