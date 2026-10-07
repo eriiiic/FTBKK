@@ -9,8 +9,10 @@ import CardFields from '../../components/admin/CardFields.astro';
 import { cardsFromForm, getSettings, saveSettings, type Settings } from '../../lib/settings';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
+import { DEFAULT_THAI_PAGE } from '../../lib/thai-page';
 
-// The texts of the public pages: home, Join, About, code of conduct, privacy notice.
+// The texts of the public pages: home, Join, About, Tech Pulse, Thai page, code of conduct,
+// privacy notice.
 const actor = Astro.locals.adminEmail ?? 'admin';
 const current = await getSettings();
 
@@ -47,6 +49,8 @@ const Schema = z.object({
   joinMembership: longText(2000),
   aboutIntro: longText(6000),
   communityText: longText(6000),
+  techPulseIntro: longText(3000),
+  thaiPage: longText(20000),
   codeOfConduct: longText(12000),
   privacyNotice: longText(12000),
 });
@@ -189,6 +193,34 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         breaks
         uploads={false}
         hint="Shown next to the official logo on the About page. Start a line with ## for a heading. Empty = hidden."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Tech Pulse page</h2>
+      <MarkdownEditor
+        name="techPulseIntro"
+        label="Introduction"
+        rows={5}
+        value={str('techPulseIntro')}
+        error={errors.techPulseIntro}
+        breaks
+        uploads={false}
+        hint="Top of the /tech-pulse page. The editions listed below it are the published blog posts with Tech Pulse in their title; the Download button opens each post's first PDF attachment. Empty = the default text."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Thai page</h2>
+      <MarkdownEditor
+        name="thaiPage"
+        label="Page text, in Thai"
+        rows={20}
+        value={str('thaiPage') || DEFAULT_THAI_PAGE}
+        error={errors.thaiPage}
+        breaks
+        uploads={false}
+        hint="The /th page (ภาษาไทย in the menu). The text before the first ## heading is the introduction; each line starting with ## starts a numbered section, listed at the top of the page. The Contact us buttons open the contact form on About. Empty = the default text."
       />
     </section>
 

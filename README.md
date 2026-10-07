@@ -12,6 +12,16 @@ Public pages:
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the
   same style as `/join`. Texts are edited in the admin (Site texts).
+- **Thailand Tech Pulse** at `/tech-pulse` (header menu): our quarterly report. The latest
+  edition leads with a Download button, then every edition with its quarter, a link to the summary
+  post and the PDF. Editions are the published blog posts with "Tech Pulse" in their title; the
+  PDF is the post's first PDF attachment (or the first PDF linked in its text). The introduction
+  is edited in Site texts.
+- **Thai page** at `/th` (ภาษาไทย in the header menu, `lang="th"`): La French Tech Bangkok, La
+  French Tech and the Mission French Tech, our role, objectives and activities, in Thai, with
+  Contact us buttons to the About contact form. Each `## ` heading of its text becomes a numbered
+  section listed in the hero. The text is edited in Site texts (a default Thai text is built in).
+  Thai glyphs use Noto Sans Thai, downloaded only for Thai characters.
 - **Join the community** at `/join`, opened by the header's button and linked from Home and the
   footer: a navy hero with a "Ways to join" index, the free membership (perks, three steps and the
   form side by side), the WhatsApp community, listing a company in the directory,

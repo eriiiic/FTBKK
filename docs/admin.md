@@ -342,8 +342,12 @@ enrolment at check-in.
   switches (individual sign-up on the Join page, company membership applications, member
   priority on events) and the analytics token.
 - **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
-  and the membership block; empty = a default text), the About page, the code of conduct and the
-  privacy notice. Long texts ("Who we are", "Official French Tech Community", the
+  and the membership block; empty = a default text), the About page, the Tech Pulse page's
+  introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**
+  lists by itself every published post with "Tech Pulse" in its title: to add an edition, publish
+  a post titled like "Thailand Tech Pulse Q4 2026: …" (the quarter shows as a badge) and attach
+  the report PDF to it. The **Thai page** text is written in Thai; the part before the first
+  `## ` heading is the introduction and each `## ` heading starts a numbered section. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
   appear on Home and About, one per line as `Title | text | link`, where the link is optional.

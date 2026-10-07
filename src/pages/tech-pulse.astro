@@ -1,0 +1,165 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/Button.astro';
+import Icon from '../components/Icon.astro';
+import { allPosts } from '../lib/queries';
+import { getSettings } from '../lib/settings';
+import { renderMarkdown } from '../lib/markdown';
+import { formatDate, mediaUrl } from '../lib/format';
+import { DEFAULT_TECH_PULSE_INTRO, editionOf, isTechPulse, reportFile } from '../lib/tech-pulse';
+
+// Thailand Tech Pulse, our quarterly report: every edition, newest first. An edition is a blog
+// post with "Tech Pulse" in its title (see lib/tech-pulse.ts).
+const [settings, posts] = await Promise.all([getSettings(), allPosts()]);
+const editions = posts
+  .filter((p) => isTechPulse(p.title))
+  .map((p) => ({
+    ...p,
+    edition: editionOf(p.title),
+    cover: mediaUrl(p.coverKey),
+    pdf: reportFile(p),
+  }));
+const latest = editions[0];
+const intro = renderMarkdown(settings.techPulseIntro || DEFAULT_TECH_PULSE_INTRO, { breaks: true });
+---
+
+<BaseLayout
+  title="Thailand Tech Pulse"
+  description="Thailand Tech Pulse, La French Tech Bangkok's free quarterly report on the Thai tech ecosystem: digital infrastructure, AI, investment, startups and talent."
+  image={latest?.cover}
+>
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
+    <div
+      aria-hidden="true"
+      class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+    ></div>
+    <div class="container-page grid gap-12 py-16 md:py-24 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-center">
+      <div>
+        <p class="mb-5 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase">
+          Quarterly report
+        </p>
+        <h1 class="text-4xl leading-[1.1] text-paper md:text-6xl">Thailand Tech Pulse</h1>
+        <div class="hero-intro mt-8 max-w-2xl" set:html={intro} />
+        {latest && (
+          <div class="mt-10 flex flex-wrap gap-3">
+            {latest.pdf ? (
+              <Button href={latest.pdf} download>
+                <Icon name="download" class="size-4" />
+                Download {latest.edition ?? 'the latest edition'}
+              </Button>
+            ) : null}
+            <Button href={`/blog/${latest.slug}`} variant="light">
+              Read the summary
+            </Button>
+          </div>
+        )}
+      </div>
+      {latest && (
+        <a
+          href={`/blog/${latest.slug}`}
+          class="group block overflow-hidden rounded-card bg-paper text-ink no-underline shadow-card transition hover:-translate-y-0.5"
+        >
+          <div class="aspect-[4/3] bg-surface">
+            {latest.cover && (
+              <img src={latest.cover} alt="" class="size-full object-cover" fetchpriority="high" />
+            )}
+          </div>
+          <div class="p-6">
+            <p class="text-xs font-semibold tracking-[0.15em] text-brand uppercase">
+              Latest edition{latest.edition && ` · ${latest.edition}`}
+            </p>
+            <p class="mt-2 font-display text-lg leading-snug font-bold text-navy group-hover:text-brand">
+              {latest.title}
+            </p>
+            {latest.publishedAt && (
+              <p class="mt-2 text-sm text-muted">
+                <time datetime={latest.publishedAt.toISOString()}>
+                  {formatDate(latest.publishedAt)}
+                </time>
+              </p>
+            )}
+          </div>
+        </a>
+      )}
+    </div>
+  </section>
+
+  <section class="bg-paper py-16 md:py-24" aria-labelledby="editions-title">
+    <div class="container-page">
+      <div class="max-w-2xl">
+        <p class="mb-3 text-sm font-semibold tracking-[0.2em] text-brand-dark uppercase">Archive</p>
+        <h2 id="editions-title" class="text-3xl md:text-4xl">
+          All editions
+        </h2>
+      </div>
+      {editions.length === 0 ? (
+        <p class="mt-6 text-muted">The first edition is coming soon.</p>
+      ) : (
+        <ol class="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {editions.map((e) => (
+            <li class="group relative flex flex-col overflow-hidden rounded-card border border-line bg-paper shadow-card transition has-[a:hover]:-translate-y-0.5">
+              <div class="relative aspect-[16/9] bg-surface">
+                {e.cover && (
+                  <img src={e.cover} alt="" loading="lazy" class="size-full object-cover" />
+                )}
+                {e.edition && (
+                  <span class="absolute top-4 left-4 rounded-full bg-navy px-3 py-1 font-display text-sm font-bold text-paper">
+                    {e.edition}
+                  </span>
+                )}
+              </div>
+              <div class="flex flex-1 flex-col gap-3 p-6">
+                <h3 class="text-lg leading-snug">
+                  <a
+                    href={`/blog/${e.slug}`}
+                    class="text-ink no-underline group-hover:text-brand focus-visible:outline-offset-4"
+                  >
+                    {e.title}
+                  </a>
+                </h3>
+                {e.excerpt && <p class="line-clamp-3 text-sm text-muted">{e.excerpt}</p>}
+                {e.publishedAt && (
+                  <p class="text-xs text-muted">
+                    Published{' '}
+                    <time datetime={e.publishedAt.toISOString()}>{formatDate(e.publishedAt)}</time>
+                  </p>
+                )}
+                <div class="mt-auto flex flex-wrap items-center gap-x-5 gap-y-2 pt-3 text-sm font-semibold">
+                  <a href={`/blog/${e.slug}`} class="inline-flex items-center gap-1.5 no-underline">
+                    Read the summary <Icon name="arrow" class="size-4" />
+                  </a>
+                  {e.pdf && (
+                    <a href={e.pdf} download class="inline-flex items-center gap-1.5 no-underline">
+                      <Icon name="download" class="size-4" /> Download PDF
+                    </a>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  </section>
+
+  <section class="bg-surface py-14 md:py-20">
+    <div class="container-page flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+      <div class="max-w-2xl">
+        <h2 class="text-2xl md:text-3xl">Get the next edition</h2>
+        <p class="mt-2 text-muted">
+          Join the community, for free, to hear about each new edition and our events.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <Button href="/join">Join the community</Button>
+        <Button href="/about#contact" variant="secondary">
+          Contact us
+        </Button>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
