@@ -73,6 +73,8 @@ Public pages:
   it through one-time email links (no accounts) and confirm it once a year. Free membership with
   a Member badge, approved in the admin (the "company membership", separate from individual
   membership: Settings > "Accept company membership applications").
+  The team can keep a private note on each listing (Ecosystem > All listings or the listing's
+  page; `organisations.admin_notes`, never shown on the site), also shown in the review queue.
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
   automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the

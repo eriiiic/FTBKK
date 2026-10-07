@@ -241,6 +241,9 @@ uses any more.
   **Approve**, or write a short reason and **Reject**. The person gets an email either way.
 - **All listings**: search and open any organisation to edit it, set badges (Member, Sponsor,
   Board, Institutional partner), change its owners or hide it. Hiding is better than deleting.
+  The **Team notes** box (in the list and at the top of the listing's page) keeps a private note:
+  who you spoke to, follow-ups, context for the board. Only the team sees it, it also shows on the
+  listing's cards in To review, and the search covers it. Click **Save note** to keep it.
 - **Renewals**: owners confirm their listing once a year (reminders at 30 and 14 days before and on
   the day). Unconfirmed listings are hidden 30 days later and deleted after 12 months. Unclaimed
   listings get no reminders: use **Send** to invite someone you know there to claim it.

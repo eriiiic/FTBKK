@@ -37,6 +37,12 @@ const hints: Record<ReviewItem['kind'], string> = {
         <dd class="break-words whitespace-pre-line">{v}</dd>
       </>
     ))}
+    {it.org.adminNotes && (
+      <>
+        <dt class="text-muted">Team notes</dt>
+        <dd class="break-words whitespace-pre-line">{it.org.adminNotes}</dd>
+      </>
+    )}
   </dl>
   {it.diff && it.diff.length > 0 && (
     <div class="mt-3 overflow-x-auto">
