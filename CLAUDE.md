@@ -8,7 +8,8 @@ events, registrations and the ecosystem directory. Full plan: `docs/plan.md`. Cl
 
 - Astro 7 with `@astrojs/cloudflare` (output `server`), TypeScript strict, Tailwind CSS v4.
 - Custom Worker entry `src/worker.ts`: Astro's `handle()` for fetch, `src/lib/cron.ts` for the
-  daily cron (09:00 Asia/Bangkok = `0 2 * * *` UTC).
+  hourly cron (`0 * * * *`): social media posts every hour, the daily jobs at 09:00 Asia/Bangkok
+  (02:00 UTC).
 - Bindings come from `import { env } from 'cloudflare:workers'` (not `Astro.locals.runtime`, which
   no longer exists). Types are generated into `worker-configuration.d.ts` by `npm run types`;
   rerun it after editing `wrangler.jsonc`.

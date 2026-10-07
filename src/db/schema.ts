@@ -73,6 +73,8 @@ export const events = sqliteTable(
       .default('draft'),
     /** Photos, slides, video and blog write-up of a past event; null = no recap yet. */
     recap: json<EventRecap>('recap'),
+    /** The 1200x630 social share image (R2 key, lib/share.ts); its name carries a fingerprint. */
+    shareImageKey: text('share_image_key'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -217,6 +219,8 @@ export const posts = sqliteTable('posts', {
     .notNull()
     .default('draft'),
   attachments: json<Attachment[]>('attachments').notNull().default([]),
+  /** The 1200x630 social share image (R2 key, lib/share.ts); its name carries a fingerprint. */
+  shareImageKey: text('share_image_key'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -631,6 +635,47 @@ export const communityEmails = sqliteTable('community_emails', {
   createdAt: createdAt(),
 });
 
+/** Result of one network for a social post: posted (with its link) or the error. */
+export interface SocialResult {
+  ok: boolean;
+  /** Posted by hand: the reminder email went out instead of an automatic post. */
+  manual?: boolean;
+  url?: string;
+  error?: string;
+}
+
+/**
+ * Social media posts about an event or a blog post, published by the hourly cron
+ * (lib/social.ts): automatically on LinkedIn and Facebook once connected, otherwise (and always
+ * for WhatsApp) by an email to whoever scheduled it with the text ready to paste.
+ */
+export const socialPosts = sqliteTable(
+  'social_posts',
+  {
+    id: id(),
+    entity: text('entity', { enum: ['event', 'post'] }).notNull(),
+    entityId: integer('entity_id').notNull(),
+    /** launch = the announcement; reminder = the day before an event. */
+    kind: text('kind', { enum: ['launch', 'reminder'] }).notNull(),
+    networks: json<('linkedin' | 'facebook' | 'whatsapp')[]>('networks').notNull().default([]),
+    text: text('text').notNull(),
+    scheduledAt: ts('scheduled_at').notNull(),
+    status: text('status', { enum: ['scheduled', 'sent', 'failed', 'cancelled'] })
+      .notNull()
+      .default('scheduled'),
+    results: json<Record<string, SocialResult>>('results').notNull().default({}),
+    /** Why it was cancelled by the site (event cancelled, date changed…). */
+    note: text('note'),
+    createdBy: text('created_by').notNull(),
+    sentAt: ts('sent_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('social_posts_due').on(t.status, t.scheduledAt),
+    index('social_posts_entity').on(t.entity, t.entityId),
+  ],
+);
+
 export type Event = typeof events.$inferSelect;
 export type Registration = typeof registrations.$inferSelect;
 export type EventEmail = typeof eventEmails.$inferSelect;
@@ -646,3 +691,4 @@ export type MessageNote = typeof messageNotes.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type CommunityEmail = typeof communityEmails.$inferSelect;
 export type EmailTemplateRow = typeof emailTemplates.$inferSelect;
+export type SocialPost = typeof socialPosts.$inferSelect;

@@ -25,6 +25,7 @@ import { verifyTurnstile } from '../../../lib/turnstile';
 import { rateLimit } from '../../../lib/ratelimit';
 import { getSettings } from '../../../lib/settings';
 import { eventCover } from '../../../lib/event-covers';
+import { eventShareSpec, shareFingerprint, shareImageFor } from '../../../lib/share';
 import {
   MemberRegisterSchema,
   RegisterSchema,
@@ -170,6 +171,11 @@ const embed = videoEmbed(recap?.videoUrl);
 const photoAlt = (alt: string | undefined, i: number) =>
   alt || `Photo ${i + 1} of ${recap?.photos.length} from ${event.title}`;
 const cover = eventCover(event, settings.eventCovers);
+// Social previews use the share image while it matches the event (lib/share.ts), else the cover.
+const shareImage = shareImageFor(
+  event.shareImageKey,
+  await shareFingerprint(eventShareSpec(event, settings.eventCovers)),
+);
 const mapUrl =
   event.mapUrl ??
   (event.address
@@ -212,7 +218,8 @@ const jsonLd = {
   cache={!isPost}
   title={event.title}
   description={description}
-  image={cover}
+  image={shareImage ?? cover}
+  shareImage={Boolean(shareImage)}
   jsonLd={jsonLd}
 >
   <article>

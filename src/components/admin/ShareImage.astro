@@ -1,0 +1,110 @@
+---
+// The social share image of an event or a blog post (lib/share.ts). When it is missing or out of
+// date, the admin's browser draws it again and stores it, so it stays current without anyone
+// thinking about it. variant: panel = preview with Download and Redraw; auto = invisible (edit
+// pages); batch = invisible, drawn only by a "Make missing images" button (data-share-batch).
+import type { ShareSpec } from '../../lib/share';
+
+interface Props {
+  spec: ShareSpec;
+  fingerprint: string;
+  /** The stored image when up to date, else null. */
+  url: string | null;
+  variant?: 'panel' | 'auto' | 'batch';
+}
+const { spec, fingerprint, url, variant = 'panel' } = Astro.props;
+const stale = !url;
+---
+
+<div
+  data-share-image
+  data-spec={JSON.stringify(spec)}
+  data-fingerprint={fingerprint}
+  data-stale={String(stale)}
+  data-auto={String(variant !== 'batch')}
+  hidden={variant !== 'panel'}
+>
+  {variant === 'panel' && (
+    <>
+      <img
+        src={url ?? undefined}
+        alt={`Share image: ${spec.title}`}
+        width="1200"
+        height="630"
+        class="aspect-[1200/630] w-full max-w-xl rounded-lg border border-line bg-surface object-cover"
+        data-share-img
+      />
+      <p class="mt-2 text-sm text-muted" data-share-status aria-live="polite">
+        {stale
+          ? 'Drawing the image…'
+          : 'Up to date. It changes by itself when you edit the title, date, venue or photo.'}
+      </p>
+      <div class="mt-2 flex flex-wrap gap-4 text-sm">
+        <a
+          href={url ?? '#'}
+          download={`${spec.entity}-${spec.id}.jpg`}
+          data-share-download
+          hidden={stale}
+        >
+          Download
+        </a>
+        <button type="button" class="font-semibold text-accent" data-share-redraw>
+          Redraw
+        </button>
+      </div>
+    </>
+  )}
+</div>
+
+<script>
+  import { makeShareImage } from '../../lib/share-image-client';
+  import type { ShareSpec } from '../../lib/share-spec';
+
+  async function draw(el: HTMLElement) {
+    const status = el.querySelector<HTMLElement>('[data-share-status]');
+    const img = el.querySelector<HTMLImageElement>('[data-share-img]');
+    const download = el.querySelector<HTMLAnchorElement>('[data-share-download]');
+    if (status) status.textContent = 'Drawing the image…';
+    try {
+      const spec = JSON.parse(el.dataset.spec!) as ShareSpec;
+      const url = await makeShareImage(spec, el.dataset.fingerprint!);
+      el.dataset.stale = 'false';
+      if (img) img.src = url;
+      if (download) {
+        download.href = url;
+        download.hidden = false;
+      }
+      if (status) status.textContent = 'Up to date.';
+    } catch (e) {
+      console.error('[share image]', e);
+      if (status) status.textContent = `Could not make the image: ${(e as Error).message}`;
+      throw e;
+    }
+  }
+
+  // One at a time: each draw loads fonts and photos.
+  async function drawAll(els: HTMLElement[], onProgress?: (done: number) => void) {
+    let done = 0;
+    for (const el of els) {
+      await draw(el).catch(() => {});
+      onProgress?.(++done);
+    }
+  }
+
+  const all = [...document.querySelectorAll<HTMLElement>('[data-share-image]')];
+  void drawAll(all.filter((el) => el.dataset.stale === 'true' && el.dataset.auto === 'true'));
+
+  document.addEventListener('click', (e) => {
+    const redraw = (e.target as Element).closest('[data-share-redraw]');
+    const el = redraw?.closest<HTMLElement>('[data-share-image]');
+    if (el) void draw(el).catch(() => {});
+    const batch = (e.target as Element).closest<HTMLButtonElement>('[data-share-batch]');
+    if (batch) {
+      const todo = all.filter((el) => el.dataset.stale === 'true');
+      batch.disabled = true;
+      void drawAll(todo, (n) => (batch.textContent = `Drawing ${n} of ${todo.length}…`)).then(
+        () => (batch.textContent = 'Done'),
+      );
+    }
+  });
+</script>

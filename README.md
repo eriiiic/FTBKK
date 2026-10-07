@@ -136,6 +136,19 @@ Public pages:
   page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a
   "Recap" badge in the events list.
 - **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
+- **Share images and social media** (Admin > Social media): every event and blog post gets a
+  1200x630 share image (official logo, red label, title, date and venue or byline, its photo),
+  used as `og:image` so LinkedIn, Facebook and WhatsApp previews look right. The admin's browser
+  draws it on a canvas whenever the event or post is opened in the admin and its title, date,
+  venue or photo changed (`lib/share.ts`, `lib/share-image-client.ts`); public pages fall back
+  to the cover while it is out of date. Each event or post has a Share page: download the image,
+  copy the text, open it in WhatsApp, and schedule the announcement on a chosen date and time plus,
+  for an event, a reminder the day before (09:00 by default). The hourly cron publishes what is
+  due: on the LinkedIn and Facebook pages through their APIs once connected (`docs/deploy.md`),
+  otherwise by an email to the admin who scheduled it with the text and a one-tap WhatsApp
+  button. WhatsApp has no API for groups, so WhatsApp posts are always that email. A reminder
+  whose event moved to another day, or a post about a cancelled or unpublished event or post, is
+  cancelled instead of posted.
 - **Code of conduct** at `/code-of-conduct`: how everyone is expected to behave at events, in our
   online groups (WhatsApp, LinkedIn) and on the website, and how to report a problem. Linked in
   the footer, on every event page and in the registration form. The text is edited in the admin.
@@ -248,7 +261,7 @@ Bangkok logo and the full name "La French Tech Bangkok".
 
 - [Astro 7](https://astro.build) with `@astrojs/cloudflare` (server output), TypeScript, Tailwind
   CSS v4.
-- Cloudflare Worker `ft-bkk-site` (entry `src/worker.ts`), with a daily cron at 09:00 Bangkok time
+- Cloudflare Worker `ft-bkk-site` (entry `src/worker.ts`), with an hourly cron (social media posts; the daily jobs run at 09:00 Bangkok time)
   for event reminders, directory renewals and the weekly backup.
 - D1 database `ftbkk` through Drizzle (`src/db/schema.ts`, migrations in `migrations/`).
 - R2 bucket `ftbkk-media` for images and files, served at `/media/*`.

@@ -1,0 +1,117 @@
+---
+// Scheduled and past social media posts, with Cancel / Post now / Remove buttons. The forms post
+// to the current page, which calls socialPostAction (lib/social.ts).
+import type { SocialPost } from '../../db/schema';
+import { formatDate, formatTime } from '../../lib/format';
+import { NETWORK_LABELS } from '../../lib/share';
+
+interface Props {
+  rows: SocialPost[];
+  /** On the overview: the event or post each row is about. */
+  about?: Map<string, { title: string; href: string }>;
+}
+const { rows, about } = Astro.props;
+const STATUS = {
+  scheduled: 'Scheduled',
+  sent: 'Done',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+};
+---
+
+{rows.length === 0 ? (
+  <p class="text-sm text-muted">Nothing yet.</p>
+) : (
+  <div class="overflow-x-auto">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          {about && <th>About</th>}
+          <th>What</th>
+          <th>Where</th>
+          <th>Status</th>
+          <th>
+            <span class="sr-only">Actions</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const a = about?.get(`${r.entity}:${r.entityId}`);
+          return (
+            <tr>
+              <td class="whitespace-nowrap">
+                {formatDate(r.scheduledAt, { weekday: 'short', year: undefined })},{' '}
+                {formatTime(r.scheduledAt)}
+              </td>
+              {about && (
+                <td>
+                  {a ? <a href={a.href}>{a.title}</a> : <span class="text-muted">Deleted</span>}
+                </td>
+              )}
+              <td>
+                {r.kind === 'reminder' ? 'Reminder' : 'Announcement'}
+                <details class="mt-1">
+                  <summary class="cursor-pointer text-xs text-accent">Text</summary>
+                  <pre class="mt-1 max-w-sm text-xs whitespace-pre-wrap">{r.text}</pre>
+                </details>
+              </td>
+              <td>
+                <ul>
+                  {r.networks.map((n) => {
+                    const res = r.results[n];
+                    return (
+                      <li>
+                        {NETWORK_LABELS[n]}
+                        {res?.ok && res.url && (
+                          <>
+                            {' '}
+                            <a href={res.url} target="_blank" rel="noopener">
+                              see it
+                            </a>
+                          </>
+                        )}
+                        {res?.ok && res.manual && (
+                          <span class="text-muted"> (emailed to post by hand)</span>
+                        )}
+                        {res?.error && <span class="block text-xs text-danger">{res.error}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </td>
+              <td>
+                {STATUS[r.status]}
+                {r.note && <span class="block text-xs text-muted">{r.note}</span>}
+                <span class="block text-xs text-muted">by {r.createdBy}</span>
+              </td>
+              <td class="whitespace-nowrap">
+                {r.status === 'scheduled' ? (
+                  <div class="flex gap-3">
+                    <form method="post" data-confirm="Post it now?">
+                      <input type="hidden" name="action" value="send-now" />
+                      <input type="hidden" name="id" value={r.id} />
+                      <button class="text-sm font-semibold text-accent">Post now</button>
+                    </form>
+                    <form method="post">
+                      <input type="hidden" name="action" value="cancel" />
+                      <input type="hidden" name="id" value={r.id} />
+                      <button class="text-sm font-semibold text-danger">Cancel</button>
+                    </form>
+                  </div>
+                ) : (
+                  <form method="post">
+                    <input type="hidden" name="action" value="delete" />
+                    <input type="hidden" name="id" value={r.id} />
+                    <button class="text-sm text-muted">Remove</button>
+                  </form>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+)}

@@ -2,13 +2,19 @@ import { runDirectoryJobs } from './cron-directory';
 import { sendEventReminders, sendFeedbackRequests, weeklyBackup } from './cron-events';
 import { runMemberRenewals } from './members';
 import { getSettings } from './settings';
+import { runSocialPosts } from './social';
+
+/** The daily jobs run at 02:00 UTC = 09:00 Asia/Bangkok. */
+export const DAILY_HOUR_UTC = 2;
 
 /**
- * Daily scheduled job (09:00 Asia/Bangkok, `0 2 * * *` in wrangler.jsonc). Each job is isolated so
- * one failure doesn't stop the others.
+ * Scheduled jobs. The cron fires every hour (`0 * * * *` in wrangler.jsonc): social media posts
+ * go out every hour, the rest once a day at 09:00 Bangkok. Each job is isolated so one failure
+ * doesn't stop the others.
  */
 export async function runScheduled(_env: Env, now: Date): Promise<void> {
-  const jobs: [string, () => Promise<unknown>][] = [
+  const hourly: [string, () => Promise<unknown>][] = [['social-posts', () => runSocialPosts(now)]];
+  const daily: [string, () => Promise<unknown>][] = [
     ['event-reminders', () => sendEventReminders(now)],
     ['event-feedback', () => sendFeedbackRequests(now)],
     ['directory', () => runDirectoryJobs(now)],
@@ -19,6 +25,7 @@ export async function runScheduled(_env: Env, now: Date): Promise<void> {
     ],
     ['backup', () => weeklyBackup(now)],
   ];
+  const jobs = now.getUTCHours() === DAILY_HOUR_UTC ? [...hourly, ...daily] : hourly;
   for (const [name, job] of jobs) {
     try {
       console.log(`[cron] ${name}`, JSON.stringify(await job()));

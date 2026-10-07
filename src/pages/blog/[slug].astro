@@ -1,4 +1,5 @@
 ---
+import { postShareSpec, shareFingerprint, shareImageFor } from '../../lib/share';
 import { siteUrl } from '../../lib/site';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Section from '../../components/Section.astro';
@@ -34,6 +35,8 @@ const related = await relatedPosts(
   cats.map((c) => c.id),
 );
 const cover = mediaUrl(post.coverKey);
+// Social previews use the share image while it matches the post (lib/share.ts), else the cover.
+const shareImage = shareImageFor(post.shareImageKey, await shareFingerprint(postShareSpec(post)));
 const description = post.excerpt ?? plainText(body);
 const url = siteUrl(`/blog/${post.slug}`);
 const share = [
@@ -80,7 +83,8 @@ const jsonLd = {
 <BaseLayout
   title={post.title}
   description={description}
-  image={cover}
+  image={shareImage ?? cover}
+  shareImage={Boolean(shareImage)}
   jsonLd={jsonLd}
   ogType="article"
   published={post.publishedAt}

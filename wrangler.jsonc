@@ -39,9 +39,15 @@
     // Sender, on mail.delattre.me (verified in Resend) until french-tech-bangkok.com's DNS moves to
     // us. Then switch to "La French Tech Bangkok <hello@french-tech-bangkok.com>".
     "EMAIL_FROM": "La French Tech Bangkok <noreply@mail.delattre.me>",
+    // Social media (Admin > Social media). Empty = not connected: scheduled posts arrive by email
+    // to post by hand. The page tokens are the secrets LINKEDIN_ACCESS_TOKEN and
+    // FACEBOOK_PAGE_TOKEN (docs/deploy.md, "Connect LinkedIn and Facebook").
+    "LINKEDIN_ORGANIZATION_ID": "",
+    "FACEBOOK_PAGE_ID": "",
   },
   "triggers": {
-    // 02:00 UTC = 09:00 Asia/Bangkok, daily.
-    "crons": ["0 2 * * *"],
+    // Every hour, for scheduled social media posts; the daily jobs run at 02:00 UTC = 09:00
+    // Asia/Bangkok (src/lib/cron.ts).
+    "crons": ["0 * * * *"],
   },
 }
