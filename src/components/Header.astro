@@ -8,7 +8,10 @@ const nav = [
   { href: '/ecosystem', label: 'Ecosystem' },
   { href: '/events', label: 'Events' },
   { href: '/blog', label: 'Blog' },
+  { href: '/tech-pulse', label: 'Tech Pulse' },
   { href: '/about', label: 'About' },
+  // The Thai page, labelled in Thai.
+  { href: '/th', label: 'ภาษาไทย', lang: 'th' },
 ];
 const path = Astro.url.pathname;
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
@@ -26,12 +29,14 @@ const join = '/join';
     <a href="/" class="no-underline" aria-label="La French Tech Bangkok, home">
       <Logo class="h-14 md:h-[4.25rem]" />
     </a>
-    <nav aria-label="Main" class="hidden md:block">
+    <nav aria-label="Main" class="hidden lg:block">
       <ul class="flex items-center gap-1">
         {nav.map((n) => (
           <li>
             <a
               href={n.href}
+              lang={n.lang}
+              hreflang={n.lang}
               aria-current={isActive(n.href) ? 'page' : undefined}
               class="rounded-full px-3 py-2 text-sm font-semibold text-ink no-underline hover:text-brand aria-[current=page]:text-brand"
             >
@@ -41,14 +46,14 @@ const join = '/join';
         ))}
       </ul>
     </nav>
-    <div class="hidden md:block">
+    <div class="hidden lg:block">
       <Button href={join} size="sm">
         Join the community
       </Button>
     </div>
     <button
       type="button"
-      class="group rounded-lg p-2 text-navy md:hidden"
+      class="group rounded-lg p-2 text-navy lg:hidden"
       aria-controls="mobile-menu"
       aria-expanded="false"
       data-menu-toggle
@@ -58,12 +63,14 @@ const join = '/join';
       <Icon name="close" class="hidden size-6 group-aria-expanded:block" />
     </button>
   </div>
-  <nav id="mobile-menu" aria-label="Main" class="hidden border-t border-line bg-paper md:hidden">
+  <nav id="mobile-menu" aria-label="Main" class="hidden border-t border-line bg-paper lg:hidden">
     <ul class="container-page flex flex-col py-2">
       {nav.map((n) => (
         <li>
           <a
             href={n.href}
+            lang={n.lang}
+            hreflang={n.lang}
             aria-current={isActive(n.href) ? 'page' : undefined}
             class="block py-3 font-semibold text-ink no-underline aria-[current=page]:text-brand"
           >

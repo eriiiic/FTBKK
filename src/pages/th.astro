@@ -1,0 +1,117 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/Button.astro';
+import Icon from '../components/Icon.astro';
+import { getSettings } from '../lib/settings';
+import { renderMarkdown } from '../lib/markdown';
+import { DEFAULT_THAI_PAGE, thaiSections } from '../lib/thai-page';
+
+// The Thai page: La French Tech Bangkok and the Mission French Tech, in Thai. The text comes from
+// Admin > Site texts > Thai page; its "## " headings become the numbered sections.
+const settings = await getSettings();
+const { intro, sections } = thaiSections(settings.thaiPage || DEFAULT_THAI_PAGE);
+const introHtml = renderMarkdown(intro, { breaks: true });
+const blocks = sections.map((s, i) => ({
+  ...s,
+  id: `section-${i + 1}`,
+  number: String(i + 1).padStart(2, '0'),
+  html: renderMarkdown(s.body, { breaks: true }),
+}));
+---
+
+<BaseLayout
+  lang="th"
+  title="ภาษาไทย"
+  description="ลา เฟรนช์เทค กรุงเทพฯ ชุมชนอาสาสมัครที่เชื่อมโยงผู้ประกอบการด้านเทคโนโลยีของฝรั่งเศสกับระบบนิเวศของไทย และบทบาทของ Mission French Tech"
+>
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
+    <div
+      aria-hidden="true"
+      class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+    ></div>
+    <div class="container-page grid gap-12 py-16 md:py-24 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div>
+        <p class="mb-5 text-sm font-semibold tracking-[0.2em] text-accent-soft uppercase" lang="en">
+          La French Tech Bangkok
+        </p>
+        <h1 class="text-4xl leading-[1.25] text-paper md:text-6xl md:leading-[1.2]">
+          เกี่ยวกับเรา
+        </h1>
+        {introHtml && <div class="hero-intro lead mt-8 max-w-2xl" set:html={introHtml} />}
+        <div class="mt-10 flex flex-wrap gap-3">
+          <Button href="/about#contact">ติดต่อเรา</Button>
+          <Button href="/join" variant="light">
+            สมัครเป็นสมาชิก
+          </Button>
+        </div>
+      </div>
+      {blocks.length > 0 && (
+        <nav
+          aria-label="ในหน้านี้"
+          class="rounded-card border border-paper/15 bg-paper/5 p-2 backdrop-blur lg:mt-14"
+        >
+          <ol>
+            {blocks.map((b) => (
+              <li>
+                <a
+                  href={`#${b.id}`}
+                  class="group flex items-center gap-4 rounded-xl px-4 py-3 text-paper no-underline transition-colors hover:bg-paper/10"
+                >
+                  <span class="font-display text-sm font-bold text-accent-soft tabular-nums">
+                    {b.number}
+                  </span>
+                  <span class="min-w-0 flex-1 font-semibold">{b.title}</span>
+                  <Icon
+                    name="arrow"
+                    class="size-4 text-paper/50 transition-transform group-hover:translate-x-1 group-hover:text-paper"
+                  />
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+    </div>
+  </section>
+
+  {blocks.map((b, i) => (
+    <section
+      id={b.id}
+      class={`scroll-mt-20 py-14 md:py-20 ${i % 2 === 1 ? 'bg-surface' : 'bg-paper'}`}
+    >
+      <div class="container-page grid gap-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-16">
+        <div class="lg:sticky lg:top-24 lg:self-start">
+          <p class="font-display text-sm font-bold text-brand tabular-nums">{b.number}</p>
+          <h2 class="mt-3 text-2xl leading-snug md:text-3xl">{b.title}</h2>
+        </div>
+        <div
+          class="prose max-w-none prose-p:leading-relaxed prose-li:leading-relaxed"
+          set:html={b.html}
+        />
+      </div>
+    </section>
+  ))}
+
+  <section class="relative isolate overflow-hidden bg-navy py-16 text-paper md:py-20">
+    <div
+      aria-hidden="true"
+      class="absolute -right-32 -bottom-40 -z-10 size-[28rem] rounded-full bg-accent/25 blur-3xl"
+    ></div>
+    <div class="container-page flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+      <div class="max-w-2xl">
+        <h2 class="text-3xl leading-snug text-paper md:text-4xl">มีคำถาม หรือสนใจร่วมงานกับเรา?</h2>
+        <p class="mt-3 text-lg text-paper/80">
+          ส่งข้อความถึงทีมงานของเราได้ทุกเรื่อง ทั้งความร่วมมือ การเป็นพันธมิตร
+          หรือการเข้าร่วมกิจกรรม
+        </p>
+      </div>
+      <Button href="/about#contact" variant="light" class="shrink-0">
+        ติดต่อเรา <Icon name="arrow" class="size-4" />
+      </Button>
+    </div>
+  </section>
+</BaseLayout>

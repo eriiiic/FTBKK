@@ -30,6 +30,10 @@ export interface Settings {
   joinIntro: string;
   /** "Become a member" block on /join (Markdown); empty = DEFAULT_JOIN_MEMBERSHIP. */
   joinMembership: string;
+  /** Top of /tech-pulse (Markdown); empty = DEFAULT_TECH_PULSE_INTRO. */
+  techPulseIntro: string;
+  /** The Thai page /th (Markdown, "## " starts a section); empty = DEFAULT_THAI_PAGE. */
+  thaiPage: string;
   /** /code-of-conduct page (Markdown); {contactEmail} is replaced by the contact email. */
   codeOfConduct: string;
   /** /privacy page (Markdown); {contactEmail} is replaced by the contact email. */
@@ -59,6 +63,8 @@ export const defaultSettings: Settings = {
   joinPaths: [],
   joinIntro: '',
   joinMembership: '',
+  techPulseIntro: '',
+  thaiPage: '',
   codeOfConduct: DEFAULT_CODE_OF_CONDUCT,
   privacyNotice: DEFAULT_PRIVACY_NOTICE,
   membershipOpen: false,

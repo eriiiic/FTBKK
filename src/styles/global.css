@@ -2,6 +2,8 @@
 @plugin '@tailwindcss/typography';
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/montserrat';
+/* Thai glyphs only (unicode-range): downloaded on pages with Thai text, such as /th. */
+@import '@fontsource-variable/noto-sans-thai';
 
 /*
  * Design tokens. Source of truth: docs/design-tokens.md.
@@ -23,8 +25,10 @@
   --color-warning: #8a5a00;
   --color-danger: #b42318;
 
-  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Montserrat Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', 'Noto Sans Thai Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    'Montserrat Variable', 'Inter Variable', 'Noto Sans Thai Variable', ui-sans-serif, system-ui,
+    sans-serif;
 
   --radius-card: 1rem;
   --radius-button: 999px;
