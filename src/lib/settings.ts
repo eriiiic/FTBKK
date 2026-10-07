@@ -20,9 +20,16 @@ export interface Settings {
   mission: string;
   values: string[];
   ecosystemHeading: string;
-  pillars: { title: string; text: string }[];
-  /** Home page photos picked in Site texts (hero first); events' photos fill in after them. */
-  homePhotos: { key: string; alt?: string }[];
+  /** Home photo slots (Website pages > Home); null = the built-in default. */
+  homeHeroPhoto: Photo | null;
+  homeAboutPhoto: Photo | null;
+  homeCommunityPhotos: (Photo | null)[];
+  /** The four items next to the About us photo on Home; empty = DEFAULT_ABOUT_ITEMS. */
+  homeAboutItems: { title: string; text: string }[];
+  /** "They support La French Tech Bangkok" on Home: title = name, link = website. Empty = defaults. */
+  homePartners: Card[];
+  /** Default covers of Connect and Talk events (R2 keys); null = the built-in image. */
+  eventCovers: { connect: string | null; talk: string | null };
   /** The numbers band on Home, typed by hand: title = the figure ("300+"), text = its label. */
   homeNumbers: { title: string; text: string }[];
   /** Home "Community" block; empty = the defaults in lib/home.ts. */
@@ -34,7 +41,7 @@ export interface Settings {
   /** "An official French Tech Community" section on the About page (Markdown). */
   communityText: string;
   /** "You can join us" cards on the home and About pages; link is optional. */
-  joinPaths: { title: string; text: string; link?: string }[];
+  joinPaths: Card[];
   /** Top of the /join page (Markdown); empty = DEFAULT_JOIN_INTRO. */
   joinIntro: string;
   /** "Become a member" block on /join (Markdown); empty = DEFAULT_JOIN_MEMBERSHIP. */
@@ -66,8 +73,12 @@ export const defaultSettings: Settings = {
   mission: '',
   values: [],
   ecosystemHeading: '',
-  pillars: [],
-  homePhotos: [],
+  homeHeroPhoto: null,
+  homeAboutPhoto: null,
+  homeCommunityPhotos: [],
+  homeAboutItems: [],
+  homePartners: [],
+  eventCovers: { connect: null, talk: null },
   homeNumbers: [],
   homeCommunityTitle: '',
   homeCommunityText: '',
@@ -87,7 +98,8 @@ export const defaultSettings: Settings = {
   analyticsToken: '',
 };
 
-export type Card = Settings['joinPaths'][number];
+export type Card = { title: string; text: string; link?: string };
+export type Photo = { key: string; alt?: string };
 
 /**
  * Cards edited as repeated form rows (`<prefix>Title`, `<prefix>Text`, `<prefix>Link` arrays)

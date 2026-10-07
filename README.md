@@ -8,16 +8,20 @@ https://ft-bkk-site.edelattre.workers.dev until the domain moves over.
 
 Public pages:
 
-- **Home**, after the board's mockup: a full-width hero on the Bangkok skyline photo (words
-  between \*stars\* in the heading show in red); "About us" with the first
-  paragraph of About, the values, an arched photo and the pillars; a band of up to four key
+- **Home**, after the board's mockup: a full-width photo hero (the Bangkok skyline until another
+  is uploaded; words between \*stars\* in the heading show in red); "About us" with the first
+  paragraph of About, the values, an arched photo and four items with icons (Connect talent,
+  Support entrepreneurs, Accelerate collaborations, Shine internationally); a band of up to four key
   numbers typed in Site texts (the mockup's 300+, 120+, 50+ and 3 until then); the next four
   events (or the latest recaps when none is scheduled); the ecosystem directory as a navy carousel
   with category chips, showing 15 organisations picked at random for All and for each category,
-  so it isn't always the same names; the latest three posts; a community block with a photo
-  collage; a strip of partner logos (institutions, then the hosts and sponsors of our events); and
-  a red closing band with Contact us and Join. The About us and community photos come from Site texts > Home page photos, then
-  from recent event recaps and covers (`lib/home.ts`).
+  so it isn't always the same names; the latest three posts; a community block with three
+  photos; "They support La French Tech Bangkok" (Business France, the Franco-Thai Chamber of
+  Commerce, the Embassy of France, La French Tech and Bpifrance by default, logos taken from their
+  directory listings); and a red closing band with Contact us and Join. Each photo has its own
+  slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
+- **Event covers**: French Tech Connect and French Tech Talk events without a cover show a default
+  image, set in Settings (built-in images until then; `lib/event-covers.ts`).
 - **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the

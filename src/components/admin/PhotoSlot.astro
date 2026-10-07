@@ -1,0 +1,72 @@
+---
+// One photo slot (see lib/photo-slots.ts): the photo in use, a file field to replace it, its
+// description and a box to go back to the built-in default.
+import { mediaUrl } from '../../lib/format';
+import type { Photo } from '../../lib/settings';
+
+interface Props {
+  name: string;
+  label: string;
+  photo: Photo | null;
+  /** The image used while no photo is chosen. */
+  defaultSrc: string | null;
+  hint?: string;
+  error?: string;
+  /** Decorative images (event covers) have no description. */
+  withAlt?: boolean;
+}
+const { name, label, photo, defaultSrc, hint, error, withAlt = true } = Astro.props;
+const src = photo ? mediaUrl(photo.key) : defaultSrc;
+const id = `f-${name}`;
+---
+
+<fieldset class="grid gap-3 rounded-lg border border-line p-3 sm:grid-cols-[8rem_1fr]">
+  <legend class="px-1 font-semibold">{label}</legend>
+  <div>
+    {src ? (
+      <img src={src} alt="" class="aspect-[4/3] w-32 rounded object-cover" loading="lazy" />
+    ) : (
+      <div class="flex aspect-[4/3] w-32 items-center justify-center rounded bg-surface text-xs text-muted">
+        No photo
+      </div>
+    )}
+    <p class="mt-1 text-xs text-muted">{photo ? 'Your photo' : 'Default'}</p>
+  </div>
+  <div class="grid content-start gap-2 text-sm">
+    {hint && <p class="text-muted">{hint}</p>}
+    <label for={`${id}File`}>
+      {photo || defaultSrc ? 'Replace with' : 'Upload'}
+      <input
+        id={`${id}File`}
+        name={`${name}File`}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        class="mt-1 block w-full text-sm"
+        aria-describedby={error ? `${id}-err` : undefined}
+      />
+    </label>
+    {withAlt && (
+      <label for={`${id}Alt`}>
+        Description <span class="text-muted">(read to people using screen readers)</span>
+        <input
+          id={`${id}Alt`}
+          name={`${name}Alt`}
+          value={photo?.alt ?? ''}
+          maxlength={200}
+          class="admin-input mt-1"
+        />
+      </label>
+    )}
+    {photo && (
+      <label class="flex items-center gap-2">
+        <input type="checkbox" name={`${name}Reset`} value="on" class="size-4 accent-brand" />
+        Go back to the default
+      </label>
+    )}
+    {error && (
+      <p id={`${id}-err`} class="text-danger">
+        {error}
+      </p>
+    )}
+  </div>
+</fieldset>

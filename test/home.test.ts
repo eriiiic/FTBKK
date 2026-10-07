@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carouselGroups, highlightParts, pickPartners, pickPhotos } from '../src/lib/home';
+import { carouselGroups, highlightParts, partnerLogos, pickPhotos } from '../src/lib/home';
 
 describe('home page', () => {
   it('uses the picked photos first, then one photo per recent event, then covers', () => {
@@ -28,17 +28,20 @@ describe('home page', () => {
     expect(photos[1]!.alt).toBe('Connect #52');
   });
 
-  it('lists institutions first, then the most frequent hosts and sponsors with a logo', () => {
-    const partners = pickPartners(
-      [{ name: 'Embassy', logoKey: 'l/emb.png', url: null }],
+  it("takes each partner's logo from the directory organisation with the same website or name", () => {
+    const partners = partnerLogos(
       [
-        { name: 'Cowork', logoKey: 'l/c.png', url: 'https://c.example' },
-        { name: 'Bank', logoKey: 'l/b.png', url: null },
-        { name: 'cowork ', logoKey: 'l/c.png', url: null },
-        { name: 'No logo', logoKey: null, url: null },
+        { title: 'Business France', link: 'https://www.businessfrance.fr/' },
+        { title: 'Bpifrance', link: 'https://www.bpifrance.fr/' },
+        { title: 'La French Tech' },
+      ],
+      [
+        { name: 'Business France Thailand', logoKey: 'l/bf.png', url: 'https://businessfrance.fr' },
+        { name: 'la french tech', logoKey: 'l/ft.png', url: null },
       ],
     );
-    expect(partners.map((p) => p.name)).toEqual(['Embassy', 'Cowork', 'Bank']);
+    expect(partners.map((p) => p.logo)).toEqual(['/media/l/bf.png', null, '/media/l/ft.png']);
+    expect(partners[1]).toMatchObject({ name: 'Bpifrance', url: 'https://www.bpifrance.fr/' });
   });
 });
 

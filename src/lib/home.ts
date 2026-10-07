@@ -1,19 +1,45 @@
-import { and, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, lt } from 'drizzle-orm';
 import { getDb } from '../db';
-import { eventSponsors, events, organisations, type RecapPhoto } from '../db/schema';
+import { events, organisations, type RecapPhoto } from '../db/schema';
 import { mediaUrl } from './format';
 
 // Data for the home page: photos and the partners strip. The pure helpers are
 // exported for tests; homeData() runs the queries.
 
-export const MAX_HOME_PHOTOS = 8;
-
-/** The hero photo at the top of Home: the Chao Phraya and the Bangkok skyline. */
-export const HERO = {
+/** The default photo at the top of Home: the Chao Phraya and the Bangkok skyline. */
+export const DEFAULT_HERO = {
   src: '/brand/hero-bangkok.jpg',
   srcset: '/brand/hero-bangkok-960.jpg 960w, /brand/hero-bangkok.jpg 1920w',
-  caption: 'Bangkok, innovation hub of Southeast Asia',
+  alt: 'Bangkok, innovation hub of Southeast Asia',
 };
+
+/** The community collage until Website pages > Home has its own photos. */
+export const DEFAULT_COMMUNITY_PHOTOS = [1, 2, 3].map((i) => ({
+  src: `/brand/home/community-${i}.jpg`,
+  alt: '',
+}));
+
+/** The items next to the About us photo, after the board's mockup; icons follow their position. */
+export const DEFAULT_ABOUT_ITEMS = [
+  { title: 'Connect', text: 'talent' },
+  { title: 'Support', text: 'entrepreneurs' },
+  { title: 'Accelerate', text: 'collaborations' },
+  { title: 'Shine', text: 'internationally' },
+];
+export const ABOUT_ITEM_ICONS = [4, 1, 3, 2].map((i) => `/brand/home/pillar-${i}.png`);
+
+/** "They support La French Tech Bangkok" until Website pages > Home lists its own. */
+export const DEFAULT_PARTNERS = [
+  { title: 'Business France', text: '', link: 'https://www.businessfrance.fr/' },
+  {
+    title: 'Franco-Thai Chamber of Commerce',
+    text: '',
+    link: 'https://www.francothaicc.com/',
+  },
+  { title: 'Embassy of France in Thailand', text: '', link: 'https://th.diplomatie.gouv.fr/' },
+  { title: 'La French Tech', text: '', link: 'https://lafrenchtech.gouv.fr/' },
+  { title: 'Bpifrance', text: '', link: 'https://www.bpifrance.fr/' },
+];
 
 /** The numbers band, from the board's mockup, until Site texts > Numbers has some. */
 export const DEFAULT_HOME_NUMBERS = [
@@ -42,7 +68,7 @@ export interface HomePhoto {
 export function pickPhotos(
   chosen: RecapPhoto[],
   recent: { title: string; recap: { photos: RecapPhoto[] } | null; coverKey: string | null }[],
-  max = MAX_HOME_PHOTOS,
+  max = 8,
 ): HomePhoto[] {
   const out: HomePhoto[] = [];
   const seen = new Set<string>();
@@ -67,32 +93,10 @@ export interface Partner {
 
 type LogoRow = { name: string; logoKey: string | null; url: string | null };
 
-/**
- * The partners strip: institutional partners first, then the hosts, sponsors and partners of our
- * events (one row per event), most events first. Only those with a logo, one per name.
- */
-export function pickPartners(institutions: LogoRow[], sponsors: LogoRow[], max = 16): Partner[] {
-  const by = new Map<string, { p: Partner; n: number }>();
-  const add = (r: LogoRow, weight: number) => {
-    if (!r.logoKey || !r.name.trim()) return;
-    const k = r.name.trim().toLowerCase();
-    const cur = by.get(k);
-    if (cur) cur.n += weight;
-    else
-      by.set(k, { p: { name: r.name.trim(), logo: mediaUrl(r.logoKey)!, url: r.url }, n: weight });
-  };
-  for (const r of institutions) add(r, 1000);
-  for (const r of sponsors) add(r, 1);
-  return [...by.values()]
-    .sort((a, b) => b.n - a.n || a.p.name.localeCompare(b.p.name))
-    .slice(0, max)
-    .map((x) => x.p);
-}
-
-export async function homeData(chosen: RecapPhoto[]) {
+export async function homeData(partners: readonly { title: string; link?: string }[]) {
   const db = getDb();
   const now = new Date();
-  const [recent, sponsorRows, institutions] = await Promise.all([
+  const [recent, orgs] = await Promise.all([
     db
       .select({ title: events.title, recap: events.recap, coverKey: events.coverKey })
       .from(events)
@@ -101,30 +105,16 @@ export async function homeData(chosen: RecapPhoto[]) {
       .limit(12),
     db
       .select({
-        name: sql<string>`coalesce(${organisations.name}, ${eventSponsors.name})`,
-        logoKey: sql<string | null>`coalesce(${organisations.logoKey}, ${eventSponsors.logoKey})`,
-        url: sql<string | null>`coalesce(${organisations.website}, ${eventSponsors.url})`,
-      })
-      .from(eventSponsors)
-      .leftJoin(organisations, eq(organisations.id, eventSponsors.organisationId)),
-    db
-      .select({
         name: organisations.name,
         logoKey: organisations.logoKey,
         url: organisations.website,
       })
       .from(organisations)
-      .where(
-        and(
-          eq(organisations.status, 'published'),
-          inArray(organisations.category, ['institution']),
-          isNotNull(organisations.logoKey),
-        ),
-      ),
+      .where(and(eq(organisations.status, 'published'), isNotNull(organisations.logoKey))),
   ]);
   return {
-    photos: pickPhotos(chosen, recent),
-    partners: pickPartners(institutions, sponsorRows),
+    eventPhotos: pickPhotos([], recent),
+    partners: partnerLogos(partners, orgs),
   };
 }
 
@@ -168,4 +158,30 @@ export function highlightParts(text: string) {
     .split(/\*([^*]+)\*/)
     .map((t, i) => ({ text: t, mark: i % 2 === 1 }))
     .filter((p) => p.text);
+}
+
+const host = (u: string | null | undefined) => {
+  try {
+    return u ? new URL(u).hostname.replace(/^www\./, '') : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * The partners strip: each partner with the logo of the directory organisation that has the same
+ * website (or name). Without one, the strip shows the name.
+ */
+export function partnerLogos(
+  partners: readonly { title: string; link?: string }[],
+  orgs: readonly LogoRow[],
+): (Omit<Partner, 'logo'> & { logo: string | null })[] {
+  return partners.map((p) => {
+    const h = host(p.link);
+    const name = p.title.trim().toLowerCase();
+    const org =
+      orgs.find((o) => o.logoKey && h && host(o.url) === h) ??
+      orgs.find((o) => o.logoKey && o.name.trim().toLowerCase() === name);
+    return { name: p.title, url: p.link || null, logo: mediaUrl(org?.logoKey) };
+  });
 }

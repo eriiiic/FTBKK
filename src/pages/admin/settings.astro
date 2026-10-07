@@ -8,6 +8,9 @@ import Alert from '../../components/Alert.astro';
 import { getSettings, saveSettings, type Settings } from '../../lib/settings';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
+import PhotoSlot from '../../components/admin/PhotoSlot.astro';
+import { readPhotoSlot } from '../../lib/photo-slots';
+import { CONNECT, DEFAULT_EVENT_COVERS, TALK } from '../../lib/event-covers';
 
 // Site-wide settings. The texts shown on public pages are in Website pages (/admin/site-texts).
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -53,15 +56,32 @@ let values: Record<string, unknown> = {
   moderatorEmails: current.moderatorEmails.join('\n'),
 };
 
+// Default covers of Connect and Talk events (R2 keys; null = the built-in image).
+let covers = current.eventCovers;
+const asPhoto = (key: string | null) => (key ? { key } : null);
+
 if (Astro.request.method === 'POST') {
-  values = formToObject(await Astro.request.formData());
+  const form = await Astro.request.formData();
+  values = formToObject(form);
   const parsed = Schema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
-  else {
+  const nextCovers = { ...covers };
+  for (const kind of ['connect', 'talk'] as const) {
+    const name = `cover-${kind}`;
+    const r = await readPhotoSlot(form, name, asPhoto(covers[kind]), {
+      prefix: 'events/defaults',
+      upload: parsed.success,
+    });
+    if (r.error) errors[name] = r.error;
+    nextCovers[kind] = r.photo?.key ?? null;
+  }
+  covers = nextCovers;
+  if (parsed.success && !Object.keys(errors).length) {
     const { instagram, whatsapp, facebook, linkedin, youtube, ...rest } = parsed.data;
     const next: Partial<Settings> = {
       ...rest,
       socials: { instagram, whatsapp, facebook, linkedin, youtube },
+      eventCovers: covers,
     };
     await saveSettings(next);
     await audit(actor, 'update', 'settings', null, null, Object.keys(next));
@@ -81,7 +101,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     The texts of the home, About, Join and other public pages are under
     <a href="/admin/site-texts">Website pages</a> in the menu.
   </p>
-  <form method="post" data-warn-unsaved class="grid max-w-3xl gap-6">
+  <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid max-w-3xl gap-6">
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Site</h2>
       <FormField
@@ -116,6 +136,30 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         value={str('moderatorEmails')}
         error={errors.moderatorEmails}
         hint="One email per line. They get new listing requests, claims and the Monday digest. Empty = the contact email."
+      />
+    </section>
+
+    <section class="admin-panel grid gap-4">
+      <h2 class="text-lg">Default images for Talks and Connects</h2>
+      <p class="text-sm text-muted">
+        Events of type {CONNECT} or {TALK} that have no cover of their own show this image on the
+        site (events list, event page, home page and link previews). Pick the type on each event.
+      </p>
+      <PhotoSlot
+        name="cover-connect"
+        label={CONNECT}
+        photo={asPhoto(covers.connect)}
+        defaultSrc={DEFAULT_EVENT_COVERS.connect}
+        withAlt={false}
+        error={errors['cover-connect']}
+      />
+      <PhotoSlot
+        name="cover-talk"
+        label={TALK}
+        photo={asPhoto(covers.talk)}
+        defaultSrc={DEFAULT_EVENT_COVERS.talk}
+        withAlt={false}
+        error={errors['cover-talk']}
       />
     </section>
 

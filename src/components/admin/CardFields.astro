@@ -19,6 +19,9 @@ interface Props {
   textRows?: number;
   titleMax?: number;
   textMax?: number;
+  /** Rows with only a title and a link (the home partners). */
+  withText?: boolean;
+  linkLabel?: string;
 }
 const {
   prefix,
@@ -34,6 +37,8 @@ const {
   textRows = 2,
   titleMax = 80,
   textMax = 400,
+  withText = true,
+  linkLabel = 'Link (optional)',
 } = Astro.props;
 const rows: Card[] = items.length < max ? [...items, { title: '', text: '' }] : items;
 ---
@@ -55,20 +60,22 @@ const rows: Card[] = items.length < max ? [...items, { title: '', text: '' }] : 
         value={c.title}
         maxlength={titleMax}
       />
-      <FormField
-        id={`${prefix}-text-${i}`}
-        name={`${prefix}Text`}
-        label={textLabel}
-        rows={textRows}
-        value={c.text}
-        maxlength={textMax}
-      />
+      {withText && (
+        <FormField
+          id={`${prefix}-text-${i}`}
+          name={`${prefix}Text`}
+          label={textLabel}
+          rows={textRows}
+          value={c.text}
+          maxlength={textMax}
+        />
+      )}
       {withLink && (
-        <div class="sm:col-start-2">
+        <div class={withText ? 'sm:col-start-2' : ''}>
           <FormField
             id={`${prefix}-link-${i}`}
             name={`${prefix}Link`}
-            label="Link (optional)"
+            label={linkLabel}
             value={c.link ?? ''}
             placeholder="/events or https://…"
             maxlength={300}
