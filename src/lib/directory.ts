@@ -34,9 +34,60 @@ export const BADGES = {
   member: 'Member',
   sponsor: 'Sponsor',
   board: 'Board',
-  institutional: 'Institutional partner',
 } as const;
 export type BadgeKey = keyof typeof BADGES;
+
+/**
+ * Partners of La French Tech Bangkok, in the order of the Partners section on /ecosystem. Any
+ * listing of the directory can be a partner; the type is independent of its category. Groups
+ * follow what other French Tech communities show (Singapore, Toulouse): institutions first, then
+ * companies, funders, places, experts, schools and community partners.
+ */
+export const PARTNER_TYPES = {
+  institutional: {
+    label: 'Institutional partners',
+    blurb: 'The public bodies and chambers that back French tech in Thailand.',
+  },
+  corporate: {
+    label: 'Corporate partners',
+    blurb: 'Companies that support the community and its events.',
+  },
+  investor: {
+    label: 'Investors and VCs',
+    blurb: 'Funds and business angels who meet our founders.',
+  },
+  coworking: {
+    label: 'Coworkings and venues',
+    blurb: 'The places that host our events and our founders.',
+  },
+  expert: {
+    label: 'Expert partners',
+    blurb: 'Lawyers, accountants and advisers who help startups settle in Thailand.',
+  },
+  academic: {
+    label: 'Schools and universities',
+    blurb: 'Where we find talent, research and future founders.',
+  },
+  community: {
+    label: 'Community and media partners',
+    blurb: 'Associations, networks and media we work with.',
+  },
+} as const;
+export type PartnerType = keyof typeof PARTNER_TYPES;
+export const PARTNER_TYPE_KEYS = Object.keys(PARTNER_TYPES) as [PartnerType, ...PartnerType[]];
+
+/** Partners grouped by type, in PARTNER_TYPES order, each group by its order then name. */
+export function partnerGroups<
+  T extends { name: string; partnerType: string | null; partnerOrder: number },
+>(orgs: readonly T[]) {
+  return PARTNER_TYPE_KEYS.map((key) => ({
+    key,
+    ...PARTNER_TYPES[key],
+    items: orgs
+      .filter((o) => o.partnerType === key)
+      .sort((a, b) => a.partnerOrder - b.partnerOrder || a.name.localeCompare(b.name)),
+  })).filter((g) => g.items.length > 0);
+}
 
 export const ORG_STATUSES = [
   'unverified',

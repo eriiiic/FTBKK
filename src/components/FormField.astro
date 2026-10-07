@@ -15,6 +15,7 @@ interface Props {
   error?: string;
   options?: Option[];
   rows?: number;
+  /** On a select: the label of the empty choice (default "Choose…"). */
   placeholder?: string;
   maxlength?: number;
   accept?: string;
@@ -88,7 +89,7 @@ const input =
         aria-invalid={error ? 'true' : undefined}
         class={input}
       >
-        {!multiple && <option value="">Choose…</option>}
+        {!multiple && <option value="">{placeholder ?? 'Choose…'}</option>}
         {options.map((o) => (
           <option value={o.value} selected={String(value ?? '') === o.value}>
             {o.label}

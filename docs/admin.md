@@ -265,10 +265,22 @@ uses any more.
   members on the Join page, see Members), oldest first. Aim to answer within 5 days (the badge turns red after).
   **Approve**, or write a short reason and **Reject**. The person gets an email either way.
 - **All listings**: search and open any organisation to edit it, set badges (Member, Sponsor,
-  Board, Institutional partner), change its owners or hide it. Hiding is better than deleting.
+  Board), change its owners or hide it. Hiding is better than deleting.
   The **Team notes** box (in the list and at the top of the listing's page) keeps a private note:
   who you spoke to, follow-ups, context for the board. Only the team sees it, it also shows on the
   listing's cards in To review, and the search covers it. Click **Save note** to keep it.
+- **Partners**: the partners of La French Tech Bangkok, by group: Institutional partners, Corporate
+  partners, Investors and VCs, Coworkings and venues, Expert partners, Schools and universities,
+  Community and media partners. They show in the same groups in the Partners section at the top of
+  the Ecosystem page, with the logo of their listing, followed by a "Become a partner" button that
+  opens the contact form on the Partnership topic. To add one, pick the listing (add the
+  organisation first if it isn't in the directory, with its logo), its group, and **Add**. In each
+  row you can change the group, the **Order** (smaller first; same number, by name) and **Home**
+  (shows the logo in "They support La French Tech Bangkok" on Home), then **Save**. Choose "Not a
+  partner" to end a partnership: the listing stays in the directory. The same three fields are in
+  the "Partner of La French Tech Bangkok" box on each listing's page. A partner's group is
+  independent of its directory category: a coworking can be listed under Incubators and coworkings
+  and be a Corporate partner.
 - **Renewals**: owners confirm their listing once a year (reminders at 30 and 14 days before and on
   the day). Unconfirmed listings are hidden 30 days later and deleted after 12 months. Unclaimed
   listings get no reminders: use **Send** to invite someone you know there to claim it.
@@ -363,10 +375,8 @@ enrolment at check-in.
   default: the three community photos). Upload a file to replace a photo, tick "Go back to the
   default" to undo. **About us items** are the four lines next to the photo (Connect talent,
   Support entrepreneurs, Accelerate collaborations, Shine internationally); their icons follow
-  the order (people, rocket, chart, document). **Partners** lists "They support La French Tech
-  Bangkok" (name and website, in order): each logo comes from the Ecosystem directory
-  organisation with the same website or name, so add a partner there with its logo; without
-  one the name shows. In the main heading, put a word between stars (\*Bangkok\*) to show it in
+  the order (people, rocket, chart, document). The partners logos ("They support La French Tech
+  Bangkok") are the partners ticked **Home** in Ecosystem > Partners. In the main heading, put a word between stars (\*Bangkok\*) to show it in
   red. The **Numbers** band (up to four, each a figure typed as it should appear, such as 300+,
   and a label) starts with the board mockup's numbers, which also come back if you empty it.
   The community block's heading and text and the closing band's heading fall back to a default

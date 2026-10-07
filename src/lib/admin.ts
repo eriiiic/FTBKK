@@ -14,6 +14,7 @@ import {
 } from '../db/schema';
 import { optionalText, optionalUrl } from './forms';
 import { slugify } from './format';
+import { PARTNER_TYPE_KEYS } from './directory';
 import { audit, orgById, siteUrl } from './orgs';
 import { sendEmail } from './email';
 import { NO_REASON, renderTemplate } from './email-templates';
@@ -165,7 +166,13 @@ export async function uniqueContentSlug(
 export const AdminOrgExtras = z.object({
   slug: slugField,
   status: z.enum(['unverified', 'pending', 'published', 'rejected', 'expired', 'hidden']),
-  badges: z.array(z.enum(['member', 'sponsor', 'board', 'institutional'])).default([]),
+  badges: z.array(z.enum(['member', 'sponsor', 'board'])).default([]),
+  partnerType: z
+    .union([z.literal(''), z.enum(PARTNER_TYPE_KEYS)])
+    .optional()
+    .transform((v) => v || null),
+  partnerOrder: z.coerce.number().int().min(0).max(999).default(0),
+  partnerHome: z.boolean().default(false),
   memberStatus: z.enum(['none', 'applied', 'member', 'lapsed']),
   renewalDueAt: optionalLocalDate,
   ownerEmails: z.array(z.email('Owner emails must be valid addresses.')).max(5).default([]),

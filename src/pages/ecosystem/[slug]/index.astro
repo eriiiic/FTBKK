@@ -8,7 +8,13 @@ import Icon from '../../../components/Icon.astro';
 import Button from '../../../components/Button.astro';
 import { orgBySlug } from '../../../lib/orgs';
 import { publishedOrganisations } from '../../../lib/queries';
-import { BADGES, CATEGORIES, type BadgeKey, type Category } from '../../../lib/directory';
+import {
+  BADGES,
+  CATEGORIES,
+  PARTNER_TYPES,
+  type BadgeKey,
+  type Category,
+} from '../../../lib/directory';
 import { formatDate, initials, mediaUrl } from '../../../lib/format';
 import { plainText, renderMarkdown } from '../../../lib/markdown';
 
@@ -30,6 +36,7 @@ const sameText = (a: string, b: string) =>
 const showPitch = !!org.pitch && !(org.descriptionMd && sameText(org.pitch, org.descriptionMd));
 const badges = [...(org.memberStatus === 'member' ? ['member'] : []), ...org.badges];
 const claimed = org.ownerEmails.length > 0;
+const partner = org.partnerType ? PARTNER_TYPES[org.partnerType] : null;
 const confirmed = org.confirmedAt
   ? formatDate(org.confirmedAt, { day: undefined, month: 'long', year: 'numeric' })
   : null;
@@ -79,6 +86,11 @@ const facts: [string, string][] = [
         <h1 class="text-3xl md:text-4xl">{org.name}</h1>
         {showPitch && <p class="mt-2 text-lg text-muted">{org.pitch}</p>}
         <div class="mt-3 flex flex-wrap gap-2">
+          {partner && (
+            <a href="/ecosystem#partners" class="no-underline">
+              <Badge tone="brand">Partner of La French Tech Bangkok · {partner.label}</Badge>
+            </a>
+          )}
           {badges.map((b) => (
             <Badge tone={b === 'member' ? 'brand' : 'neutral'}>{BADGES[b as BadgeKey] ?? b}</Badge>
           ))}
