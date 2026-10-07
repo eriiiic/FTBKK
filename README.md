@@ -199,7 +199,7 @@ Bangkok logo and the full name "La French Tech Bangkok".
   for event reminders, directory renewals and the weekly backup.
 - D1 database `ftbkk` through Drizzle (`src/db/schema.ts`, migrations in `migrations/`).
 - R2 bucket `ftbkk-media` for images and files, served at `/media/*`.
-- Cloudflare Access on `/admin` and `/api/admin`, Turnstile on public forms, Resend for email.
+- Cloudflare Access on `/admin` and `/api/admin`, Turnstile on public forms, Resend for email (sent from `noreply@mail.delattre.me` until the French Tech domain is ours; see `EMAIL_FROM`).
 
 ## Run it locally
 
