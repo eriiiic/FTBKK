@@ -13,9 +13,11 @@ import { AdminOrgExtras, inviteToClaim, toDateInput } from '../../../lib/admin';
 import {
   ORG_ARRAY_FIELDS,
   OrgFields,
+  OrgNotesForm,
   approveListing,
   audit,
   orgById,
+  saveOrgNotes,
   uniqueSlug,
 } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
@@ -51,6 +53,13 @@ if (Astro.request.method === 'POST') {
     const err = parsed.success ? await decide(parsed.data, actor) : 'Something was missing.';
     if (!err) return Astro.redirect(`/admin/ecosystem/${org.id}?saved=1`);
     errors.review = err;
+  } else if (org && action === 'notes') {
+    const parsed = OrgNotesForm.safeParse({ id: org.id, adminNotes: form.get('adminNotes') ?? '' });
+    if (parsed.success) {
+      await saveOrgNotes(parsed.data);
+      return Astro.redirect(`/admin/ecosystem/${org.id}?saved=1`, 303);
+    }
+    errors.adminNotes = 'Keep the note under 4,000 characters.';
   } else if (org && action === 'invite') {
     const to = String(form.get('inviteEmail') ?? '')
       .trim()
@@ -158,7 +167,7 @@ const badges = (values.badges as string[] | undefined) ?? [];
       {errors.review}
     </Alert>
   )}
-  {Object.keys(errors).some((k) => k !== 'review') && (
+  {Object.keys(errors).some((k) => k !== 'review' && k !== 'adminNotes') && (
     <Alert tone="danger" class="mb-6">
       Please fix the highlighted fields.
     </Alert>
@@ -172,6 +181,24 @@ const badges = (values.badges as string[] | undefined) ?? [];
         <ReviewCard item={it} />
       ))}
     </section>
+  )}
+  {org && (
+    <form method="post" class="admin-panel mb-6 grid gap-3">
+      <FormField
+        name="adminNotes"
+        label="Team notes"
+        rows={3}
+        maxlength={4000}
+        value={org.adminNotes ?? ''}
+        error={errors.adminNotes}
+        hint="Only the team sees this: who you spoke to, follow-ups, context for the board."
+      />
+      <div>
+        <Button type="submit" name="action" value="notes" size="sm" variant="secondary">
+          Save note
+        </Button>
+      </div>
+    </form>
   )}
   <form
     method="post"

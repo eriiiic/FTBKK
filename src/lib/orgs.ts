@@ -101,6 +101,23 @@ export async function audit(
     .values({ actor, action, entity, entityId, before: before ?? null, after: after ?? null });
 }
 
+/** The team's private note on a listing (Ecosystem > All listings and the listing's page). */
+export const OrgNotesForm = z.object({
+  id: z.coerce.number().int().positive(),
+  adminNotes: z
+    .string()
+    .trim()
+    .max(4000)
+    .transform((s) => s || null),
+});
+
+export async function saveOrgNotes({ id, adminNotes }: z.infer<typeof OrgNotesForm>) {
+  await getDb()
+    .update(organisations)
+    .set({ adminNotes, updatedAt: new Date() })
+    .where(eq(organisations.id, id));
+}
+
 export async function moderatorEmails() {
   const s = await getSettings();
   return s.moderatorEmails.length ? s.moderatorEmails : [s.contactEmail];
