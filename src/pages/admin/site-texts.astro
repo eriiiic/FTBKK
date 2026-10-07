@@ -20,8 +20,19 @@ import {
   DEFAULT_HOME_NUMBERS,
 } from '../../lib/home';
 
-// The texts of the public pages: home, Join, About, Tech Pulse, Thai page, code of conduct,
-// privacy notice.
+// The texts of the public pages, one screen per page (?page=, listed under Website in the admin
+// menu). Each screen saves only its own fields.
+const PAGES = {
+  home: 'Home page',
+  about: 'About page',
+  join: 'Join page',
+  'tech-pulse': 'Tech Pulse page',
+  thai: 'Thai page',
+  legal: 'Code of conduct and privacy',
+} as const;
+type Page = keyof typeof PAGES;
+const pageParam = Astro.url.searchParams.get('page') ?? 'home';
+const page: Page = pageParam in PAGES ? (pageParam as Page) : 'home';
 const actor = Astro.locals.adminEmail ?? 'admin';
 const current = await getSettings();
 
@@ -75,6 +86,28 @@ const Schema = z.object({
   privacyNotice: longText(12000),
 });
 
+const FIELDS = {
+  home: {
+    heroTitle: true,
+    heroTagline: true,
+    mission: true,
+    values: true,
+    ecosystemHeading: true,
+    homeNumbers: true,
+    homeCommunityTitle: true,
+    homeCommunityText: true,
+    homeClosingTitle: true,
+    pillars: true,
+    joinPaths: true,
+  },
+  about: { aboutIntro: true, communityText: true },
+  join: { joinIntro: true, joinMembership: true },
+  'tech-pulse': { techPulseIntro: true },
+  thai: { thaiPage: true },
+  legal: { codeOfConduct: true, privacyNotice: true },
+} as const;
+const PageSchema = Schema.pick(FIELDS[page]);
+
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = { ...current, values: current.values.join('\n') };
 let pillars = current.pillars;
@@ -108,10 +141,11 @@ if (Astro.request.method === 'POST') {
   homePhotos = keys
     .map((key, i) => ({ key, alt: (alts[i] ?? '').slice(0, 200) }))
     .filter((p) => !removed.includes(p.key));
+  if (page !== 'home') homePhotos = current.homePhotos;
   const files = form.getAll('homePhotoFiles').filter((f) => f instanceof File && f.size > 0);
   if (homePhotos.length + files.length > MAX_HOME_PHOTOS)
     errors.homePhotos = `Keep at most ${MAX_HOME_PHOTOS} photos: remove some first.`;
-  const parsed = Schema.safeParse({ ...values, pillars, joinPaths, homeNumbers });
+  const parsed = PageSchema.safeParse({ ...values, pillars, joinPaths, homeNumbers });
   if (!parsed.success) errors = { ...fieldErrors(parsed.error), ...errors };
   if (!errors.homePhotos && !Object.keys(errors).length) {
     for (const f of files) {
@@ -129,287 +163,336 @@ if (Astro.request.method === 'POST') {
   } else if (files.length && !errors.homePhotos)
     errors.homePhotos = 'Choose the photos again after fixing the other fields.';
   if (parsed.success && !Object.keys(errors).length) {
-    const next: Partial<Settings> = { ...parsed.data, homePhotos };
+    const next: Partial<Settings> = {
+      ...parsed.data,
+      ...(page === 'home' ? { homePhotos } : {}),
+    };
     await saveSettings(next);
     await audit(actor, 'update', 'settings', null, null, Object.keys(next));
-    return Astro.redirect('/admin/site-texts?saved=1');
+    return Astro.redirect(`/admin/site-texts?page=${page}&saved=1`);
   }
 }
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 ---
 
-<AdminLayout title="Site texts">
+<AdminLayout title={PAGES[page]}>
+  <p class="-mt-4 mb-6 text-sm text-muted">
+    The texts of this page of the public site.{' '}
+    <a
+      href={
+        page === 'home' ? '/' : page === 'legal' ? '/privacy' : `/${page === 'thai' ? 'th' : page}`
+      }
+    >
+      View the page ↗
+    </a>
+  </p>
   {Object.keys(errors).length > 0 && (
     <Alert tone="danger" class="mb-6">
       Please fix the highlighted fields.
     </Alert>
   )}
   <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid max-w-3xl gap-6">
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Home page</h2>
-      <FormField
-        name="heroTitle"
-        label="Small line above the heading"
-        required
-        maxlength={120}
-        value={str('heroTitle')}
-        error={errors.heroTitle}
-      />
-      <FormField
-        name="heroTagline"
-        label="Main heading"
-        required
-        rows={2}
-        maxlength={300}
-        value={str('heroTagline')}
-        error={errors.heroTagline}
-        hint="Put a word between stars to show it in red, for example: The tech ecosystem connecting *Bangkok* and France."
-      />
-      <FormField
-        name="mission"
-        label="Mission"
-        rows={3}
-        maxlength={2000}
-        value={str('mission')}
-        error={errors.mission}
-        hint="Under the heading, and in the footer. The About us block next to it shows the first paragraph of About > Who we are."
-      />
-      <FormField
-        name="values"
-        label="Values"
-        rows={4}
-        value={str('values')}
-        error={errors.values}
-        hint="One per line."
-      />
-      <FormField
-        name="ecosystemHeading"
-        label="About us heading"
-        maxlength={200}
-        value={str('ecosystemHeading')}
-        error={errors.ecosystemHeading}
-        hint="The heading of the About us block, next to its photo and the pillars."
-      />
-      <CardFields prefix="pillar" legend="Pillars" items={pillars} error={errors.pillars} />
-      <CardFields
-        prefix="number"
-        legend="Numbers"
-        items={homeNumbers}
-        error={errors.homeNumbers}
-        max={4}
-        item="number"
-        titleLabel="figure"
-        textLabel="Label"
-        textRows={0}
-        titleMax={20}
-        textMax={80}
-        hint="The band under About us, up to four, with the people, rocket, handshake and globe icons in that order. Type each figure as it should appear (for example 300+) and what it counts. Empty = the mockup's numbers shown here."
-      />
-      <FormField
-        name="homeCommunityTitle"
-        label="Community block heading"
-        maxlength={200}
-        value={str('homeCommunityTitle')}
-        error={errors.homeCommunityTitle}
-        hint={`Empty = "${DEFAULT_COMMUNITY_TITLE}".`}
-      />
-      <FormField
-        name="homeCommunityText"
-        label="Community block text"
-        rows={3}
-        maxlength={600}
-        value={str('homeCommunityText')}
-        error={errors.homeCommunityText}
-        hint={`Under the Community heading, next to the photo collage. Empty = "${DEFAULT_COMMUNITY_TEXT}"`}
-      />
-      <FormField
-        name="homeClosingTitle"
-        label="Closing band heading"
-        maxlength={200}
-        value={str('homeClosingTitle')}
-        error={errors.homeClosingTitle}
-        hint={`The navy band at the bottom, with Join and Contact us. Empty = "${DEFAULT_CLOSING_TITLE}".`}
-      />
-    </section>
+    {page === 'home' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Top and About us</h2>
+          <FormField
+            name="heroTitle"
+            label="Small line above the heading"
+            required
+            maxlength={120}
+            value={str('heroTitle')}
+            error={errors.heroTitle}
+          />
+          <FormField
+            name="heroTagline"
+            label="Main heading"
+            required
+            rows={2}
+            maxlength={300}
+            value={str('heroTagline')}
+            error={errors.heroTagline}
+            hint="Put a word between stars to show it in red, for example: The tech ecosystem connecting *Bangkok* and France."
+          />
+          <FormField
+            name="mission"
+            label="Mission"
+            rows={3}
+            maxlength={2000}
+            value={str('mission')}
+            error={errors.mission}
+            hint="Under the heading, and in the footer. The About us block next to it shows the first paragraph of About > Who we are."
+          />
+          <FormField
+            name="values"
+            label="Values"
+            rows={4}
+            value={str('values')}
+            error={errors.values}
+            hint="One per line."
+          />
+          <FormField
+            name="ecosystemHeading"
+            label="About us heading"
+            maxlength={200}
+            value={str('ecosystemHeading')}
+            error={errors.ecosystemHeading}
+            hint="The heading of the About us block, next to its photo and the pillars."
+          />
+          <CardFields prefix="pillar" legend="Pillars" items={pillars} error={errors.pillars} />
+          <CardFields
+            prefix="number"
+            legend="Numbers"
+            items={homeNumbers}
+            error={errors.homeNumbers}
+            max={4}
+            item="number"
+            titleLabel="figure"
+            textLabel="Label"
+            textRows={0}
+            titleMax={20}
+            textMax={80}
+            hint="The band under About us, up to four, with the people, rocket, handshake and globe icons in that order. Type each figure as it should appear (for example 300+) and what it counts. Empty = the mockup's numbers shown here."
+          />
+          <FormField
+            name="homeCommunityTitle"
+            label="Community block heading"
+            maxlength={200}
+            value={str('homeCommunityTitle')}
+            error={errors.homeCommunityTitle}
+            hint={`Empty = "${DEFAULT_COMMUNITY_TITLE}".`}
+          />
+          <FormField
+            name="homeCommunityText"
+            label="Community block text"
+            rows={3}
+            maxlength={600}
+            value={str('homeCommunityText')}
+            error={errors.homeCommunityText}
+            hint={`Under the Community heading, next to the photo collage. Empty = "${DEFAULT_COMMUNITY_TEXT}"`}
+          />
+          <FormField
+            name="homeClosingTitle"
+            label="Closing band heading"
+            maxlength={200}
+            value={str('homeClosingTitle')}
+            error={errors.homeClosingTitle}
+            hint={`The navy band at the bottom, with Join and Contact us. Empty = "${DEFAULT_CLOSING_TITLE}".`}
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4" id="home-photos">
-      <h2 class="text-lg">Home page photos</h2>
-      <p class="text-sm text-muted">
-        The first photo is the arched one in About us and the next three make the community collage
-        (the top of the page always shows the Bangkok skyline). Until there are enough, photos from
-        recent event recaps fill in. Use your own or licensed photos of our events, at least 1600 px
-        wide.
-      </p>
-      {homePhotos.length > 0 && (
-        <ol class="grid gap-3 sm:grid-cols-2" data-home-photos>
-          {homePhotos.map((p, i) => (
-            <li class="grid grid-cols-[5rem_1fr] gap-3 rounded-lg border border-line p-2">
-              <img
-                src={mediaUrl(p.key)}
-                alt={p.alt || `Photo ${i + 1}`}
-                loading="lazy"
-                class="aspect-square w-20 rounded object-cover"
-              />
-              <div class="grid min-w-0 content-start gap-2">
-                <input type="hidden" name="homePhotoKey" value={p.key} />
-                <label class="text-sm">
-                  <span class="sr-only">Photo {i + 1}: </span>Description
-                  <input
-                    name="homePhotoAlt"
-                    value={p.alt ?? ''}
-                    maxlength={200}
-                    class="admin-input mt-1"
+    {page === 'home' && (
+      <>
+        <section class="admin-panel grid gap-4" id="home-photos">
+          <h2 class="text-lg">Photos</h2>
+          <p class="text-sm text-muted">
+            The first photo is the arched one in About us and the next three make the community
+            collage (the top of the page always shows the Bangkok skyline). Until there are enough,
+            photos from recent event recaps fill in. Use your own or licensed photos of our events,
+            at least 1600 px wide.
+          </p>
+          {homePhotos.length > 0 && (
+            <ol class="grid gap-3 sm:grid-cols-2" data-home-photos>
+              {homePhotos.map((p, i) => (
+                <li class="grid grid-cols-[5rem_1fr] gap-3 rounded-lg border border-line p-2">
+                  <img
+                    src={mediaUrl(p.key)}
+                    alt={p.alt || `Photo ${i + 1}`}
+                    loading="lazy"
+                    class="aspect-square w-20 rounded object-cover"
                   />
-                </label>
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                  <button type="button" data-move="-1" class="rounded border border-line px-2">
-                    ↑<span class="sr-only"> Move photo {i + 1} earlier</span>
-                  </button>
-                  <button type="button" data-move="1" class="rounded border border-line px-2">
-                    ↓<span class="sr-only"> Move photo {i + 1} later</span>
-                  </button>
-                  <label class="ml-auto flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      name="homePhotoRemove"
-                      value={p.key}
-                      class="size-4 accent-brand"
-                    />
-                    Remove<span class="sr-only"> photo {i + 1}</span>
-                  </label>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-      <FormField
-        name="homePhotoFiles"
-        label="Add photos"
-        type="file"
-        multiple
-        accept="image/png,image/jpeg,image/webp"
-        error={errors.homePhotos}
-        hint={`Up to ${MAX_HOME_PHOTOS} photos in all, 5 MB each. Use the arrows to reorder. The description is read to people using screen readers.`}
-      />
-    </section>
+                  <div class="grid min-w-0 content-start gap-2">
+                    <input type="hidden" name="homePhotoKey" value={p.key} />
+                    <label class="text-sm">
+                      <span class="sr-only">Photo {i + 1}: </span>Description
+                      <input
+                        name="homePhotoAlt"
+                        value={p.alt ?? ''}
+                        maxlength={200}
+                        class="admin-input mt-1"
+                      />
+                    </label>
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                      <button type="button" data-move="-1" class="rounded border border-line px-2">
+                        ↑<span class="sr-only"> Move photo {i + 1} earlier</span>
+                      </button>
+                      <button type="button" data-move="1" class="rounded border border-line px-2">
+                        ↓<span class="sr-only"> Move photo {i + 1} later</span>
+                      </button>
+                      <label class="ml-auto flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          name="homePhotoRemove"
+                          value={p.key}
+                          class="size-4 accent-brand"
+                        />
+                        Remove<span class="sr-only"> photo {i + 1}</span>
+                      </label>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+          <FormField
+            name="homePhotoFiles"
+            label="Add photos"
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,image/webp"
+            error={errors.homePhotos}
+            hint={`Up to ${MAX_HOME_PHOTOS} photos in all, 5 MB each. Use the arrows to reorder. The description is read to people using screen readers.`}
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">You can join us</h2>
-      <CardFields
-        prefix="join"
-        legend="Cards"
-        items={joinPaths}
-        error={errors.joinPaths}
-        withLink
-        hint="Navy cards on the home and About pages. With a link, the whole card is clickable: a page such as /events or /about#contact, or a full https:// address."
-      />
-    </section>
+    {page === 'home' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">You can join us</h2>
+          <CardFields
+            prefix="join"
+            legend="Cards"
+            items={joinPaths}
+            error={errors.joinPaths}
+            withLink
+            hint="Navy cards on the home and About pages. With a link, the whole card is clickable: a page such as /events or /about#contact, or a full https:// address."
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Join the community page</h2>
-      <MarkdownEditor
-        name="joinIntro"
-        label="Why join"
-        rows={8}
-        value={str('joinIntro')}
-        error={errors.joinIntro}
-        breaks
-        uploads={false}
-        hint="Top of the /join page, opened by the header's Join the community button. - starts a list item, **bold**. Empty = the default text."
-      />
-      <MarkdownEditor
-        name="joinMembership"
-        label="Membership"
-        rows={5}
-        value={str('joinMembership')}
-        error={errors.joinMembership}
-        breaks
-        uploads={false}
-        hint="The Become a member card on /join. Empty = the default text, which changes when individual membership opens in Settings (so leave it empty unless you rewrite it for open sign-up)."
-      />
-    </section>
+    {page === 'join' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Texts</h2>
+          <MarkdownEditor
+            name="joinIntro"
+            label="Why join"
+            rows={8}
+            value={str('joinIntro')}
+            error={errors.joinIntro}
+            breaks
+            uploads={false}
+            hint="Top of the /join page, opened by the header's Join the community button. - starts a list item, **bold**. Empty = the default text."
+          />
+          <MarkdownEditor
+            name="joinMembership"
+            label="Membership"
+            rows={5}
+            value={str('joinMembership')}
+            error={errors.joinMembership}
+            breaks
+            uploads={false}
+            hint="The Become a member card on /join. Empty = the default text, which changes when individual membership opens in Settings (so leave it empty unless you rewrite it for open sign-up)."
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">About page</h2>
-      <MarkdownEditor
-        name="aboutIntro"
-        label="Who we are"
-        rows={12}
-        value={str('aboutIntro')}
-        error={errors.aboutIntro}
-        breaks
-        uploads={false}
-        hint="Top of the About page. Line breaks are kept; leave an empty line between paragraphs. **bold**, [link text](https://…), - list. Use Preview to check."
-      />
-      <MarkdownEditor
-        name="communityText"
-        label="Official French Tech Community"
-        rows={10}
-        value={str('communityText')}
-        error={errors.communityText}
-        breaks
-        uploads={false}
-        hint="Shown next to the official logo on the About page. Start a line with ## for a heading. Empty = hidden."
-      />
-    </section>
+    {page === 'about' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Texts</h2>
+          <MarkdownEditor
+            name="aboutIntro"
+            label="Who we are"
+            rows={12}
+            value={str('aboutIntro')}
+            error={errors.aboutIntro}
+            breaks
+            uploads={false}
+            hint="Top of the About page. Line breaks are kept; leave an empty line between paragraphs. **bold**, [link text](https://…), - list. Use Preview to check."
+          />
+          <MarkdownEditor
+            name="communityText"
+            label="Official French Tech Community"
+            rows={10}
+            value={str('communityText')}
+            error={errors.communityText}
+            breaks
+            uploads={false}
+            hint="Shown next to the official logo on the About page. Start a line with ## for a heading. Empty = hidden."
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Tech Pulse page</h2>
-      <MarkdownEditor
-        name="techPulseIntro"
-        label="Introduction"
-        rows={5}
-        value={str('techPulseIntro')}
-        error={errors.techPulseIntro}
-        breaks
-        uploads={false}
-        hint="Top of the /tech-pulse page. The editions listed below it are the published blog posts with Tech Pulse in their title; the Download button opens each post's first PDF attachment. Empty = the default text."
-      />
-    </section>
+    {page === 'tech-pulse' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Texts</h2>
+          <MarkdownEditor
+            name="techPulseIntro"
+            label="Introduction"
+            rows={5}
+            value={str('techPulseIntro')}
+            error={errors.techPulseIntro}
+            breaks
+            uploads={false}
+            hint="Top of the /tech-pulse page. The editions listed below it are the published blog posts with Tech Pulse in their title; the Download button opens each post's first PDF attachment. Empty = the default text."
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Thai page</h2>
-      <MarkdownEditor
-        name="thaiPage"
-        label="Page text, in Thai"
-        rows={20}
-        value={str('thaiPage') || DEFAULT_THAI_PAGE}
-        error={errors.thaiPage}
-        breaks
-        uploads={false}
-        hint="The /th page (ภาษาไทย in the menu). The text before the first ## heading is the introduction; each line starting with ## starts a numbered section, listed at the top of the page. The Contact us buttons open the contact form on About. Empty = the default text."
-      />
-    </section>
+    {page === 'thai' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Texts</h2>
+          <MarkdownEditor
+            name="thaiPage"
+            label="Page text, in Thai"
+            rows={20}
+            value={str('thaiPage') || DEFAULT_THAI_PAGE}
+            error={errors.thaiPage}
+            breaks
+            uploads={false}
+            hint="The /th page (ภาษาไทย in the menu). The text before the first ## heading is the introduction; each line starting with ## starts a numbered section, listed at the top of the page. The Contact us buttons open the contact form on About. Empty = the default text."
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Code of conduct</h2>
-      <MarkdownEditor
-        name="codeOfConduct"
-        label="Code of conduct"
-        rows={16}
-        value={str('codeOfConduct')}
-        error={errors.codeOfConduct}
-        uploads={false}
-        hint="The /code-of-conduct page, linked in the footer, on event pages and in the registration form. {contactEmail} is replaced by the contact email. Start a line with ## for a heading, - for a list. Empty = the default text."
-      />
-    </section>
+    {page === 'legal' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Code of conduct</h2>
+          <MarkdownEditor
+            name="codeOfConduct"
+            label="Code of conduct"
+            rows={16}
+            value={str('codeOfConduct')}
+            error={errors.codeOfConduct}
+            uploads={false}
+            hint="The /code-of-conduct page, linked in the footer, on event pages and in the registration form. {contactEmail} is replaced by the contact email. Start a line with ## for a heading, - for a list. Empty = the default text."
+          />
+        </section>
+      </>
+    )}
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Privacy notice</h2>
-      <MarkdownEditor
-        name="privacyNotice"
-        label="Privacy notice"
-        rows={16}
-        value={str('privacyNotice')}
-        error={errors.privacyNotice}
-        uploads={false}
-        hint="The /privacy page (Thailand's PDPA), linked in the footer and under every registration form. Keep it true to what the site does: what we collect, why, who sees it, how long we keep it, people's rights. {contactEmail} is replaced by the contact email. Empty = the default text."
-      />
-    </section>
+    {page === 'legal' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Privacy notice</h2>
+          <MarkdownEditor
+            name="privacyNotice"
+            label="Privacy notice"
+            rows={16}
+            value={str('privacyNotice')}
+            error={errors.privacyNotice}
+            uploads={false}
+            hint="The /privacy page (Thailand's PDPA), linked in the footer and under every registration form. Keep it true to what the site does: what we collect, why, who sees it, how long we keep it, people's rights. {contactEmail} is replaced by the contact email. Empty = the default text."
+          />
+        </section>
+      </>
+    )}
 
     <div class="sticky bottom-0 z-10 -mx-4 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur md:mx-0 md:rounded-card md:border md:bg-paper/95">
-      <Button type="submit">Save texts</Button>
+      <Button type="submit">Save</Button>
     </div>
   </form>
 </AdminLayout>

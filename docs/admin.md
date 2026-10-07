@@ -5,8 +5,10 @@ only emails on the Access policy get in. Every change is saved straight to the l
 pages refresh within a minute) and recorded in Ecosystem > History.
 
 The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
-(Members, Contacts, Messages, Email the community, Reports, Board and speakers), **Ecosystem** (To review, All listings, Renewals),
-**Content** (Posts, Files, Site texts, Emails) and **Settings**. On a phone, open it with the
+(Members, Contacts, Messages, Reports, Board and speakers), **Ecosystem** (To review, All
+listings, Renewals), **Blog** (Posts, PDFs and files), **Website pages** (Home, About, Join, Tech
+Pulse, Thai page, Code of conduct and privacy: one screen per public page, each with its own Save
+button), **Emails** (Email the community, Automatic emails) and **Settings**. On a phone, open it with the
 **Menu** button. Everyone who can sign in to the admin can do everything: there are no roles,
 owners or approval steps.
 
@@ -316,7 +318,7 @@ enrolment at check-in.
   person's first name. **Send me a test** first; the same email can't go to the same audience
   twice within 10 minutes unless you tick "Send it again". Sent emails are listed on the right.
 
-## Board and speakers, Messages, Site texts, Settings
+## Board and speakers, Messages, Website pages, Settings
 
 - **Board and speakers** (formerly People): board and institutional partners on the About page, with their job title and
   company. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
@@ -341,7 +343,7 @@ enrolment at check-in.
   WhatsApp invite link is kept here for the team and the welcome email to members), membership
   switches (individual sign-up on the Join page, company membership applications, member
   priority on events) and the analytics token.
-- **Home page photos** (in Site texts): upload up to 8 photos and order them with the arrows. The
+- **Home page photos** (Website pages > Home): upload up to 8 photos and order them with the arrows. The
   top of Home always shows the Bangkok skyline; the first photo is the arched photo in About us and the next three make the community collage. In the main
   heading, put a word between stars (\*Bangkok\*) to show it in red. The home directory carousel
   picks 15 organisations at random (for All and each category) on every refresh. Until there are enough, photos from recent event recaps and event
@@ -350,7 +352,7 @@ enrolment at check-in.
   typed as it should appear, such as 300+, and a label; it starts with the board mockup's numbers,
   which also come back if you empty it), the community block's heading and text, and the closing band's heading (empty
   = a default text).
-- **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
+- **Website pages** (formerly Site texts): the home page, "You can join us" cards, the Join the community page (why join,
   and the membership block; empty = a default text), the About page, the Tech Pulse page's
   introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**
   lists by itself every published post with "Tech Pulse" in its title: to add an edition, publish
@@ -374,7 +376,7 @@ enrolment at check-in.
 
 ## Emails
 
-**Content > Emails** lists every email the site sends by itself, grouped, with who gets each one
+**Emails > Automatic emails** lists every email the site sends by itself, grouped, with who gets each one
 and when:
 
 - **Events**: registration confirmed, waitlist, seat freed, the reminder the day before, event

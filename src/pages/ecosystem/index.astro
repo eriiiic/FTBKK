@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Section from '../../components/Section.astro';
+import PageHero from '../../components/PageHero.astro';
 import OrgCard from '../../components/OrgCard.astro';
 import Button from '../../components/Button.astro';
 import Icon from '../../components/Icon.astro';
@@ -24,27 +25,21 @@ const select =
   title="Ecosystem directory"
   description="The open map of French tech in Thailand: startups, companies, service providers, investors, incubators, schools and institutions."
 >
+  <PageHero
+    eyebrow="French tech in Thailand"
+    title="Ecosystem directory"
+    intro={`The open map of French tech in Thailand. ${orgs.length} organisations, each one reconfirmed every year.`}
+  >
+    <Button href="/ecosystem/submit" slot="actions">
+      Get listed <Icon name="arrow" class="size-4" />
+    </Button>
+  </PageHero>
   <Section>
-    <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-      <div>
-        <h1 class="text-4xl md:text-5xl">Ecosystem directory</h1>
-        <p class="mt-3 max-w-2xl text-lg text-muted">
-          The open map of French tech in Thailand. {orgs.length} organisations, each one reconfirmed
-          every year.
-        </p>
-      </div>
-      <Button href="/ecosystem/submit">Get listed</Button>
-    </div>
-
-    <ul class="mt-8 flex flex-wrap gap-2" aria-label="Organisations by category">
+    <ul class="flex flex-wrap gap-2" aria-label="Organisations by category">
       {CATEGORY_KEYS.filter((k) => counts[k]).map((k) => (
         <li>
-          <a
-            href={`/ecosystem?category=${k}`}
-            data-category-link={k}
-            class="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 text-sm no-underline hover:border-navy"
-          >
-            <span class="font-bold text-brand">{counts[k]}</span> {CATEGORIES[k].label}
+          <a href={`/ecosystem?category=${k}`} data-category-link={k} class="chip">
+            <span class="text-brand">{counts[k]}</span> {CATEGORIES[k].label}
           </a>
         </li>
       ))}

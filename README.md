@@ -135,12 +135,13 @@ Public pages:
 - Old Wix URLs redirect to their new pages; `sitemap.xml` and `robots.txt` are generated.
 
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
-events, registrations, check-in, stats), **Community** (members, contacts, messages, email the community, board and speakers),
-**Ecosystem** (to review, all listings, renewals), **Content** (posts, files, site texts, emails)
-and Settings. Anyone who can sign in to the admin can do everything; there are no roles. See
+events, registrations, check-in, stats), **Community** (members, contacts, messages, reports, board and speakers),
+**Ecosystem** (to review, all listings, renewals), **Blog** (posts, PDFs and files), **Website
+pages** (one screen per public page: Home, About, Join, Tech Pulse, Thai page, code of conduct
+and privacy), **Emails** (email the community, automatic emails) and Settings. Anyone who can sign in to the admin can do everything; there are no roles. See
 [docs/admin.md](docs/admin.md).
 
-**Emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
+**Automatic emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
 Ecosystem, Membership, Community, Privacy, Admin notifications), each with who receives it, when it goes out and whether its text is the
 default or edited (when, by whom). Opening one edits its subject, message and button label, with
 placeholders such as `{name}`, `{event}`, `{date}` and `{venue}`, a preview in the real email
