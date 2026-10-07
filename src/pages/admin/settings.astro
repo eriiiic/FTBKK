@@ -9,7 +9,7 @@ import { getSettings, saveSettings, type Settings } from '../../lib/settings';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
 
-// Site-wide settings. The texts shown on public pages are in Site texts (/admin/site-texts).
+// Site-wide settings. The texts shown on public pages are in Website pages (/admin/site-texts).
 const actor = Astro.locals.adminEmail ?? 'admin';
 const current = await getSettings();
 
@@ -78,8 +78,8 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     </Alert>
   )}
   <p class="mb-6 max-w-3xl text-sm text-muted">
-    The texts of the home, About, Join, code of conduct and privacy pages are in
-    <a href="/admin/site-texts">Site texts</a>.
+    The texts of the home, About, Join and other public pages are under
+    <a href="/admin/site-texts">Website pages</a> in the menu.
   </p>
   <form method="post" data-warn-unsaved class="grid max-w-3xl gap-6">
     <section class="admin-panel grid gap-4">

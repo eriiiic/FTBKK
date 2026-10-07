@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Section from '../../components/Section.astro';
+import PageHero from '../../components/PageHero.astro';
 import EventRow from '../../components/EventRow.astro';
 import DateBlock from '../../components/DateBlock.astro';
 import Badge from '../../components/Badge.astro';
@@ -29,29 +30,27 @@ const pastByYear = Object.entries(
 ).sort((a, b) => Number(b[0]) - Number(a[0]));
 const [next, ...later] = bySeries(upcoming);
 const nextCover = mediaUrl(next?.coverKey);
-const chip =
-  'rounded-full border px-3 py-1 text-sm no-underline border-line hover:border-navy aria-[current=true]:border-navy aria-[current=true]:bg-navy aria-[current=true]:text-paper';
 ---
 
 <BaseLayout
   title="Events"
   description="French Tech Connect, French Tech Talks and workshops in Bangkok. Free and open to all."
 >
+  <PageHero
+    eyebrow="Meet the community"
+    title="Events"
+    intro="Monthly French Tech Connect networking evenings, French Tech Talks and workshops. Free and open to everyone."
+  />
   <Section>
-    <h1 class="text-4xl md:text-5xl">Events</h1>
-    <p class="mt-3 max-w-2xl text-lg text-muted">
-      Monthly French Tech Connect networking evenings, French Tech Talks and workshops. Free and
-      open to everyone.
-    </p>
     {allSeries.length > 1 && (
-      <nav aria-label="Filter by series" class="mt-6 flex flex-wrap gap-2">
-        <a href="/events" class={chip} aria-current={!series ? 'true' : undefined}>
+      <nav aria-label="Filter by series" class="flex flex-wrap gap-2">
+        <a href="/events" class="chip" aria-current={!series ? 'true' : undefined}>
           All
         </a>
         {allSeries.map((s) => (
           <a
             href={`/events?series=${encodeURIComponent(s)}`}
-            class={chip}
+            class="chip"
             aria-current={series === s ? 'true' : undefined}
           >
             {s}
@@ -61,7 +60,7 @@ const chip =
     )}
     {next ? (
       <>
-        <h2 class="mt-12 mb-6 text-2xl">Next event</h2>
+        <p class="eyebrow mt-12">Next event</p>
         <article class="grid grid-cols-1 overflow-hidden rounded-card border border-line bg-paper shadow-card md:grid-cols-2">
           <a
             href={`/events/${next.slug}`}
@@ -113,7 +112,7 @@ const chip =
         </article>
         {later.length > 0 && (
           <>
-            <h2 class="mt-14 mb-4 text-2xl">Coming up</h2>
+            <h2 class="mt-14 mb-6 text-3xl leading-tight md:text-4xl">Coming up</h2>
             <div class="divide-y divide-line rounded-card border border-line bg-paper p-1 sm:p-2">
               {later.map((e) => (
                 <EventRow event={e} />
@@ -124,13 +123,13 @@ const chip =
       </>
     ) : (
       <>
-        <h2 class="mt-12 mb-6 text-2xl">Upcoming</h2>
+        <h2 class="mt-12 mb-6 text-3xl leading-tight md:text-4xl">Upcoming</h2>
         <p class="text-muted">Nothing scheduled yet. Check back soon.</p>
       </>
     )}
   </Section>
   {pastByYear.length > 0 && (
-    <Section tone="surface" title="Past events">
+    <Section tone="surface" eyebrow="Archive" title="Past events">
       {pastByYear.map(([y, list]) => (
         <div class="mb-10">
           <h3 class="mb-4 text-xl">{y}</h3>

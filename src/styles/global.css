@@ -166,6 +166,10 @@
   .eyebrow-light::before {
     @apply bg-paper/70;
   }
+  /* Filter chips on the listing pages (event series, blog categories, directory categories). */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3.5 py-1.5 text-sm font-semibold text-navy no-underline transition-colors hover:border-navy aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper aria-[current=true]:border-navy aria-[current=true]:bg-navy aria-[current=true]:text-paper;
+  }
   .eco-chip {
     @apply cursor-pointer rounded-full border border-paper/30 px-4 py-1.5 text-sm font-semibold text-paper transition-colors hover:border-paper aria-pressed:border-brand aria-pressed:bg-brand;
   }

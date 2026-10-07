@@ -1,0 +1,33 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  intro?: string;
+}
+const { eyebrow, title, intro } = Astro.props;
+---
+
+<!-- The navy header shared by the listing pages (Ecosystem, Events, Blog), like About and Join. -->
+<section class="relative isolate overflow-hidden bg-navy text-paper">
+  <div
+    aria-hidden="true"
+    class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+  ></div>
+  <div
+    aria-hidden="true"
+    class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+  ></div>
+  <div class="container-page flex flex-col justify-between gap-8 py-14 md:flex-row md:items-end md:py-20">
+    <div class="max-w-2xl">
+      {eyebrow && <p class="eyebrow eyebrow-light">{eyebrow}</p>}
+      <h1 class="text-4xl leading-[1.1] text-paper md:text-6xl">{title}</h1>
+      {intro && <p class="mt-5 text-lg text-paper/80">{intro}</p>}
+      <slot />
+    </div>
+    {Astro.slots.has('actions') && (
+      <div class="flex shrink-0 flex-wrap gap-3">
+        <slot name="actions" />
+      </div>
+    )}
+  </div>
+</section>

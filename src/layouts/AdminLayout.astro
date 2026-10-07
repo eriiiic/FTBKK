@@ -41,7 +41,6 @@ const groups: { label: string; links: NavLink[] }[] = [
       { href: '/admin/members', label: 'Members' },
       { href: '/admin/contacts', label: 'Contacts' },
       { href: '/admin/submissions', label: 'Messages' },
-      { href: '/admin/community-email', label: 'Email the community' },
       { href: '/admin/reports', label: 'Reports' },
       { href: '/admin/people', label: 'Board and speakers' },
     ],
@@ -55,27 +54,48 @@ const groups: { label: string; links: NavLink[] }[] = [
     ],
   },
   {
-    label: 'Content',
+    label: 'Blog',
     links: [
       { href: '/admin/posts', label: 'Posts' },
-      { href: '/admin/files', label: 'Files' },
-      { href: '/admin/site-texts', label: 'Site texts' },
-      { href: '/admin/emails', label: 'Emails' },
+      { href: '/admin/files', label: 'PDFs and files' },
+    ],
+  },
+  {
+    label: 'Website pages',
+    links: [
+      { href: '/admin/site-texts', label: 'Home' },
+      { href: '/admin/site-texts?page=about', label: 'About' },
+      { href: '/admin/site-texts?page=join', label: 'Join' },
+      { href: '/admin/site-texts?page=tech-pulse', label: 'Tech Pulse' },
+      { href: '/admin/site-texts?page=thai', label: 'Thai page' },
+      { href: '/admin/site-texts?page=legal', label: 'Code of conduct, privacy' },
+    ],
+  },
+  {
+    label: 'Emails',
+    links: [
+      { href: '/admin/community-email', label: 'Email the community' },
+      { href: '/admin/emails', label: 'Automatic emails' },
     ],
   },
   { label: '', links: [{ href: '/admin/settings', label: 'Settings' }] },
 ];
 const path = Astro.url.pathname;
-const tab = Astro.url.searchParams.get('tab');
-// The longest matching link wins, so /admin/events/stats doesn't also light up All events. The
-// Ecosystem links differ only by ?tab=, which must match too (no tab = the review queue).
+// The longest matching link wins, so /admin/events/stats doesn't also light up All events. Links
+// to the same screen differ by one query parameter, which must match too (missing = its default).
+const SUBPAGES: Record<string, { param: string; fallback: string }> = {
+  '/admin/ecosystem': { param: 'tab', fallback: 'queue' },
+  '/admin/site-texts': { param: 'page', fallback: 'home' },
+};
 const links = groups.flatMap((g) => g.links);
 const matches = (href: string) => {
   const [p, q] = href.split('?');
   if (p === '/admin') return path === '/admin';
   if (!(path === p || path.startsWith(`${p}/`))) return false;
-  if (p !== '/admin/ecosystem' || path !== p) return true;
-  return (new URLSearchParams(q).get('tab') ?? null) === (tab && tab !== 'queue' ? tab : null);
+  const sub = SUBPAGES[p!];
+  if (!sub || path !== p) return true;
+  const want = new URLSearchParams(q).get(sub.param) ?? sub.fallback;
+  return (Astro.url.searchParams.get(sub.param) ?? sub.fallback) === want;
 };
 const current = links
   .map((n) => n.href)
