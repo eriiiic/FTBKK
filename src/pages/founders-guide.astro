@@ -21,7 +21,7 @@ import {
 
 // The Founder's Guide: practical notes for founders setting up or growing in Thailand, with a
 // path picker, a first-year budget estimator and a checklist that remembers ticks in the browser.
-// Unlisted for now (no menu, no sitemap, noindex) until the board decides where it lives.
+// Listed in the header's Resources menu, the footer and the sitemap.
 const checked = new Date(`${GUIDE_CHECKED_ON}T00:00:00Z`).toLocaleDateString('en-GB', {
   day: 'numeric',
   month: 'long',
@@ -46,7 +46,6 @@ const thb = (n: number) => `THB ${n.toLocaleString('en-US')}`;
 <BaseLayout
   title="Founder's Guide to Thailand"
   description="La French Tech Bangkok's practical guide for founders setting up in Thailand: visas, company structures, BOI, taxes, first-year budget and a setup checklist."
-  noindex
 >
   <section class="relative isolate overflow-hidden bg-navy text-paper">
     <div

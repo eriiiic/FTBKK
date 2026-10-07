@@ -3,12 +3,18 @@ import Logo from './Logo.astro';
 import Button from './Button.astro';
 import Icon from './Icon.astro';
 
-const nav = [
+type Link = { href: string; label: string; lang?: string };
+// Resources is a drop-down: our reports and guides.
+const resources: Link[] = [
+  { href: '/tech-pulse', label: 'Tech Pulse' },
+  { href: '/founders-guide', label: "Founder's Guide" },
+];
+const nav: (Link | { label: string; children: Link[] })[] = [
   { href: '/', label: 'Home' },
   { href: '/ecosystem', label: 'Ecosystem' },
   { href: '/events', label: 'Events' },
   { href: '/blog', label: 'Blog' },
-  { href: '/tech-pulse', label: 'Tech Pulse' },
+  { label: 'Resources', children: resources },
   { href: '/about', label: 'About' },
   // The Thai page, labelled in Thai.
   { href: '/th', label: 'ภาษาไทย', lang: 'th' },
@@ -31,19 +37,54 @@ const join = '/join';
     </a>
     <nav aria-label="Main" class="hidden lg:block">
       <ul class="flex items-center gap-1">
-        {nav.map((n) => (
-          <li>
-            <a
-              href={n.href}
-              lang={n.lang}
-              hreflang={n.lang}
-              aria-current={isActive(n.href) ? 'page' : undefined}
-              class="rounded-full px-3 py-2 text-sm font-semibold text-ink no-underline hover:text-brand aria-[current=page]:text-brand"
-            >
-              {n.label}
-            </a>
-          </li>
-        ))}
+        {nav.map((n) =>
+          'children' in n ? (
+            <li class="relative" data-dropdown>
+              <button
+                type="button"
+                aria-expanded="false"
+                aria-controls="resources-menu"
+                data-current={n.children.some((c) => isActive(c.href)) ? '' : undefined}
+                class="group flex cursor-pointer items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold text-ink hover:text-brand data-current:text-brand"
+              >
+                {n.label}
+                <Icon
+                  name="chevron-right"
+                  class="size-3.5 rotate-90 transition-transform group-aria-expanded:-rotate-90"
+                />
+              </button>
+              <ul
+                id="resources-menu"
+                hidden
+                class="absolute top-full left-0 mt-2 w-56 rounded-card border border-line bg-paper p-2 shadow-card"
+              >
+                {n.children.map((c) => (
+                  <li>
+                    <a
+                      href={c.href}
+                      aria-current={isActive(c.href) ? 'page' : undefined}
+                      class="block rounded-lg px-3 py-2 text-sm font-semibold text-ink no-underline hover:bg-surface hover:text-brand aria-[current=page]:text-brand"
+                    >
+                      {c.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ) : (
+            <li>
+              <a
+                href={n.href}
+                lang={n.lang}
+                hreflang={n.lang}
+                aria-current={isActive(n.href) ? 'page' : undefined}
+                class="rounded-full px-3 py-2 text-sm font-semibold text-ink no-underline hover:text-brand aria-[current=page]:text-brand"
+              >
+                {n.label}
+              </a>
+            </li>
+          ),
+        )}
       </ul>
     </nav>
     <div class="hidden lg:block">
@@ -65,19 +106,21 @@ const join = '/join';
   </div>
   <nav id="mobile-menu" aria-label="Main" class="hidden border-t border-line bg-paper lg:hidden">
     <ul class="container-page flex flex-col py-2">
-      {nav.map((n) => (
-        <li>
-          <a
-            href={n.href}
-            lang={n.lang}
-            hreflang={n.lang}
-            aria-current={isActive(n.href) ? 'page' : undefined}
-            class="block py-3 font-semibold text-ink no-underline aria-[current=page]:text-brand"
-          >
-            {n.label}
-          </a>
-        </li>
-      ))}
+      {nav
+        .flatMap((n) => ('children' in n ? n.children : [n]))
+        .map((n) => (
+          <li>
+            <a
+              href={n.href}
+              lang={n.lang}
+              hreflang={n.lang}
+              aria-current={isActive(n.href) ? 'page' : undefined}
+              class="block py-3 font-semibold text-ink no-underline aria-[current=page]:text-brand"
+            >
+              {n.label}
+            </a>
+          </li>
+        ))}
       <li class="py-3">
         <Button href={join} class="w-full">
           Join the community
@@ -95,6 +138,29 @@ const join = '/join';
     menu?.classList.toggle('hidden', !open);
   };
   btn?.addEventListener('click', () => setOpen(btn.getAttribute('aria-expanded') !== 'true'));
+
+  // Desktop drop-downs (Resources): open on click, close on Escape or a click elsewhere.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-dropdown]')) {
+    const toggle = root.querySelector<HTMLButtonElement>('button')!;
+    const list = root.querySelector<HTMLElement>('ul')!;
+    const isOpen = () => toggle.getAttribute('aria-expanded') === 'true';
+    const show = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open));
+      list.hidden = !open;
+    };
+    toggle.addEventListener('click', () => show(!isOpen()));
+    document.addEventListener('click', (e) => {
+      if (!root.contains(e.target as Node)) show(false);
+    });
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !isOpen()) return;
+      show(false);
+      toggle.focus();
+    });
+    root.addEventListener('focusout', (e) => {
+      if (!root.contains(e.relatedTarget as Node | null)) show(false);
+    });
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || btn?.getAttribute('aria-expanded') !== 'true') return;
     setOpen(false);

@@ -27,20 +27,21 @@ Public pages:
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the
   same style as `/join`. Texts are edited in the admin (Site texts).
-- **Thailand Tech Pulse** at `/tech-pulse` (header menu): our quarterly report. The latest
+- **Resources** menu in the header (a drop-down; flat in the mobile menu): Tech Pulse and the
+  Founder's Guide.
+- **Thailand Tech Pulse** at `/tech-pulse` (Resources menu): our quarterly report. The latest
   edition leads with a Download button, then every edition with its quarter, a link to the summary
   post and the PDF. Editions are the published blog posts with "Tech Pulse" in their title; the
   PDF is the post's first PDF attachment (or the first PDF linked in its text). The introduction
   is edited in Site texts.
-- **Founder's Guide** at `/founders-guide` (unlisted: not in the menus or the sitemap, and
-  `noindex` until the board decides where it goes): practical notes for founders setting up in
-  Thailand. A "Where are you?" picker (exploring, remote work, setting up a company, hiring and
-  raising) shows the visa, structure and next five steps; then visas compared (DTV, SMART S, LTR,
-  Non-B + work permit), company structures (BOI, Foreign Business Act), a first-year budget
-  estimator, taxes at a glance, a setup checklist whose ticks are kept in the browser
-  (localStorage), hiring, money and culture tips, who can help (French and Thai institutions) and
-  a FAQ. Every figure links to its source; the content and the "last checked" date live in
-  `src/lib/founders-guide.ts`.
+- **Founder's Guide** at `/founders-guide` (Resources menu, footer, sitemap): practical notes for
+  founders setting up in Thailand. A "Where are you?" picker (exploring, remote work, setting up a
+  company, hiring and raising) shows the visa, structure and next steps; then visas compared,
+  company structures (BOI, Foreign Business Act), a first-year budget estimator, taxes at a
+  glance, a setup checklist whose ticks are kept in the browser (localStorage),
+  hiring, money and culture tips, who can help and a FAQ, with sources on every card and a "last
+  checked" date. The content and that date live in `src/lib/founders-guide.ts` (edited in code,
+  not in the admin).
 - **Thai page** at `/th` (ภาษาไทย in the header menu, `lang="th"`): La French Tech Bangkok, La
   French Tech and the Mission French Tech, our role, objectives and activities, in Thai, with
   Contact us buttons to the About contact form. Each `## ` heading of its text becomes a numbered
