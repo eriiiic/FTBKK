@@ -138,7 +138,7 @@ Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Eve
 events, registrations, check-in, stats), **Community** (members, contacts, messages, reports, board and speakers),
 **Ecosystem** (to review, all listings, renewals), **Blog** (posts, PDFs and files), **Website
 pages** (one screen per public page: Home, About, Join, Tech Pulse, Thai page, code of conduct
-and privacy), **Emails** (email the community, automatic emails) and Settings. Anyone who can sign in to the admin can do everything; there are no roles. See
+and privacy), **Emails** (email the community, automatic emails) and Settings; the groups fold and unfold, the current one open. Anyone who can sign in to the admin can do everything; there are no roles. See
 [docs/admin.md](docs/admin.md).
 
 **Automatic emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
