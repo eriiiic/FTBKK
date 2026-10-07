@@ -32,6 +32,15 @@ Public pages:
   post and the PDF. Editions are the published blog posts with "Tech Pulse" in their title; the
   PDF is the post's first PDF attachment (or the first PDF linked in its text). The introduction
   is edited in Site texts.
+- **Founder's Guide** at `/founders-guide` (unlisted: not in the menus or the sitemap, and
+  `noindex` until the board decides where it goes): practical notes for founders setting up in
+  Thailand. A "Where are you?" picker (exploring, remote work, setting up a company, hiring and
+  raising) shows the visa, structure and next five steps; then visas compared (DTV, SMART S, LTR,
+  Non-B + work permit), company structures (BOI, Foreign Business Act), a first-year budget
+  estimator, taxes at a glance, a setup checklist whose ticks are kept in the browser
+  (localStorage), hiring, money and culture tips, who can help (French and Thai institutions) and
+  a FAQ. Every figure links to its source; the content and the "last checked" date live in
+  `src/lib/founders-guide.ts`.
 - **Thai page** at `/th` (ภาษาไทย in the header menu, `lang="th"`): La French Tech Bangkok, La
   French Tech and the Mission French Tech, our role, objectives and activities, in Thai, with
   Contact us buttons to the About contact form. Each `## ` heading of its text becomes a numbered

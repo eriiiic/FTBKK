@@ -1,0 +1,791 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Button from '../components/Button.astro';
+import Icon from '../components/Icon.astro';
+import {
+  BUDGET,
+  CHECKLIST,
+  FAQ,
+  GUIDE_CHECKED_ON,
+  HELP_FRENCH,
+  HELP_THAI,
+  PATHS,
+  SOURCE_LIST,
+  SOURCES,
+  STRUCTURES,
+  TAXES,
+  TIPS,
+  VISAS,
+  type SourceKey,
+} from '../lib/founders-guide';
+
+// The Founder's Guide: practical notes for founders setting up or growing in Thailand, with a
+// path picker, a first-year budget estimator and a checklist that remembers ticks in the browser.
+// Unlisted for now (no menu, no sitemap, noindex) until the board decides where it lives.
+const checked = new Date(`${GUIDE_CHECKED_ON}T00:00:00Z`).toLocaleDateString('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+const toc = [
+  { href: '#path', label: 'Where are you?' },
+  { href: '#visas', label: 'Visas compared' },
+  { href: '#structure', label: 'Company structures' },
+  { href: '#budget', label: 'First-year budget' },
+  { href: '#tax', label: 'Taxes at a glance' },
+  { href: '#checklist', label: 'Setup checklist' },
+  { href: '#people', label: 'Hiring, money and culture' },
+  { href: '#help', label: 'Who can help' },
+  { href: '#faq', label: 'Questions' },
+];
+const sourceLinks = (keys: SourceKey[]) => keys.map((k) => SOURCES[k]);
+const thb = (n: number) => `THB ${n.toLocaleString('en-US')}`;
+---
+
+<BaseLayout
+  title="Founder's Guide to Thailand"
+  description="La French Tech Bangkok's practical guide for founders setting up in Thailand: visas, company structures, BOI, taxes, first-year budget and a setup checklist."
+  noindex
+>
+  <section class="relative isolate overflow-hidden bg-navy text-paper">
+    <div
+      aria-hidden="true"
+      class="absolute -top-40 -right-40 -z-10 size-[36rem] rounded-full bg-accent/25 blur-3xl"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
+    ></div>
+    <div class="container-page grid gap-12 py-16 md:py-24 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div>
+        <p class="eyebrow eyebrow-light">Founder's Guide</p>
+        <h1 class="text-4xl leading-[1.1] text-paper md:text-6xl">
+          Building your startup in Thailand
+        </h1>
+        <div class="hero-intro mt-8 max-w-2xl">
+          <p>
+            What founders in our community wish they had known before they started: which visa,
+            which company, what it costs in year one and what to file when. Pick your situation
+            below and follow the steps.
+          </p>
+        </div>
+        <p class="mt-8 flex max-w-2xl items-start gap-3 rounded-card border border-paper/15 bg-paper/5 p-4 text-sm text-paper/85">
+          <Icon name="bulb" class="mt-0.5 size-5 shrink-0 text-accent-soft" />
+          <span>
+            Last checked on {checked}. Rules on visas, tax and foreign ownership change often: this
+            guide is a starting point, not legal or tax advice. Confirm with a lawyer or accountant
+            before you act.
+          </span>
+        </p>
+      </div>
+      <nav
+        aria-label="On this page"
+        class="rounded-card border border-paper/15 bg-paper/5 p-2 backdrop-blur lg:mt-14"
+      >
+        <ol>
+          {toc.map((t, i) => (
+            <li>
+              <a
+                href={t.href}
+                class="group flex items-center gap-4 rounded-xl px-4 py-2.5 text-paper no-underline transition-colors hover:bg-paper/10"
+              >
+                <span class="font-display text-sm font-bold text-accent-soft tabular-nums">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span class="min-w-0 flex-1 font-semibold">{t.label}</span>
+                <Icon
+                  name="arrow"
+                  class="size-4 text-paper/50 transition-transform group-hover:translate-x-1 group-hover:text-paper"
+                />
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </div>
+  </section>
+
+  <!-- 01 Path picker: each button shows its panel; without JavaScript every panel is visible. -->
+  <section id="path" class="scroll-mt-20 py-14 md:py-20" data-paths>
+    <div class="container-page">
+      <header class="mb-8 max-w-3xl">
+        <p class="eyebrow">01 · Where are you?</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Start from your situation</h2>
+        <p class="mt-3 text-lg text-muted">
+          Choose the closest one to see the visa, the structure and your next five steps.
+        </p>
+      </header>
+      <div class="mb-6 flex flex-wrap gap-2" role="group" aria-label="Your situation">
+        {PATHS.map((p, i) => (
+          <button
+            type="button"
+            class="chip cursor-pointer aria-pressed:border-navy aria-pressed:bg-navy aria-pressed:text-paper"
+            data-path={p.id}
+            aria-pressed={i === 0 ? 'true' : 'false'}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {PATHS.map((p) => (
+        <article
+          class="mb-6 grid gap-6 rounded-card border border-line bg-paper p-6 shadow-card md:p-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
+          data-path-panel={p.id}
+          aria-live="polite"
+        >
+          <div>
+            <h3 class="text-2xl">{p.label}</h3>
+            <p class="mt-2 text-muted">{p.who}</p>
+            <dl class="mt-6 grid gap-4">
+              <div>
+                <dt class="text-xs font-semibold tracking-[0.15em] text-brand-dark uppercase">
+                  Visa
+                </dt>
+                <dd class="mt-1">{p.visa}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-semibold tracking-[0.15em] text-brand-dark uppercase">
+                  Structure
+                </dt>
+                <dd class="mt-1">{p.structure}</dd>
+              </div>
+            </dl>
+            <p class="mt-6 flex flex-wrap gap-2">
+              {p.sections.map((s) => (
+                <a href={s.href} class="chip">
+                  {s.label} <Icon name="arrow" class="size-3.5" />
+                </a>
+              ))}
+            </p>
+          </div>
+          <ol class="grid gap-3">
+            {p.steps.map((step, i) => (
+              <li class="flex gap-4 rounded-xl bg-surface p-4">
+                <span class="font-display text-sm font-bold text-brand tabular-nums">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <!-- 02 Visas -->
+  <section id="visas" class="scroll-mt-20 bg-surface py-14 md:py-20">
+    <div class="container-page">
+      <header class="mb-8 max-w-3xl">
+        <p class="eyebrow">02 · Visas</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Four visas founders actually use</h2>
+        <p class="mt-3 text-lg text-muted">
+          The key question is whether you will earn money from Thailand. If you will, you need a
+          visa that allows work in Thailand.
+        </p>
+      </header>
+      <div class="grid gap-5 md:grid-cols-2">
+        {VISAS.map((v) => (
+          <article class="flex flex-col rounded-card border border-line bg-paper p-6">
+            <h3 class="text-xl">{v.name}</h3>
+            <p class="mt-2 text-muted">{v.forWho}</p>
+            <ul class="mt-4 grid gap-2">
+              {v.facts.map((f) => (
+                <li class="flex gap-3">
+                  <Icon name="check" class="mt-0.5 size-5 shrink-0 text-success" />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+            <p class="mt-4 rounded-xl bg-surface p-3 text-sm">
+              <strong class="text-navy">Work for Thai clients:</strong> {v.thaiWork}
+            </p>
+            <p class="mt-auto pt-4 text-xs text-muted">
+              Sources:{' '}
+              {sourceLinks(v.sources).map((s, i) => (
+                <>
+                  {i > 0 && ' · '}
+                  <a href={s.url} class="underline" rel="noopener" target="_blank">
+                    {s.label}
+                  </a>
+                </>
+              ))}
+            </p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 Company structures -->
+  <section id="structure" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <header class="mb-8 max-w-3xl">
+        <p class="eyebrow">03 · Company structures</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Who can own what</h2>
+        <p class="mt-3 text-lg text-muted">
+          The Foreign Business Act limits foreign ownership in most service businesses to 49%. BOI
+          promotion is how most tech startups get to 100%.
+        </p>
+      </header>
+      <div class="grid gap-5 lg:grid-cols-2">
+        {STRUCTURES.map((s) => (
+          <article class="flex flex-col rounded-card border border-line bg-paper p-6">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 class="text-xl">{s.name}</h3>
+              <span class="rounded-full bg-navy px-3 py-1 text-xs font-semibold text-paper">
+                {s.ownership}
+              </span>
+            </div>
+            <p class="mt-3">{s.goodFor}</p>
+            <p class="mt-3 flex gap-3 rounded-xl bg-surface p-3 text-sm">
+              <span class="shrink-0 font-semibold whitespace-nowrap text-warning">Watch out</span>
+              <span>{s.watch}</span>
+            </p>
+            <p class="mt-auto pt-4 text-xs text-muted">
+              Sources:{' '}
+              {sourceLinks(s.sources).map((x, i) => (
+                <>
+                  {i > 0 && ' · '}
+                  <a href={x.url} class="underline" rel="noopener" target="_blank">
+                    {x.label}
+                  </a>
+                </>
+              ))}
+            </p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 Budget estimator -->
+  <section id="budget" class="scroll-mt-20 bg-navy py-14 text-paper md:py-20">
+    <div class="container-page">
+      <header class="mb-8 max-w-3xl">
+        <p class="eyebrow eyebrow-light">04 · First-year budget</p>
+        <h2 class="text-3xl leading-tight text-paper md:text-4xl">What will year one cost?</h2>
+        <p class="mt-3 text-lg text-accent-soft">
+          A rough order of magnitude for a Bangkok company, to prepare your conversation with an
+          accountant.
+        </p>
+      </header>
+      <div
+        class="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
+        data-budget={JSON.stringify(BUDGET)}
+      >
+        <form class="grid gap-5 rounded-card bg-paper/5 p-6" data-budget-form>
+          <fieldset>
+            <legend class="mb-2 font-semibold">Company type</legend>
+            <label class="mb-2 flex items-center gap-3">
+              <input type="radio" name="route" value="boi" checked class="accent-brand" />
+              BOI-promoted (100% foreign)
+            </label>
+            <label class="flex items-center gap-3">
+              <input type="radio" name="route" value="standard" class="accent-brand" />
+              Standard Thai company
+            </label>
+          </fieldset>
+          <label class="grid gap-1">
+            <span class="font-semibold">Foreigners needing a work permit</span>
+            <input
+              type="number"
+              name="permits"
+              min="0"
+              max="20"
+              value="1"
+              class="rounded-lg border border-paper/30 bg-paper px-3 py-2 text-ink"
+            />
+          </label>
+          <label class="grid gap-1">
+            <span class="font-semibold">Thai employees you plan to hire</span>
+            <input
+              type="number"
+              name="staff"
+              min="0"
+              max="200"
+              value="2"
+              class="rounded-lg border border-paper/30 bg-paper px-3 py-2 text-ink"
+            />
+          </label>
+          <label class="grid gap-1">
+            <span class="font-semibold">Average Thai monthly salary (THB)</span>
+            <input
+              type="number"
+              name="salary"
+              min="0"
+              step="1000"
+              value={BUDGET.defaultSalary}
+              class="rounded-lg border border-paper/30 bg-paper px-3 py-2 text-ink"
+            />
+          </label>
+          <label class="flex items-center gap-3">
+            <input type="checkbox" name="office" checked class="accent-brand" />
+            Basic office or coworking desk
+          </label>
+        </form>
+        <div class="rounded-card bg-paper p-6 text-ink md:p-8" aria-live="polite">
+          <dl class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-xl bg-surface p-4">
+              <dt class="text-sm text-muted">Capital to put in the company</dt>
+              <dd class="mt-1 font-display text-2xl font-bold text-navy" data-out="capital">
+                {thb(BUDGET.boiMinCapital)}
+              </dd>
+            </div>
+            <div class="rounded-xl bg-surface p-4">
+              <dt class="text-sm text-muted">Running costs, year one</dt>
+              <dd class="mt-1 font-display text-2xl font-bold text-navy" data-out="total">
+                -
+              </dd>
+            </div>
+          </dl>
+          <table class="mt-6 w-full text-left text-sm">
+            <caption class="sr-only">Year one cost breakdown</caption>
+            <tbody class="divide-y divide-line">
+              <tr>
+                <th scope="row" class="py-2 font-normal">
+                  Registration and legal fees (once)
+                </th>
+                <td class="py-2 text-right tabular-nums" data-out="registration">
+                  -
+                </td>
+              </tr>
+              <tr>
+                <th scope="row" class="py-2 font-normal">
+                  Accounting, audit and filings
+                </th>
+                <td class="py-2 text-right tabular-nums" data-out="accounting">
+                  -
+                </td>
+              </tr>
+              <tr>
+                <th scope="row" class="py-2 font-normal">
+                  Office
+                </th>
+                <td class="py-2 text-right tabular-nums" data-out="office">
+                  -
+                </td>
+              </tr>
+              <tr>
+                <th scope="row" class="py-2 font-normal">
+                  Thai payroll and social security (<span data-out="headcount">2</span> people)
+                </th>
+                <td class="py-2 text-right tabular-nums" data-out="payroll">
+                  -
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p
+            class="mt-4 hidden rounded-xl bg-surface p-3 text-sm text-warning"
+            data-out="warning"
+          ></p>
+          <p class="mt-4 text-xs text-muted">
+            Capital is money the company keeps and spends, not a fee. Excludes foreign salaries,
+            visas, insurance and BOI application costs. Fee ranges from{' '}
+            <a href={SOURCES.starterKit.url} class="underline" rel="noopener" target="_blank">
+              {SOURCES.starterKit.label}
+            </a>
+            ; social security from{' '}
+            <a href={SOURCES.sso.url} class="underline" rel="noopener" target="_blank">
+              {SOURCES.sso.label}
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 Taxes -->
+  <section id="tax" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page">
+      <header class="mb-8 max-w-3xl">
+        <p class="eyebrow">05 · Taxes</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Taxes at a glance</h2>
+        <p class="mt-3 text-lg text-muted">
+          The numbers to know before your first meeting with an accountant.
+        </p>
+      </header>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {TAXES.map((t) => (
+          <article class="flex flex-col rounded-card border border-line p-5">
+            <p class="text-sm font-semibold text-muted">{t.label}</p>
+            <p class="mt-1 font-display text-2xl font-bold text-navy">{t.value}</p>
+            {t.note && <p class="mt-2 text-sm">{t.note}</p>}
+            <p class="mt-auto pt-3 text-xs text-muted">
+              {sourceLinks(t.sources).map((s, i) => (
+                <>
+                  {i > 0 && ' · '}
+                  <a href={s.url} class="underline" rel="noopener" target="_blank">
+                    {s.label}
+                  </a>
+                </>
+              ))}
+            </p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 Checklist: ticks are remembered in this browser only. -->
+  <section id="checklist" class="scroll-mt-20 bg-surface py-14 md:py-20" data-checklist>
+    <div class="container-page">
+      <header class="mb-8 flex max-w-none flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <div class="max-w-3xl">
+          <p class="eyebrow">06 · Checklist</p>
+          <h2 class="text-3xl leading-tight md:text-4xl">Your setup checklist</h2>
+          <p class="mt-3 text-lg text-muted">
+            Tick as you go. Your progress is saved in this browser only.
+          </p>
+        </div>
+        <div class="w-full max-w-xs">
+          <p class="mb-2 flex justify-between text-sm font-semibold text-navy">
+            <span>Progress</span>
+            <span data-progress-label>0%</span>
+          </p>
+          <div class="h-2 overflow-hidden rounded-full bg-line" aria-hidden="true">
+            <div class="h-full w-0 bg-brand transition-all" data-progress-bar></div>
+          </div>
+          <button
+            type="button"
+            class="mt-3 cursor-pointer text-sm text-accent underline"
+            data-reset
+          >
+            Clear my ticks
+          </button>
+        </div>
+      </header>
+      <div class="grid gap-5 md:grid-cols-2">
+        {CHECKLIST.map((phase, pi) => (
+          <fieldset class="rounded-card border border-line bg-paper p-6">
+            <legend class="sr-only">{phase.title}</legend>
+            <p aria-hidden="true" class="font-display text-lg font-bold text-navy">
+              {phase.title}
+            </p>
+            <ul class="mt-4 grid gap-3">
+              {phase.items.map((item, ii) => (
+                <li>
+                  <label class="flex cursor-pointer gap-3">
+                    <input
+                      type="checkbox"
+                      class="mt-1 size-4 shrink-0 accent-brand"
+                      data-item={`${pi}-${ii}`}
+                    />
+                    <span>{item}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 Hiring, money, culture -->
+  <section id="people" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page grid gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow">07 · Hiring</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Building a team</h2>
+        <ul class="mt-6 grid gap-4">
+          <li class="flex gap-3">
+            <Icon name="users" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              Contracts in Thai and English. The Labour Protection Act sets notice, overtime and
+              severance (up to 400 days of pay after 20 years of service).
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <Icon name="users" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              Register employees with the Social Security Office: 5% from you and 5% from them, on
+              salary capped at THB 17,500 a month in 2026.
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <Icon name="users" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              Outside BOI, each foreign work permit needs 4 Thai employees and THB 2 million of
+              capital.
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <Icon name="users" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              For young French talent, the{' '}
+              <a href={SOURCES.vie.url} rel="noopener" target="_blank">
+                V.I.E programme
+              </a>{' '}
+              lets a French company post someone to Thailand for 6 to 24 months, managed by Business
+              France.
+            </span>
+          </li>
+        </ul>
+      </div>
+      <div id="money" class="scroll-mt-20">
+        <p class="eyebrow">Banking and funding</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Money</h2>
+        <ul class="mt-6 grid gap-4">
+          <li class="flex gap-3">
+            <Icon name="chart" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              Banks usually want the director's long-term visa and work permit before opening a
+              corporate account. Bring the company affidavit, shareholder list and passport.
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <Icon name="chart" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              Thai startup money comes largely from corporate venture arms of banks, telcos and
+              energy groups. Grants exist through{' '}
+              <a href={SOURCES.nia.url} rel="noopener" target="_blank">
+                NIA
+              </a>{' '}
+              and{' '}
+              <a href={SOURCES.depa.url} rel="noopener" target="_blank">
+                depa
+              </a>
+              .
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <Icon name="chart" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              A draft{' '}
+              <a href={SOURCES.startupAct.url} rel="noopener" target="_blank">
+                Startup Promotion Act
+              </a>{' '}
+              would let certified startups use convertible notes and offer shares more easily. It
+              was still before Parliament at our last check.
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <Icon name="chart" class="mt-0.5 size-5 shrink-0 text-brand" />
+            <span>
+              From France, Bpifrance's export insurance can cover part of your prospecting costs.
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="container-page mt-14">
+      <h2 class="text-2xl leading-tight md:text-3xl">Doing business the Thai way</h2>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {TIPS.map((t) => (
+          <article class="rounded-card bg-surface p-5">
+            <h3 class="text-lg">{t.title}</h3>
+            <p class="mt-2 text-sm">{t.body}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 Who can help -->
+  <section id="help" class="scroll-mt-20 bg-surface py-14 md:py-20">
+    <div class="container-page">
+      <header class="mb-8 max-w-3xl">
+        <p class="eyebrow">08 · Who can help</p>
+        <h2 class="text-3xl leading-tight md:text-4xl">Your support network</h2>
+        <p class="mt-3 text-lg text-muted">
+          Lawyers, accountants and service providers are listed in our{' '}
+          <a href="/ecosystem" class="text-accent">
+            Ecosystem directory
+          </a>
+          .
+        </p>
+      </header>
+      <div class="grid gap-8 lg:grid-cols-2">
+        {[
+          { title: 'French network', items: HELP_FRENCH },
+          { title: 'Thai institutions', items: HELP_THAI },
+        ].map((group) => (
+          <div>
+            <h3 class="mb-4 text-xl">{group.title}</h3>
+            <ul class="grid gap-3">
+              {group.items.map((h) => (
+                <li>
+                  <a
+                    href={h.url}
+                    class="group flex items-start gap-4 rounded-card border border-line bg-paper p-4 no-underline transition-colors hover:border-navy"
+                    {...(h.url.startsWith('http') ? { rel: 'noopener', target: '_blank' } : {})}
+                  >
+                    <span class="min-w-0 flex-1">
+                      <span class="block font-semibold text-navy group-hover:text-brand">
+                        {h.name}
+                      </span>
+                      <span class="mt-1 block text-sm text-ink">{h.what}</span>
+                    </span>
+                    <Icon
+                      name={h.url.startsWith('http') ? 'external' : 'arrow'}
+                      class="mt-1 size-4 shrink-0 text-muted"
+                    />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 FAQ -->
+  <section id="faq" class="scroll-mt-20 py-14 md:py-20">
+    <div class="container-page max-w-3xl">
+      <p class="eyebrow">09 · Questions</p>
+      <h2 class="text-3xl leading-tight md:text-4xl">Questions founders ask us</h2>
+      <div class="mt-8 divide-y divide-line border-y border-line">
+        {FAQ.map((f) => (
+          <details class="group py-4">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-navy">
+              {f.q}
+              <Icon
+                name="chevron-right"
+                class="size-4 shrink-0 transition-transform group-open:rotate-90"
+              />
+            </summary>
+            <p class="mt-3 text-ink">{f.a}</p>
+          </details>
+        ))}
+      </div>
+
+      <h2 class="mt-16 text-2xl">Sources</h2>
+      <p class="mt-2 text-sm text-muted">
+        Checked on {checked}. Spotted something out of date?{' '}
+        <a href="/about#contact" class="text-accent">
+          Tell us
+        </a>
+        .
+      </p>
+      <ul class="mt-4 grid gap-1 text-sm">
+        {SOURCE_LIST.map((s) => (
+          <li>
+            <a href={s.url} rel="noopener" target="_blank" class="text-accent">
+              {s.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="relative isolate overflow-hidden bg-brand py-16 text-paper md:py-20">
+    <div class="container-page flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+      <div class="max-w-2xl">
+        <h2 class="text-3xl leading-snug text-paper md:text-4xl">Talk to founders who did it</h2>
+        <p class="mt-3 text-lg text-paper/90">
+          Join La French Tech Bangkok for free and meet them at our next event.
+        </p>
+      </div>
+      <div class="flex shrink-0 flex-wrap gap-3">
+        <Button href="/join" variant="light">
+          Join the community
+        </Button>
+        <Button href="/events" variant="light">
+          See events <Icon name="arrow" class="size-4" />
+        </Button>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  // Path picker: show only the chosen situation once JavaScript runs.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-paths]')) {
+    const buttons = root.querySelectorAll<HTMLButtonElement>('[data-path]');
+    const panels = root.querySelectorAll<HTMLElement>('[data-path-panel]');
+    const show = (id: string) => {
+      for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.path === id));
+      for (const p of panels) p.hidden = p.dataset.pathPanel !== id;
+    };
+    for (const b of buttons) b.addEventListener('click', () => show(b.dataset.path ?? ''));
+    if (buttons[0]) show(buttons[0].dataset.path ?? '');
+  }
+
+  // First-year budget estimator.
+  const thb = (n: number) => `THB ${Math.round(n).toLocaleString('en-US')}`;
+  const range = ([lo, hi]: readonly number[]) => (lo === hi ? thb(lo) : `${thb(lo)} to ${thb(hi)}`);
+  for (const root of document.querySelectorAll<HTMLElement>('[data-budget]')) {
+    const b = JSON.parse(root.dataset.budget ?? '{}');
+    const form = root.querySelector<HTMLFormElement>('[data-budget-form]');
+    const out = (k: string) => root.querySelector<HTMLElement>(`[data-out="${k}"]`);
+    const update = () => {
+      if (!form) return;
+      const data = new FormData(form);
+      const num = (k: string) => Math.max(0, Number(data.get(k)) || 0);
+      const boi = data.get('route') === 'boi';
+      const permits = num('permits');
+      const salary = num('salary');
+      const required = boi ? 0 : permits * b.thaiStaffPerPermit;
+      const staff = Math.max(num('staff'), required);
+      const capital = boi
+        ? b.boiMinCapital
+        : Math.max(b.standardMinCapital, permits * b.capitalPerPermit);
+      const sso = Math.min(salary * 0.05, b.ssoCap);
+      const payroll = staff * (salary + sso) * 12;
+      const office = data.get('office') ? b.office : [0, 0];
+      const low = b.registration[0] + b.accounting[0] + office[0] + payroll;
+      const high = b.registration[1] + b.accounting[1] + office[1] + payroll;
+      const set = (k: string, v: string) => {
+        const el = out(k);
+        if (el) el.textContent = v;
+      };
+      set('capital', thb(capital));
+      set('total', range([low, high]));
+      set('registration', range(b.registration));
+      set('accounting', range(b.accounting));
+      set('office', range(office));
+      set('payroll', thb(payroll));
+      set('headcount', String(staff));
+      const warning = out('warning');
+      if (warning) {
+        const short = required > num('staff');
+        warning.hidden = !short;
+        warning.classList.toggle('hidden', !short);
+        warning.textContent = short
+          ? `A standard company needs ${b.thaiStaffPerPermit} Thai employees per work permit, so the estimate counts ${required}.`
+          : '';
+      }
+    };
+    form?.addEventListener('input', update);
+    form?.addEventListener('submit', (e) => e.preventDefault());
+    update();
+  }
+
+  // Checklist: ticks saved in localStorage (may be unavailable in private windows).
+  const KEY = 'ftbkk-founders-guide-checklist';
+  for (const root of document.querySelectorAll<HTMLElement>('[data-checklist]')) {
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-item]')];
+    const label = root.querySelector<HTMLElement>('[data-progress-label]');
+    const bar = root.querySelector<HTMLElement>('[data-progress-bar]');
+    let saved: string[] = [];
+    try {
+      saved = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    } catch {
+      saved = [];
+    }
+    for (const box of boxes) box.checked = saved.includes(box.dataset.item ?? '');
+    const refresh = () => {
+      const done = boxes.filter((x) => x.checked);
+      const pct = boxes.length ? Math.round((done.length / boxes.length) * 100) : 0;
+      if (label) label.textContent = `${pct}%`;
+      if (bar) bar.style.width = `${pct}%`;
+      try {
+        localStorage.setItem(KEY, JSON.stringify(done.map((x) => x.dataset.item)));
+      } catch {
+        // Storage blocked: ticks just won't survive a reload.
+      }
+    };
+    for (const box of boxes) box.addEventListener('change', refresh);
+    root.querySelector('[data-reset]')?.addEventListener('click', () => {
+      for (const box of boxes) box.checked = false;
+      refresh();
+    });
+    refresh();
+  }
+</script>
