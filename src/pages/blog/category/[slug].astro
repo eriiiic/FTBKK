@@ -10,6 +10,9 @@ if (!category) return Astro.rewrite('/404');
 const posts = await allPosts(slug);
 ---
 
-<BaseLayout title={`${category.name} · Blog`}>
+<BaseLayout
+  title={`${category.name} · Blog`}
+  description={`${category.name}: articles from La French Tech Bangkok's blog on the French and Thai tech ecosystem.`}
+>
   <BlogIndex posts={posts} categories={categories} active={slug} heading={category.name} />
 </BaseLayout>

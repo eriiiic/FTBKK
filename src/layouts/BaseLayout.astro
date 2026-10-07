@@ -3,6 +3,7 @@ import '../styles/global.css';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getSettings } from '../lib/settings';
+import { DEFAULT_DESCRIPTION, siteUrl } from '../lib/site';
 
 interface Props {
   title?: string;
@@ -15,21 +16,33 @@ interface Props {
   cache?: boolean;
   /** Language of the page content, for the html lang attribute (the /th page is in Thai). */
   lang?: string;
+  /** Open Graph type: blog posts are articles, the rest are web pages. */
+  ogType?: 'website' | 'article';
+  /** Article dates for social previews (blog posts). */
+  published?: Date | null;
+  modified?: Date | null;
 }
 const settings = await getSettings();
 const {
   title,
-  description = settings.siteDescription,
+  description = settings.siteDescription || DEFAULT_DESCRIPTION,
   image,
-  canonical = new URL(Astro.url.pathname, Astro.site).href,
+  canonical = siteUrl(Astro.url.pathname),
   noindex = false,
   jsonLd,
   cache = true,
   lang = 'en',
+  ogType = 'website',
+  published,
+  modified,
 } = Astro.props;
-const fullTitle = title ? `${title} | ${settings.siteTitle}` : settings.siteTitle;
+// The home page title says what the site is about, as search results show it first.
+const fullTitle = title
+  ? `${title} | ${settings.siteTitle}`
+  : `${settings.siteTitle} | French tech community in Bangkok, Thailand`;
 // Pages without their own image share the French Tech Connect visual the Wix site used.
-const ogImage = new URL(image || '/brand/og-default.jpg', Astro.site).href;
+const ogImage = siteUrl(image || '/brand/og-default.jpg');
+const ogLocale = lang === 'th' ? 'th_TH' : 'en_US';
 Astro.response.headers.set(
   'Cache-Control',
   cache ? 'public, s-maxage=60, stale-while-revalidate=300' : 'private, no-store',
@@ -38,12 +51,26 @@ const orgLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'La French Tech Bangkok',
-  url: Astro.site?.href,
-  logo: new URL('/brand/icon-512.png', Astro.site).href,
+  alternateName: 'French Tech Bangkok',
+  url: siteUrl('/'),
+  logo: siteUrl('/brand/icon-512.png'),
   email: settings.contactEmail,
   sameAs: Object.values(settings.socials).filter(Boolean),
 };
-const ld = [orgLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [])];
+// The site name Google shows above results; only the home page needs to say it.
+const websiteLd =
+  Astro.url.pathname === '/'
+    ? [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: 'La French Tech Bangkok',
+          alternateName: 'French Tech Bangkok',
+          url: siteUrl('/'),
+        },
+      ]
+    : [];
+const ld = [orgLd, ...websiteLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [])];
 ---
 
 <!doctype html>
@@ -58,13 +85,21 @@ const ld = [orgLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="icon" href="/brand/icon-192.png" type="image/png" sizes="192x192" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="alternate" type="application/rss+xml" title="Blog" href="/rss.xml" />
-    <meta property="og:type" content="website" />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="La French Tech Bangkok blog"
+      href="/rss.xml"
+    />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:locale" content={ogLocale} />
     <meta property="og:site_name" content="La French Tech Bangkok" />
     <meta property="og:title" content={fullTitle} />
     {description && <meta property="og:description" content={description} />}
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
+    {published && <meta property="article:published_time" content={published.toISOString()} />}
+    {modified && <meta property="article:modified_time" content={modified.toISOString()} />}
     <meta name="twitter:card" content="summary_large_image" />
     <script type="application/ld+json" set:html={JSON.stringify(ld)} />
     {settings.analyticsToken && (

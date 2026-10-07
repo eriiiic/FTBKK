@@ -307,9 +307,8 @@ export interface RegistrationRow {
 
 // ---------- emails ----------
 
-export function siteUrl(path: string) {
-  return new URL(path, env.SITE_URL || 'https://www.french-tech-bangkok.com').href;
-}
+import { siteUrl } from './site';
+export { siteUrl };
 
 /** The "Manage or delete my data" page for a registration token (linked in every event email). */
 export const myDataUrl = (token: string) => siteUrl(myDataPath(token));

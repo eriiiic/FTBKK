@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { env } from 'cloudflare:workers';
 import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { auditLog, organisations, type Organisation } from '../db/schema';
@@ -52,9 +51,8 @@ export const REVIEWED_FIELDS = ['name', 'category', 'logoKey', 'website'] as con
 
 export const ORG_ARRAY_FIELDS = ['sectors'];
 
-export function siteUrl(path: string) {
-  return new URL(path, env.SITE_URL || 'https://www.french-tech-bangkok.com').href;
-}
+import { siteUrl } from './site';
+export { siteUrl };
 
 export async function orgBySlug(slug: string) {
   const [o] = await getDb()
