@@ -139,13 +139,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         </div>
       </div>
       <nav id="admin-menu" aria-label="Admin" class="hidden px-2 pb-4 md:block md:px-3">
-        {groups.map((g) => (
-          <div class="mb-3">
-            {g.label && (
-              <p class="px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-accent-soft uppercase">
-                {g.label}
-              </p>
-            )}
+        {groups.map((g) => {
+          const list = (
             <ul class="grid gap-0.5">
               {g.links.map((n) => (
                 <li>
@@ -159,8 +154,22 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
                 </li>
               ))}
             </ul>
-          </div>
-        ))}
+          );
+          // Labelled groups fold; the one holding the current page starts open.
+          return g.label ? (
+            <details class="group mb-1" data-menu-group={g.label} open={g === currentGroup}>
+              <summary class="flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold tracking-wider text-accent-soft uppercase hover:bg-paper/10 [&::-webkit-details-marker]:hidden">
+                {g.label}
+                <span aria-hidden="true" class="text-sm transition-transform group-open:rotate-90">
+                  ›
+                </span>
+              </summary>
+              <div class="pb-2">{list}</div>
+            </details>
+          ) : (
+            <div class="mb-1">{list}</div>
+          );
+        })}
         {adminEmail && <p class="px-3 pt-3 text-xs text-accent-soft">{adminEmail}</p>}
       </nav>
     </aside>
@@ -185,6 +194,23 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         const open = menuButton.getAttribute('aria-expanded') !== 'true';
         menuButton.setAttribute('aria-expanded', String(open));
         menu?.classList.toggle('hidden', !open);
+      });
+      // Menu groups remember being opened or closed (per browser); the current one always opens.
+      document.querySelectorAll<HTMLDetailsElement>('details[data-menu-group]').forEach((d) => {
+        const key = `admin-menu:${d.dataset.menuGroup}`;
+        try {
+          if (!d.open && localStorage.getItem(key) === 'open') d.open = true;
+        } catch {
+          // Storage blocked: groups just start closed.
+        }
+        // Only clicks count: the browser also fires "toggle" for the group opened on load.
+        d.querySelector('summary')?.addEventListener('click', () => {
+          try {
+            localStorage.setItem(key, d.open ? 'closed' : 'open');
+          } catch {
+            // Ignore.
+          }
+        });
       });
       document.querySelectorAll<HTMLElement>('[data-toast]').forEach((t) => {
         setTimeout(() => t.remove(), 6000);

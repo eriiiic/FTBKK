@@ -8,7 +8,8 @@ The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **
 (Members, Contacts, Messages, Reports, Board and speakers), **Ecosystem** (To review, All
 listings, Renewals), **Blog** (Posts, PDFs and files), **Website pages** (Home, About, Join, Tech
 Pulse, Thai page, Code of conduct and privacy: one screen per public page, each with its own Save
-button), **Emails** (Email the community, Automatic emails) and **Settings**. On a phone, open it with the
+button), **Emails** (Email the community, Automatic emails) and **Settings**. Click a group's title to fold or unfold it; the group of the page you are on is
+always open, and the others stay as you left them in this browser. On a phone, open it with the
 **Menu** button. Everyone who can sign in to the admin can do everything: there are no roles,
 owners or approval steps.
 
