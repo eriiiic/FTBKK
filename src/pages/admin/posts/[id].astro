@@ -26,6 +26,8 @@ import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
 import { authorColumns, moveByline, resolveAuthors } from '../../../lib/byline';
+import { postShareItem } from '../../../lib/social';
+import ShareImage from '../../../components/admin/ShareImage.astro';
 
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -166,15 +168,28 @@ if (Astro.request.method === 'POST') {
   }
 }
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+// The share image redraws itself in the browser when the title, byline or cover changed.
+const share = post ? await postShareItem(post) : null;
 ---
 
 <AdminLayout title={isNew ? 'New post' : 'Edit post'}>
-  {post?.status === 'published' && (
-    <p class="mb-4 text-sm">
-      <a href={`/blog/${post.slug}`} target="_blank" rel="noopener">
-        View on the site ↗
-      </a>
+  {post && (
+    <p class="mb-4 flex flex-wrap gap-4 text-sm">
+      {post.status === 'published' && (
+        <a href={`/blog/${post.slug}`} target="_blank" rel="noopener">
+          View on the site ↗
+        </a>
+      )}
+      <a href={`/admin/social/post/${post.id}`}>Share on social media</a>
     </p>
+  )}
+  {share && (
+    <ShareImage
+      spec={share.spec}
+      fingerprint={share.fingerprint}
+      url={share.imageUrl}
+      variant="auto"
+    />
   )}
   {Object.keys(errors).length > 0 && (
     <Alert tone="danger" class="mb-6">

@@ -1,0 +1,248 @@
+---
+import { and, desc, eq } from 'drizzle-orm';
+import { z } from 'zod';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import Alert from '../../../../components/Alert.astro';
+import Button from '../../../../components/Button.astro';
+import FormField from '../../../../components/FormField.astro';
+import ShareImage from '../../../../components/admin/ShareImage.astro';
+import SocialPostsTable from '../../../../components/admin/SocialPostsTable.astro';
+import { getDb } from '../../../../db';
+import { socialPosts } from '../../../../db/schema';
+import { toLocalInput } from '../../../../lib/admin';
+import { fieldErrors, formToObject } from '../../../../lib/forms';
+import { audit } from '../../../../lib/orgs';
+import {
+  defaultLaunchAt,
+  defaultReminderAt,
+  NETWORK_LABELS,
+  NETWORKS,
+  ScheduleSchema,
+  whatsappLink,
+} from '../../../../lib/share';
+import { connectedNetworks, loadShareItem, socialPostAction } from '../../../../lib/social';
+
+// Social media for one event or blog post: its share image, links to share it right away, and
+// posts scheduled for later (the launch post, and the day-before reminder of an event).
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const item = await loadShareItem(Astro.params.entity ?? '', Number(Astro.params.id));
+if (!item) return Astro.redirect('/admin/social');
+const now = new Date();
+const connected = connectedNetworks();
+const isEvent = item.entity === 'event';
+const upcoming = isEvent && item.startsAt && item.startsAt > now;
+
+let errors: Record<string, string> = {};
+let message: { tone: 'success' | 'danger'; text: string } | null = null;
+let values: Record<string, unknown> = {
+  networks: ['linkedin', 'facebook', 'whatsapp'],
+  launch: true,
+  launchAt: toLocalInput(defaultLaunchAt(now)),
+  launchText: item.launchText,
+  reminder: Boolean(upcoming),
+  reminderAt: item.startsAt ? toLocalInput(defaultReminderAt(item.startsAt)) : '',
+  reminderText: item.reminderText ?? '',
+};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  if (action === 'schedule') {
+    values = formToObject(form, ['networks']);
+    if (!isEvent) values.reminder = false;
+    const parsed = ScheduleSchema.safeParse(values);
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    else {
+      const rows = parsed.data.posts.map((p) => ({
+        entity: item.entity,
+        entityId: item.id,
+        kind: p.kind,
+        networks: parsed.data.networks,
+        text: p.text,
+        scheduledAt: p.at,
+        createdBy: actor,
+      }));
+      await db.insert(socialPosts).values(rows);
+      await audit(actor, 'schedule', 'social_post', item.id, null, {
+        entity: item.entity,
+        posts: rows.map((r) => ({ kind: r.kind, at: r.scheduledAt })),
+      });
+      return Astro.redirect(`${Astro.url.pathname}?saved=1`);
+    }
+  } else {
+    const id = z.coerce.number().int().positive().safeParse(form.get('id'));
+    if (id.success) message = await socialPostAction(action, id.data, actor, now);
+  }
+}
+
+const rows = await db
+  .select()
+  .from(socialPosts)
+  .where(and(eq(socialPosts.entity, item.entity), eq(socialPosts.entityId, item.id)))
+  .orderBy(desc(socialPosts.scheduledAt));
+const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
+const picked = new Set(values.networks as string[]);
+---
+
+<AdminLayout title={`Share on social media: ${item.title}`}>
+  <div class="mb-4 flex flex-wrap gap-4 text-sm">
+    <a href={item.editUrl}>← Edit the {isEvent ? 'event' : 'post'}</a>
+    {item.published && (
+      <a href={item.url} target="_blank" rel="noopener">
+        View on the site ↗
+      </a>
+    )}
+    <a href="/admin/social">All social media posts</a>
+  </div>
+
+  {message && (
+    <Alert tone={message.tone} class="mb-6">
+      {message.text}
+    </Alert>
+  )}
+  {!item.published && (
+    <Alert tone="warning" class="mb-6">
+      This {isEvent ? 'event' : 'post'} is not published. Scheduled posts about it are cancelled
+      when they fall due, so publish it first.
+    </Alert>
+  )}
+
+  <section class="admin-panel mb-6">
+    <h2 class="mb-1 text-lg">Share image</h2>
+    <p class="mb-4 text-sm text-muted">
+      Shown by LinkedIn, Facebook and WhatsApp when someone shares the link.
+    </p>
+    <ShareImage spec={item.spec} fingerprint={item.fingerprint} url={item.imageUrl} />
+  </section>
+
+  <section class="admin-panel mb-6">
+    <h2 class="mb-1 text-lg">Share now</h2>
+    <p class="mb-4 text-sm text-muted">
+      For a WhatsApp group or your own profile. The link shows the share image.
+    </p>
+    <pre class="mb-3 max-w-xl rounded-lg bg-surface p-3 text-sm whitespace-pre-wrap">{item.launchText}</pre>
+    <div class="flex flex-wrap gap-3">
+      <Button size="sm" data-copy={item.launchText}>
+        Copy the text
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        href={whatsappLink(item.launchText)}
+        target="_blank"
+        rel="noopener"
+      >
+        Open in WhatsApp
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(item.url)}`}
+        target="_blank"
+        rel="noopener"
+      >
+        Share on LinkedIn
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(item.url)}`}
+        target="_blank"
+        rel="noopener"
+      >
+        Share on Facebook
+      </Button>
+    </div>
+  </section>
+
+  <section class="admin-panel mb-6">
+    <h2 class="mb-1 text-lg">Schedule</h2>
+    <p class="mb-4 text-sm text-muted">
+      Posts go out on the hour.{' '}
+      {NETWORKS.filter((n) => n !== 'whatsapp')
+        .map(
+          (n) =>
+            `${NETWORK_LABELS[n]}: ${connected[n as 'linkedin' | 'facebook'] ? 'posted automatically on the page' : 'not connected yet, you get an email to post it yourself'}`,
+        )
+        .join('. ')}
+      . WhatsApp: you get an email with the text and a button that opens WhatsApp.
+    </p>
+    {Object.keys(errors).length > 0 && (
+      <Alert tone="danger" class="mb-4">
+        Please fix the fields marked below.
+      </Alert>
+    )}
+    <form method="post" class="grid max-w-xl gap-5">
+      <input type="hidden" name="action" value="schedule" />
+      <fieldset>
+        <legend class="mb-2 text-sm font-semibold">Where</legend>
+        <div class="flex flex-wrap gap-4">
+          {NETWORKS.map((n) => (
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="networks" value={n} checked={picked.has(n)} />
+              {NETWORK_LABELS[n]}
+            </label>
+          ))}
+        </div>
+        {errors.networks && <p class="mt-1 text-sm text-danger">{errors.networks}</p>}
+      </fieldset>
+
+      <fieldset class="grid gap-3 border-t border-line pt-4">
+        <label class="flex items-center gap-2 font-semibold">
+          <input type="checkbox" name="launch" checked={Boolean(values.launch)} />
+          {isEvent ? 'Announcement' : 'Post'}
+        </label>
+        {errors.launch && <p class="text-sm text-danger">{errors.launch}</p>}
+        <FormField
+          label="When (Bangkok time)"
+          name="launchAt"
+          type="datetime-local"
+          value={str('launchAt')}
+          error={errors.launchAt}
+        />
+        <FormField
+          label="Text"
+          name="launchText"
+          rows={7}
+          value={str('launchText')}
+          error={errors.launchText}
+        />
+      </fieldset>
+
+      {isEvent && (
+        <fieldset class="grid gap-3 border-t border-line pt-4">
+          <label class="flex items-center gap-2 font-semibold">
+            <input type="checkbox" name="reminder" checked={Boolean(values.reminder)} />
+            Reminder the day before
+          </label>
+          <FormField
+            label="When (Bangkok time)"
+            name="reminderAt"
+            type="datetime-local"
+            value={str('reminderAt')}
+            error={errors.reminderAt}
+          />
+          <FormField
+            label="Text"
+            name="reminderText"
+            rows={5}
+            value={str('reminderText')}
+            error={errors.reminderText}
+          />
+          <p class="text-sm text-muted">
+            If the event moves to another day, the reminder is cancelled instead of posted.
+          </p>
+        </fieldset>
+      )}
+      <div>
+        <Button type="submit">Schedule</Button>
+      </div>
+    </form>
+  </section>
+
+  <section class="admin-panel">
+    <h2 class="mb-4 text-lg">Planned and sent</h2>
+    <SocialPostsTable rows={rows} />
+  </section>
+</AdminLayout>

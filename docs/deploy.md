@@ -101,7 +101,39 @@ Until this is done, no email is sent (confirmations, reminders and listing links
    Any verified domain works: change `EMAIL_FROM` in `wrangler.jsonc` and deploy. A value set only
    in the Cloudflare dashboard is overwritten by the next deploy.
 
-## 7. In the admin
+## 7. Connect LinkedIn and Facebook (optional)
+
+Until this is done, scheduled social media posts arrive by email to post by hand (Admin > Social
+media says which pages are connected). WhatsApp has no posting API and always works by email.
+
+**Facebook page**
+
+1. At developers.facebook.com create an app (type Business) and add the Pages API.
+2. In the Graph API Explorer, pick the app, ask for `pages_manage_posts` and
+   `pages_read_engagement`, then get a **Page** access token for La French Tech Bangkok's page.
+   Exchange it for a long-lived one (Access Token Debugger > Extend): a page token made from a
+   long-lived user token does not expire.
+3. Put the page's numeric ID in `FACEBOOK_PAGE_ID` in `wrangler.jsonc` and deploy, then add the
+   token as a secret: Worker > Settings > Variables and Secrets > Add > Secret, name
+   `FACEBOOK_PAGE_TOKEN` (or `npx wrangler secret put FACEBOOK_PAGE_TOKEN`).
+
+**LinkedIn page**
+
+1. At linkedin.com/developers create an app linked to the La French Tech Bangkok page (a page
+   admin must verify it), then request the **Community Management API** product. LinkedIn
+   reviews this request; it can take some days.
+2. Once granted, generate a token with the `w_organization_social` scope for a page admin
+   (Auth > OAuth 2.0 tools). It lasts 60 days: when it expires, the scheduled post falls back to the
+   email and the error says to renew it.
+3. Put the page's numeric ID (in the page admin URL, `/company/<id>/admin`) in
+   `LINKEDIN_ORGANIZATION_ID` in `wrangler.jsonc` and deploy, then add the secret
+   `LINKEDIN_ACCESS_TOKEN`.
+
+Link previews (on Facebook, and when you paste a link in WhatsApp or LinkedIn) read the page's
+share image, so the site must be reachable without the Access login: Access must only cover
+`/admin` and `/api/admin`.
+
+## 8. In the admin
 
 - Settings > **Directory moderators**: who gets listing requests and the Monday digest.
 - Settings > **Cloudflare Web Analytics token** (Dashboard > Analytics & Logs > Web Analytics >

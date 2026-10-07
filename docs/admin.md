@@ -394,6 +394,32 @@ enrolment at check-in.
   `{contactEmail}` becomes a mail link; emptying the field brings the default back. It is linked
   in the footer and under every registration form.
 
+## Social media
+
+Every event and blog post has a **share image** (1200x630): the logo, a red label (French Tech
+Connect, French Tech Talk, the series, or Blog), the title, the date and venue or the author, and
+the cover photo. It is what LinkedIn, Facebook and WhatsApp show when someone shares the link. You
+don't have to do anything: when you open an event or post in the admin and its title, date, venue
+or photo changed, the image is redrawn in your browser. **Admin > Social media** has a button to
+make the missing ones for upcoming events and recent posts at once.
+
+**Share on social media** (link at the top of an event or post, or from Admin > Social media):
+
+- **Share image**: preview, Download, Redraw.
+- **Share now**: the ready text, Copy, Open in WhatsApp (pick the group), Share on LinkedIn or
+  Facebook (your own profile).
+- **Schedule**: tick LinkedIn, Facebook, WhatsApp, then the announcement (date and time, text) and,
+  for an event, the reminder the day before (09:00 by default, text). Times are Bangkok time;
+  posts go out on the hour.
+
+When a post is due, LinkedIn and Facebook are posted on the pages automatically once connected
+(`docs/deploy.md`, section 7). Otherwise, and always for WhatsApp, you get an email with the text,
+the link and, for WhatsApp, a button that opens WhatsApp with the text ready. If an automatic post
+fails (for example an expired LinkedIn token), you get the same email with the reason. A post about
+a cancelled or unpublished event or post is cancelled, and so is a reminder whose event moved to
+another day. **Post now** sends a scheduled post at once; **Cancel** stops it. Admin > Social media
+lists what is scheduled and what went out, with links to the published posts.
+
 ## Emails
 
 **Emails > Automatic emails** lists every email the site sends by itself, grouped, with who gets each one

@@ -1,0 +1,168 @@
+---
+import { and, asc, desc, eq, gte, inArray, ne } from 'drizzle-orm';
+import { z } from 'zod';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Alert from '../../../components/Alert.astro';
+import Button from '../../../components/Button.astro';
+import ShareImage from '../../../components/admin/ShareImage.astro';
+import SocialPostsTable from '../../../components/admin/SocialPostsTable.astro';
+import { getDb } from '../../../db';
+import { events, posts, socialPosts } from '../../../db/schema';
+import { formatDate } from '../../../lib/format';
+import { getSettings } from '../../../lib/settings';
+import {
+  connectedNetworks,
+  eventShareItem,
+  postShareItem,
+  socialPostAction,
+} from '../../../lib/social';
+
+// Social media overview: what is scheduled, what went out, and the events and posts to share.
+const db = getDb();
+const actor = Astro.locals.adminEmail ?? 'admin';
+const now = new Date();
+let message: { tone: 'success' | 'danger'; text: string } | null = null;
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const id = z.coerce.number().int().positive().safeParse(form.get('id'));
+  if (id.success) message = await socialPostAction(String(form.get('action')), id.data, actor, now);
+}
+
+const settings = await getSettings();
+const [upcomingEvents, recentPosts, planned, past] = await Promise.all([
+  db
+    .select()
+    .from(events)
+    .where(and(eq(events.status, 'published'), gte(events.startsAt, now)))
+    .orderBy(asc(events.startsAt)),
+  db
+    .select()
+    .from(posts)
+    .where(eq(posts.status, 'published'))
+    .orderBy(desc(posts.publishedAt))
+    .limit(10),
+  db
+    .select()
+    .from(socialPosts)
+    .where(eq(socialPosts.status, 'scheduled'))
+    .orderBy(asc(socialPosts.scheduledAt)),
+  db
+    .select()
+    .from(socialPosts)
+    .where(ne(socialPosts.status, 'scheduled'))
+    .orderBy(desc(socialPosts.scheduledAt))
+    .limit(50),
+]);
+const items = [
+  ...(await Promise.all(upcomingEvents.map((e) => eventShareItem(e, settings.eventCovers)))),
+  ...(await Promise.all(recentPosts.map(postShareItem))),
+];
+
+// Titles of what the scheduled and past posts are about.
+const rows = [...planned, ...past];
+const ids = (entity: 'event' | 'post') => [
+  ...new Set(rows.filter((r) => r.entity === entity).map((r) => r.entityId)),
+];
+const [eventTitles, postTitles] = await Promise.all([
+  ids('event').length
+    ? db
+        .select({ id: events.id, title: events.title })
+        .from(events)
+        .where(inArray(events.id, ids('event')))
+    : [],
+  ids('post').length
+    ? db
+        .select({ id: posts.id, title: posts.title })
+        .from(posts)
+        .where(inArray(posts.id, ids('post')))
+    : [],
+]);
+const about = new Map<string, { title: string; href: string }>();
+for (const e of eventTitles)
+  about.set(`event:${e.id}`, { title: e.title, href: `/admin/social/event/${e.id}` });
+for (const p of postTitles)
+  about.set(`post:${p.id}`, { title: p.title, href: `/admin/social/post/${p.id}` });
+const connected = connectedNetworks();
+const missing = items.filter((i) => !i.imageUrl).length;
+---
+
+<AdminLayout title="Social media">
+  <p class="mb-6 max-w-2xl text-sm text-muted">
+    Every event and blog post has a share image, made by itself. Open one below to share it now or
+    schedule its announcement and, for an event, a reminder the day before.
+  </p>
+  {message && (
+    <Alert tone={message.tone} class="mb-6">
+      {message.text}
+    </Alert>
+  )}
+
+  <section class="admin-panel mb-6">
+    <h2 class="mb-2 text-lg">Connected pages</h2>
+    <ul class="grid gap-1 text-sm">
+      <li>
+        <strong>LinkedIn:</strong>{' '}
+        {connected.linkedin
+          ? 'connected, posts go out automatically.'
+          : 'not connected. Due posts arrive by email to post by hand.'}
+      </li>
+      <li>
+        <strong>Facebook:</strong>{' '}
+        {connected.facebook
+          ? 'connected, posts go out automatically.'
+          : 'not connected. Due posts arrive by email to post by hand.'}
+      </li>
+      <li>
+        <strong>WhatsApp:</strong> no automatic posting to groups exists. Due posts arrive by email
+        with a button that opens WhatsApp with the text.
+      </li>
+    </ul>
+  </section>
+
+  <section class="admin-panel mb-6">
+    <h2 class="mb-4 text-lg">Scheduled</h2>
+    <SocialPostsTable rows={planned} about={about} />
+  </section>
+
+  <section class="admin-panel mb-6">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <h2 class="text-lg">Upcoming events and recent posts</h2>
+      {missing > 0 && (
+        <Button size="sm" variant="secondary" data-share-batch>
+          Make {missing} missing share {missing === 1 ? 'image' : 'images'}
+        </Button>
+      )}
+    </div>
+    {items.length === 0 ? (
+      <p class="text-sm text-muted">No upcoming event or published post.</p>
+    ) : (
+      <ul class="divide-y divide-line">
+        {items.map((i) => (
+          <li class="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+            <span>
+              <span class="text-muted">
+                {i.entity === 'event' ? formatDate(i.startsAt!) : 'Blog'}
+              </span>{' '}
+              · {i.title}
+              {!i.imageUrl && <span class="text-muted"> (no share image yet)</span>}
+            </span>
+            <a href={`/admin/social/${i.entity}/${i.id}`} class="font-semibold">
+              Share or schedule
+            </a>
+            <ShareImage
+              spec={i.spec}
+              fingerprint={i.fingerprint}
+              url={i.imageUrl}
+              variant="batch"
+            />
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="admin-panel">
+    <h2 class="mb-4 text-lg">History</h2>
+    <SocialPostsTable rows={past} about={about} />
+  </section>
+</AdminLayout>

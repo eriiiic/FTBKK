@@ -175,7 +175,8 @@ export type TemplateKey =
   | 'admin.claim-to-review'
   | 'admin.change-to-review'
   | 'admin.membership-application'
-  | 'admin.directory-digest';
+  | 'admin.directory-digest'
+  | 'admin.social-post';
 
 /** Every email built from a template, in the order of the admin list. */
 export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
@@ -813,6 +814,43 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
         ['Oldest item', '9 days'],
         ['Renewals due this month', '2 (1 unclaimed)'],
       ],
+    },
+  },
+  'admin.social-post': {
+    label: 'Social media post to publish by hand',
+    group: 'Admin notifications',
+    audience: 'The admin who scheduled the post',
+    trigger:
+      'At the time set in Social media, for WhatsApp, and for LinkedIn or Facebook while the page is not connected (or when posting failed)',
+    subject: 'Time to post on {networks}: {title}',
+    body: 'Your post about {title} is due on {networks}. Copy the text below and paste it with the link; the link shows the share image.\n\n{text}\n\n{errors}',
+    buttonLabel: 'Open WhatsApp with this text',
+    buttonNote: 'Only when WhatsApp is one of the networks',
+    placeholders: [
+      { key: 'title', description: 'The event or post title', sample: SAMPLE_EVENT },
+      { key: 'networks', description: 'Where to post it', sample: 'WhatsApp, LinkedIn' },
+      {
+        key: 'text',
+        description: 'The text of the post, one paragraph per paragraph when on a line of its own',
+        sample: `${SAMPLE_EVENT}\nThu 5 November 2026 · 18:30, True Digital Park\nRegister: ${sampleEventUrl}`,
+        list: true,
+      },
+      {
+        key: 'errors',
+        description: 'Why an automatic post failed, if it did (empty otherwise)',
+        sample: '',
+        list: true,
+      },
+    ],
+    required: ['text'],
+    added: 'The link and the image address, and a link to Social media in the admin.',
+    preview: {
+      buttonUrl: 'https://wa.me/?text=sample',
+      details: [
+        ['Link', sampleEventUrl],
+        ['Image', `${SITE}/media/share/event-1-0123456789.jpg`],
+      ],
+      links: [{ label: 'Social media in the admin', url: `${SITE}/admin/social` }],
     },
   },
 };

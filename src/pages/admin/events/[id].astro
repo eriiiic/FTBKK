@@ -22,6 +22,8 @@ import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
 import { getSettings } from '../../../lib/settings';
+import { eventShareItem } from '../../../lib/social';
+import ShareImage from '../../../components/admin/ShareImage.astro';
 import { sendEventCancelled } from '../../../lib/registrations';
 import {
   MAX_FILES_PER_UPLOAD,
@@ -502,6 +504,8 @@ const KINDS = [
   { value: 'talk', label: TALK },
   { value: 'other', label: 'Other' },
 ];
+// The share image redraws itself in the browser when the title, date, venue or cover changed.
+const share = event ? await eventShareItem(event, settings.eventCovers) : null;
 ---
 
 <AdminLayout title={isNew ? 'New event' : 'Edit event'}>
@@ -514,9 +518,18 @@ const KINDS = [
       )}
       <a href={`/admin/registrations?event=${event.id}`}>Registrations</a>
       <a href={`/admin/events/${event.id}/email`}>Email registrants</a>
+      <a href={`/admin/social/event/${event.id}`}>Share on social media</a>
       {event.startsAt < new Date() && <a href={`/admin/events/${event.id}/feedback`}>Feedback</a>}
       <a href={`/admin/events/new?from=${event.id}`}>Duplicate</a>
     </div>
+  )}
+  {share && (
+    <ShareImage
+      spec={share.spec}
+      fingerprint={share.fingerprint}
+      url={share.imageUrl}
+      variant="auto"
+    />
   )}
   {event?.status === 'cancelled' && (
     <Alert tone="warning" class="mb-6">

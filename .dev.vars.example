@@ -11,3 +11,6 @@ DEV_ADMIN_EMAIL=admin@example.com
 # DEV_SKIP_TURNSTILE=1
 # Links in emails point here during local development.
 SITE_URL=http://localhost:4321
+# Social media page tokens (Admin > Social media). Leave empty locally: due posts are emailed.
+LINKEDIN_ACCESS_TOKEN=
+FACEBOOK_PAGE_TOKEN=
