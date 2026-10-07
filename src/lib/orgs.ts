@@ -2,7 +2,13 @@ import { z } from 'zod';
 import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { auditLog, organisations, type Organisation } from '../db/schema';
-import { CATEGORY_KEYS, PARTNER_TYPE_KEYS, SECTORS, STAGES } from './directory';
+import {
+  CATEGORY_KEYS,
+  SECTORS,
+  STAGES,
+  partnerGroupList,
+  type PartnerGroupRow,
+} from './directory';
 import { email, optionalText, optionalUrl } from './forms';
 import { getSettings } from './settings';
 import { sendEmail } from './email';
@@ -116,11 +122,52 @@ export async function saveOrgNotes({ id, adminNotes }: z.infer<typeof OrgNotesFo
     .where(eq(organisations.id, id));
 }
 
+/** A partner group's key (checked against the saved groups by checkPartnerGroup). */
+export const partnerKey = z.string().regex(/^[a-z0-9-]{1,40}$/, 'Choose a partner group.');
+
+/** The current partner groups (Admin > Ecosystem > Partners, else the defaults). */
+export async function getPartnerGroups() {
+  return partnerGroupList((await getSettings()).partnerGroups);
+}
+
+/** An error when `key` is not one of the current groups (it was removed meanwhile). */
+export async function checkPartnerGroup(key: string | null) {
+  if (!key) return null;
+  return (await getPartnerGroups()).some((g) => g.key === key)
+    ? null
+    : 'That partner group no longer exists.';
+}
+
+/** The partner group editor of Ecosystem > Partners: parallel arrays, one entry per row. */
+export const PartnerGroupsForm = z.object({
+  groupKey: z.array(z.union([z.literal(''), partnerKey])).max(50),
+  groupLabel: z.array(z.string().max(60)).max(50),
+  groupBlurb: z.array(z.string().max(200)).max(50),
+  groupPosition: z.array(z.coerce.number().int().min(0).max(999)).max(50),
+  groupRemove: z.array(partnerKey).max(50),
+});
+
+/** The editor's rows sorted by the position typed (ties keep the order shown). */
+export function partnerGroupRows(f: z.infer<typeof PartnerGroupsForm>): PartnerGroupRow[] {
+  const removed = new Set(f.groupRemove);
+  return f.groupKey
+    .map((key, i) => ({
+      key,
+      label: f.groupLabel[i] ?? '',
+      blurb: f.groupBlurb[i] ?? '',
+      remove: !!key && removed.has(key),
+      position: f.groupPosition[i] ?? i,
+      i,
+    }))
+    .sort((a, b) => a.position - b.position || a.i - b.i)
+    .map(({ key, label, blurb, remove }) => ({ key, label, blurb, remove }));
+}
+
 /** One partner row of Ecosystem > Partners: its group (empty = no longer a partner), order, Home. */
 export const PartnerForm = z.object({
   id: z.coerce.number().int().positive(),
   partnerType: z
-    .union([z.literal(''), z.enum(PARTNER_TYPE_KEYS)])
+    .union([z.literal(''), partnerKey])
     .optional()
     .transform((v) => v || null),
   partnerOrder: z.coerce.number().int().min(0).max(999).default(0),

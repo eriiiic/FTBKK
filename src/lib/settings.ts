@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { DEFAULT_CODE_OF_CONDUCT } from './code-of-conduct';
 import { DEFAULT_PRIVACY_NOTICE } from './privacy';
+import type { PartnerGroup } from './directory';
 
 /** Site-wide settings, editable in /admin/settings and /admin/site-texts. Stored as key/JSON rows in the settings table. */
 export interface Settings {
@@ -59,6 +60,8 @@ export interface Settings {
   memberSignupOpen: boolean;
   memberPriority: boolean;
   analyticsToken: string;
+  /** Partner groups (Admin > Ecosystem > Partners); empty = DEFAULT_PARTNER_GROUPS. */
+  partnerGroups: PartnerGroup[];
   /** Contacts > Possible duplicates: pairs marked "not the same person" (see pairKey). */
   notDuplicates: string[];
 }
@@ -99,6 +102,7 @@ export const defaultSettings: Settings = {
   memberPriority: false,
   analyticsToken: '',
   notDuplicates: [],
+  partnerGroups: [],
 };
 
 export type Card = { title: string; text: string; link?: string };

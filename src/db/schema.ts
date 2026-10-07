@@ -297,18 +297,8 @@ export const organisations = sqliteTable(
     submittedAt: ts('submitted_at'),
     /** The team's private notes on the listing (admin only, never shown on the site). */
     adminNotes: text('admin_notes'),
-    /** Partner of La French Tech Bangkok (PARTNER_TYPES in lib/directory.ts); null = not one. */
-    partnerType: text('partner_type', {
-      enum: [
-        'institutional',
-        'corporate',
-        'investor',
-        'coworking',
-        'expert',
-        'academic',
-        'community',
-      ],
-    }),
+    /** Partner of La French Tech Bangkok: the key of its group (settings.partnerGroups); null = not one. */
+    partnerType: text('partner_type'),
     /** Position within its partner group and in the Home strip (smaller first). */
     partnerOrder: integer('partner_order').notNull().default(0),
     /** Shown in "They support La French Tech Bangkok" on Home. */

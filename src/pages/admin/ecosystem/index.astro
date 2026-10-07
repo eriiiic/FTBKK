@@ -1,6 +1,6 @@
 ---
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
@@ -9,16 +9,22 @@ import { getDb } from '../../../db';
 import { auditLog, organisations } from '../../../db/schema';
 import ReviewCard from '../../../components/admin/ReviewCard.astro';
 import { MODERATION_TARGET_DAYS, daysUntil } from '../../../lib/lifecycle';
-import { OrgNotesForm, PartnerForm, orgById, saveOrgNotes, savePartner } from '../../../lib/orgs';
+import {
+  OrgNotesForm,
+  PartnerForm,
+  PartnerGroupsForm,
+  audit,
+  checkPartnerGroup,
+  getPartnerGroups,
+  orgById,
+  partnerGroupRows,
+  saveOrgNotes,
+  savePartner,
+} from '../../../lib/orgs';
+import { saveSettings } from '../../../lib/settings';
 import { inviteToClaim } from '../../../lib/admin';
 import { DecisionForm, decide, reviewItems } from '../../../lib/moderation';
-import {
-  CATEGORIES,
-  ORG_STATUSES,
-  PARTNER_TYPES,
-  PARTNER_TYPE_KEYS,
-  partnerGroups,
-} from '../../../lib/directory';
+import { CATEGORIES, ORG_STATUSES, editPartnerGroups, partnerGroups } from '../../../lib/directory';
 import { formatDate } from '../../../lib/format';
 
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -31,16 +37,42 @@ const tabs = [
 ] as const;
 const tab = tabs.find((t) => t.key === Astro.url.searchParams.get('tab'))?.key ?? 'queue';
 let error = '';
+const partnerGroupList = await getPartnerGroups();
 
 if (Astro.request.method === 'POST') {
-  const form = Object.fromEntries(await Astro.request.formData());
+  const fd = await Astro.request.formData();
+  const form = Object.fromEntries(fd);
   if (form.action === 'partner') {
     const parsed = PartnerForm.safeParse(form);
-    if (parsed.success) {
+    const groupError = parsed.success ? await checkPartnerGroup(parsed.data.partnerType) : null;
+    if (parsed.success && !groupError) {
       await savePartner(parsed.data, actor);
       return Astro.redirect(`/admin/ecosystem?tab=partners&saved=1#org-${parsed.data.id}`, 303);
     }
-    error = 'Pick an organisation and a partner group.';
+    error = groupError ?? 'Pick an organisation and a partner group.';
+  } else if (form.action === 'groups') {
+    // The group editor: one row per group in the order shown, plus an empty row for a new one.
+    const parsed = PartnerGroupsForm.safeParse({
+      groupKey: fd.getAll('groupKey'),
+      groupLabel: fd.getAll('groupLabel'),
+      groupBlurb: fd.getAll('groupBlurb'),
+      groupPosition: fd.getAll('groupPosition'),
+      groupRemove: fd.getAll('groupRemove'),
+    });
+    const rows = parsed.success ? partnerGroupRows(parsed.data) : [];
+    const used = await getDb()
+      .selectDistinct({ key: organisations.partnerType })
+      .from(organisations)
+      .where(isNotNull(organisations.partnerType));
+    const result = parsed.success
+      ? editPartnerGroups(rows, partnerGroupList, new Set(used.map((u) => u.key!)))
+      : { error: 'Group names are 60 characters at most, their line of text 200.' };
+    if ('groups' in result) {
+      await saveSettings({ partnerGroups: result.groups });
+      await audit(actor, 'partner_groups', 'settings', null, partnerGroupList, result.groups);
+      return Astro.redirect('/admin/ecosystem?tab=partners&saved=1#groups', 303);
+    }
+    error = result.error;
   } else if (form.action === 'notes') {
     // Back to the same filtered list, scrolled to the listing.
     const parsed = OrgNotesForm.safeParse(form);
@@ -95,7 +127,9 @@ const all =
 // published listings that could become one.
 const partnerRows =
   tab === 'partners' ? await db.select().from(organisations).orderBy(asc(organisations.name)) : [];
-const groups = partnerGroups(partnerRows.filter((o) => o.partnerType));
+const groups = partnerGroups(partnerRows, partnerGroupList);
+const groupLabel = (key: string) => partnerGroupList.find((g) => g.key === key)?.label ?? key;
+const groupCounts = new Map(groups.map((g) => [g.key, g.items.length]));
 const candidates = partnerRows.filter((o) => !o.partnerType && o.status === 'published');
 
 const renewals =
@@ -228,9 +262,7 @@ const short = (v: unknown) => {
                   <span class="block text-xs text-muted">{o.badges.join(', ')}</span>
                 )}
                 {o.partnerType && (
-                  <span class="block text-xs text-muted">
-                    Partner: {PARTNER_TYPES[o.partnerType].label}
-                  </span>
+                  <span class="block text-xs text-muted">Partner: {groupLabel(o.partnerType)}</span>
                 )}
               </td>
               <td>{CATEGORIES[o.category].short}</td>
@@ -308,8 +340,8 @@ const short = (v: unknown) => {
             required
             class="mt-1 block rounded-lg border border-line px-3 py-2"
           >
-            {PARTNER_TYPE_KEYS.map((k) => (
-              <option value={k}>{PARTNER_TYPES[k].label}</option>
+            {partnerGroupList.map((g) => (
+              <option value={g.key}>{g.label}</option>
             ))}
           </select>
         </div>
@@ -365,9 +397,9 @@ const short = (v: unknown) => {
                       class="rounded-lg border border-line px-2 py-1 text-sm"
                     >
                       <option value="">Not a partner</option>
-                      {PARTNER_TYPE_KEYS.map((k) => (
-                        <option value={k} selected={k === o.partnerType}>
-                          {PARTNER_TYPES[k].label}
+                      {partnerGroupList.map((pg) => (
+                        <option value={pg.key} selected={pg.key === o.partnerType}>
+                          {pg.label}
                         </option>
                       ))}
                     </select>
@@ -409,6 +441,84 @@ const short = (v: unknown) => {
           </table>
         </section>
       ))}
+      <form method="post" id="groups" class="admin-panel grid scroll-mt-4 gap-4">
+        <input type="hidden" name="action" value="groups" />
+        <div>
+          <h2 class="text-lg">Partner groups</h2>
+          <p class="text-sm text-muted">
+            The groups of the Partners section on the Ecosystem page, in this order (smaller
+            position first). Rename one, change its line of text, add one in the empty row, or tick
+            Remove (only a group with no partners can be removed).
+          </p>
+        </div>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>Name</th>
+              <th>Line of text</th>
+              <th>Partners</th>
+              <th>Remove</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...partnerGroupList, { key: '', label: '', blurb: '' }].map((g, i) => (
+              <tr>
+                <td>
+                  <input type="hidden" name="groupKey" value={g.key} />
+                  <input
+                    name="groupPosition"
+                    type="number"
+                    min="0"
+                    value={i + 1}
+                    aria-label={g.key ? `Position of ${g.label}` : 'Position of the new group'}
+                    class="w-16 rounded-lg border border-line px-2 py-1 text-sm"
+                  />
+                </td>
+                <td>
+                  <input
+                    name="groupLabel"
+                    value={g.label}
+                    maxlength={60}
+                    placeholder={g.key ? '' : 'New group, e.g. Media partners'}
+                    aria-label={g.key ? `Name of ${g.label}` : 'Name of the new group'}
+                    class="w-full min-w-48 rounded-lg border border-line px-2 py-1 text-sm"
+                  />
+                </td>
+                <td>
+                  <input
+                    name="groupBlurb"
+                    value={g.blurb}
+                    maxlength={200}
+                    aria-label={
+                      g.key ? `Line of text of ${g.label}` : 'Line of text of the new group'
+                    }
+                    class="w-full min-w-64 rounded-lg border border-line px-2 py-1 text-sm"
+                  />
+                </td>
+                <td>{g.key ? (groupCounts.get(g.key) ?? 0) : ''}</td>
+                <td>
+                  {g.key && (
+                    <input
+                      type="checkbox"
+                      name="groupRemove"
+                      value={g.key}
+                      disabled={(groupCounts.get(g.key) ?? 0) > 0}
+                      aria-label={`Remove ${g.label}`}
+                      class="accent-brand"
+                    />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div>
+          <Button type="submit" size="sm" variant="secondary">
+            Save groups
+          </Button>
+        </div>
+      </form>
     </div>
   )}
 
