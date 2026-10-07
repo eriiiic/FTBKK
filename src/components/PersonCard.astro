@@ -15,7 +15,7 @@ const { person } = Astro.props;
 const photo = mediaUrl(person.photoKey);
 ---
 
-<div class="flex flex-col items-center text-center">
+<div class="flex h-full flex-col items-center text-center">
   {photo ? (
     <img
       src={photo}
@@ -36,7 +36,7 @@ const photo = mediaUrl(person.photoKey);
   {person.organisation && <p class="text-sm font-semibold text-ink">{person.organisation}</p>}
   <slot />
   {person.linkedin && (
-    <a href={person.linkedin} class="mt-2 text-accent hover:text-navy" rel="noopener">
+    <a href={person.linkedin} class="mt-auto pt-2 text-accent hover:text-navy" rel="noopener">
       <Icon name="linkedin" class="size-5" label={`${person.name} on LinkedIn`} />
     </a>
   )}
