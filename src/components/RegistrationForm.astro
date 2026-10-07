@@ -12,7 +12,10 @@ interface Props {
   state: RegistrationState;
   errors?: Record<string, string>;
   values?: Record<string, unknown>;
-  result?: { status: 'registered' | 'waitlist' | 'duplicate' | 'joined'; email: string } | null;
+  result?: {
+    status: 'registered' | 'waitlist' | 'duplicate' | 'joined' | 'invited';
+    email: string;
+  } | null;
   /** Membership is open: members register with their email, newcomers join first (free). */
   membersOnly?: boolean;
   /** Members only: 'join' shows the membership form for an email that isn't a member yet. */
@@ -33,7 +36,13 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
 <div id="register" class="scroll-mt-24 rounded-card border border-line p-6">
   <h2 class="text-xl">Registration</h2>
   {result ? (
-    result.status === 'joined' ? (
+    result.status === 'invited' ? (
+      <Alert tone="success" class="mt-4">
+        Welcome back! You've been to our events before, so we've emailed {result.email} a link with
+        your details filled in. Check them and you become a member (it's free) and are registered
+        for this event. Nothing in your inbox? Check the spam folder.
+      </Alert>
+    ) : result.status === 'joined' ? (
       <Alert tone="success" class="mt-4">
         Almost there: we've sent an email to {result.email}. Click the link in it to confirm your
         email: you become a member and you're registered for this event.

@@ -48,6 +48,15 @@ const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
       hint={walkIn ? 'Add one to save notes and to group their future registrations.' : undefined}
     />
     <FormField
+      name="otherEmails"
+      label="Other emails"
+      rows={2}
+      maxlength={2000}
+      value={v('otherEmails')}
+      error={errors.otherEmails}
+      hint="One per line. Registrations and sign-ups with these count as this person. Emails from Contacts go to the main email."
+    />
+    <FormField
       name="phone"
       label="Phone"
       type="tel"

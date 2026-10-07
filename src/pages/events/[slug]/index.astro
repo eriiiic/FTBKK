@@ -32,6 +32,8 @@ import {
 } from '../../../lib/registrations';
 import {
   MemberSignupSchema,
+  inviteForEvent,
+  knownNonMember,
   memberByEmail,
   memberRegistration,
   requestMembership,
@@ -77,7 +79,7 @@ let step: 'email' | 'join' = 'email';
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = {};
 let result: {
-  status: 'registered' | 'waitlist' | 'duplicate' | 'joined';
+  status: 'registered' | 'waitlist' | 'duplicate' | 'joined' | 'invited';
   email: string;
 } | null = null;
 if (isPost) {
@@ -136,9 +138,21 @@ if (isPost) {
       errors.form = 'Too many registrations from your connection. Please try again later.';
     else {
       const m = await memberByEmail(parsed.data.email);
+      const known =
+        m?.status === 'active' || m?.status === 'suspended'
+          ? null
+          : await knownNonMember(parsed.data.email);
       if (m?.status === 'active') await register(memberRegistration(m, parsed.data.note));
       else if (m?.status === 'suspended') errors.form = suspended;
-      else {
+      else if (known && state.open) {
+        // Someone we know from past events: a prefilled form by email instead of an empty one.
+        if (!(await rateLimit(`member:${parsed.data.email}`, 3, 86400)))
+          errors.form = 'Too many requests for this email. Please try again tomorrow.';
+        else {
+          await inviteForEvent(known, parsed.data.email, event, now);
+          result = { status: 'invited', email: parsed.data.email };
+        }
+      } else {
         step = 'join';
         values = { ...parsed.data, photoConsent: true };
       }

@@ -78,7 +78,13 @@ uses any more.
   the email (plus the optional note and the photo notice). A member is registered straight away
   with the details of their membership. Anyone else gets the free membership form right there;
   they receive one email, and clicking it makes them a member and registers them (or puts them
-  on the waitlist if the event filled up meanwhile).
+  on the waitlist if the event filled up meanwhile). Someone we already know (they registered
+  before, for example in the Wix guest lists, or have a contact card, under any of their emails)
+  isn't asked to type everything again: the box says "Welcome back" and we email them a link to
+  a form filled in with what we know; submitting it makes them a member and registers them.
+- **Emails need the Resend domain.** Until the domain is verified in Resend and `EMAIL_FROM` uses
+  it, emails only reach the Resend account owner, so testers and members get no confirmation.
+  The Dashboard and Settings > Membership show a warning while that is the case.
 - While membership is closed, people register on the event page with the full form (name, email,
   company, role, photo notice, and an optional newsletter box, unticked by default). They get a
   confirmation with a calendar invite and a cancel link, and a reminder the day before.
@@ -130,16 +136,22 @@ uses any more.
   an active membership. It needs an email. Suspended or lapsed memberships are changed in
   Members. Changing a contact's email moves their membership with it.
 - **Merge duplicates**: tick 2 to 10 contacts (for example the same person with a work and a
-  personal email, or a walk-in typed differently) and click **Merge…**. Pick the one to keep:
-  its name and email stay. All registrations, attendance and feedback move to it; if two of them
+  personal email, or a walk-in typed differently) and click **Merge…**. Pick the **main email**
+  (the one we write to), tick the **other emails to keep**, and where their name, phone,
+  company, role or LinkedIn differ, pick the value to keep (a detail only one of them has is
+  kept). All registrations, attendance and feedback move to the main email; if two of them
   registered for the same event, the one that counts most stays (came, then registered, waitlist,
-  cancelled) and a freed seat on an upcoming event goes to the waitlist. Empty details (phone,
-  company, role, LinkedIn) are filled from the others, tags are combined, notes are put together
-  and a membership moves to the kept email. The other emails are dropped, except on ecosystem
-  listings that name them as owner (change those on the listing). Merging can't be undone.
+  cancelled) and a freed seat on an upcoming event goes to the waitlist. Tags are combined, notes
+  are put together and a membership moves to the main email. Ecosystem listings keep the emails
+  they name as owners (change those on the listing). Merging can't be undone.
+- **Other emails**: a contact can have several emails, one main and up to 10 others (Edit, one
+  per line). Registrations and membership sign-ups made with another email count as the same
+  person: they show on the contact, a member typing another of their emails is recognised, and
+  the Contacts search finds them. An email that belongs to another contact or has its own
+  membership can't be added: merge the two contacts instead.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
-  **Call** buttons, and **Edit** for name, email, phone, company, role, tags, LinkedIn and team
-  notes.
+  **Call** buttons, and **Edit** for name, email, other emails, phone, company, role, tags,
+  LinkedIn and team notes.
   Once edited, the saved details win over what the person types in later registrations. Changing
   the email moves their registrations to the new one; if that email already registered, the two
   merge. Adding an email to a walk-in groups their future registrations with it. **New contact**

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { eq, inArray, isNull } from 'drizzle-orm';
+import { eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db';
 import {
@@ -79,6 +79,8 @@ export interface ContactOrg {
 export interface SavedContact {
   id: number;
   email: string | null;
+  /** Other emails of the same person (see contacts.otherEmails). */
+  otherEmails?: string[] | null;
   name: string;
   phone: string | null;
   company: string | null;
@@ -126,6 +128,8 @@ export interface Contact {
   savedId: number | null;
   name: string;
   email: string | null;
+  /** Their other emails: registrations made with them count as this person. */
+  otherEmails: string[];
   phone: string | null;
   company: string | null;
   role: string | null;
@@ -176,6 +180,14 @@ export const isActiveMember = (c: Pick<Contact, 'member'>) => c.member?.status =
 export const suggestForMembership = (c: Contact) =>
   c.attended >= REGULAR_MIN_EVENTS && !isActiveMember(c);
 
+/** Each other email of a saved contact -> that contact's main email. */
+export function aliasMap(saved: Pick<SavedContact, 'email' | 'otherEmails'>[]) {
+  const map = new Map<string, string>();
+  for (const c of saved)
+    if (c.email) for (const e of c.otherEmails ?? []) map.set(e.toLowerCase(), c.email);
+  return map;
+}
+
 /** The key that groups one person's registrations: their email, else their name (walk-ins). */
 export const contactKey = (r: { email: string | null; name: string }) =>
   r.email
@@ -210,9 +222,11 @@ export function buildContacts(
     if (o.publicEmail) link(o.publicEmail, o, 'contact');
   }
 
+  // Another email of a saved contact files its registrations under that contact.
+  const mainOf = aliasMap(saved);
   const groups = new Map<string, ContactRegistration[]>();
   for (const r of regs) {
-    const k = contactKey(r);
+    const k = mainOf.get(contactKey(r)) ?? contactKey(r);
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
   const cards = new Map(saved.map((c) => [savedKey(c), c]));
@@ -241,6 +255,7 @@ export function buildContacts(
         // A saved card wins over what people typed when they registered.
         name: card?.name ?? latest[0]!.name,
         email: card ? card.email : latest[0]!.email ? latest[0]!.email.toLowerCase() : null,
+        otherEmails: card?.otherEmails ?? [],
         phone: card ? card.phone : pick('phone'),
         company,
         role: card ? card.role : pick('role'),
@@ -262,8 +277,15 @@ export function buildContacts(
         firstSeen: new Date(Math.min(first, card?.createdAt.getTime() ?? Infinity)),
         lastEvent: (lastAttended ?? history.find((r) => r.status !== 'cancelled'))?.event ?? null,
         history,
-        organisations: key.includes(':') ? [] : (byEmail.get(key) ?? []),
-        member: key.includes(':') ? null : (membersByEmail.get(key) ?? null),
+        organisations: key.includes(':')
+          ? []
+          : [key, ...(card?.otherEmails ?? [])]
+              .flatMap((e) => byEmail.get(e) ?? [])
+              .filter((o, i, all) => all.findIndex((x) => x.id === o.id) === i),
+        member: key.includes(':')
+          ? null
+          : ([key, ...(card?.otherEmails ?? [])].map((e) => membersByEmail.get(e)).find(Boolean) ??
+            null),
         invitedAt: card?.memberInvitedAt ?? null,
       };
     })
@@ -371,7 +393,15 @@ export function filterContacts(
   return list.filter((c) => {
     if (
       query &&
-      ![c.name, c.email, c.company, c.phone, c.notes, ...c.organisations.map((o) => o.name)]
+      ![
+        c.name,
+        c.email,
+        ...c.otherEmails,
+        c.company,
+        c.phone,
+        c.notes,
+        ...c.organisations.map((o) => o.name),
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -397,6 +427,7 @@ export function filterContacts(
 export interface ContactInput {
   name: string;
   email: string | null;
+  otherEmails: string[];
   phone: string | null;
   company: string | null;
   role: string | null;
@@ -416,6 +447,23 @@ export function newsletterDate(day: string, now: Date) {
   return day === toDateInput(now) ? now : fromLocalInput(day);
 }
 
+/** "Other emails" on the contact form: one per line (or separated by commas), lowercased. */
+export const OtherEmails = z
+  .string()
+  .max(2000)
+  .optional()
+  .transform((s) => [
+    ...new Set(
+      (s ?? '')
+        .split(/[\s,;]+/)
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ])
+  .pipe(
+    z.array(z.email('One of the other emails is not valid.')).max(10, 'Up to 10 other emails.'),
+  );
+
 /** The contact form, as posted from /admin/contacts. */
 export const ContactSchema = z.object({
   name: z.string().trim().min(2, 'Enter a name.').max(120),
@@ -423,6 +471,7 @@ export const ContactSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
     emailField.optional().transform((e) => e ?? null),
   ),
+  otherEmails: OtherEmails,
   phone: z
     .string()
     .trim()
@@ -477,7 +526,9 @@ export function contactInput(
   now = new Date(),
   latestRegAt: Date | null = null,
 ): ContactInput | { error: string } {
-  const { newsletterAt: day, ...rest } = data;
+  const { newsletterAt: day, ...fields } = data;
+  // The main email is never also an "other" email.
+  const rest = { ...fields, otherEmails: fields.otherEmails.filter((e) => e !== fields.email) };
   if (!rest.newsletter) return { ...rest, newsletterAt: null };
   if (day && day > toDateInput(now)) return { error: 'The date can’t be in the future.' };
   const old = card?.newsletter && card.newsletterAt ? card.newsletterAt : null;
@@ -494,6 +545,30 @@ export function contactInput(
 }
 
 type Result = { key: string } | { error: string; key?: string };
+
+/** SQL: the contact card lists this address among its other emails. */
+const hasOtherEmail = (address: string) =>
+  sql`EXISTS (SELECT 1 FROM json_each(${contacts.otherEmails}) WHERE value = ${address})`;
+
+/**
+ * The main email of the contact who has `address` as one of their other emails, or null. Lets a
+ * sign-up or registration with any of someone's emails count as them.
+ */
+export async function mainEmailFor(address: string) {
+  const [row] = await getDb()
+    .select({ email: contacts.email })
+    .from(contacts)
+    .where(hasOtherEmail(address.trim().toLowerCase()))
+    .limit(1);
+  return row?.email ?? null;
+}
+
+/** The contact key for an email: its contact's main email when it is one of their other emails. */
+export const resolveEmailKey = async (key: string) =>
+  key.includes(':') ? key : ((await mainEmailFor(key)) ?? key);
+
+/** Every email filed under this contact key: the main one and the card's other emails. */
+const emailsOf = async (key: string) => [key, ...((await cardFor(key))?.otherEmails ?? [])];
 
 /** The saved contact card for this key, if any. */
 export const cardFor = async (key: string) => {
@@ -539,6 +614,27 @@ const walkInIds = async (key: string) => {
   return rows.filter((r) => contactKey({ email: null, name: r.name }) === key).map((r) => r.id);
 };
 
+/**
+ * Why `address` can't be one of this contact's other emails, or null when it can: it already
+ * belongs to another contact card or has its own membership (merge those contacts instead).
+ */
+async function otherEmailTaken(address: string, exceptId?: number) {
+  const db = getDb();
+  const [card] = await db
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(sql`(${contacts.email} = ${address} OR ${hasOtherEmail(address)})`);
+  if (card && card.id !== exceptId)
+    return `${address} belongs to another contact. Merge the two contacts instead.`;
+  const [m] = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(eq(members.email, address))
+    .limit(1);
+  if (m) return `${address} has its own membership. Merge the two contacts instead.`;
+  return null;
+}
+
 /** Is this email on a saved card other than `exceptId`? */
 const cardTaken = async (email: string, exceptId?: number) => {
   const [row] = await getDb()
@@ -559,6 +655,11 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
   const email = input.email;
   if (email && (await cardTaken(email, card?.id))) {
     return { error: 'Another contact already has this email.', key: email };
+  }
+  if (input.otherEmails.length && !email) return { error: 'Add a main email before other emails.' };
+  for (const other of input.otherEmails) {
+    const owner = await otherEmailTaken(other, card?.id);
+    if (owner) return { error: owner };
   }
   if (
     !email &&
@@ -627,6 +728,12 @@ export async function createContact(input: ContactInput): Promise<Result> {
       )[0];
     if (known) return { error: 'This email is already in your contacts.', key: input.email };
   }
+  if (input.otherEmails.length && !input.email)
+    return { error: 'Add a main email before other emails.' };
+  for (const other of input.otherEmails) {
+    const owner = await otherEmailTaken(other);
+    if (owner) return { error: owner };
+  }
   const [row] = await db.insert(contacts).values(input).returning({ id: contacts.id });
   return { key: savedKey({ id: row!.id, email: input.email }) };
 }
@@ -687,7 +794,7 @@ export async function deleteContact(key: string) {
     ? inArray(registrations.id, await walkInIds(key))
     : key.startsWith('id:')
       ? undefined
-      : eq(registrations.email, key);
+      : inArray(registrations.email, await emailsOf(key));
   const removed = where
     ? await db
         .delete(registrations)
@@ -794,19 +901,39 @@ async function fillFreedSeats(freed: Set<number>, now: Date) {
 /** Which of two registrations for the same event to keep when merging: the one that counts most. */
 const STATUS_RANK = { attended: 3, registered: 2, waitlist: 1, cancelled: 0 } as const;
 
+/** The details picked field by field on the merge page. */
+export const MERGE_FIELDS = ['name', 'phone', 'company', 'role', 'linkedin'] as const;
+export type MergeField = (typeof MERGE_FIELDS)[number];
+export type MergeChoice = Partial<Record<MergeField, string>> & {
+  /** The emails to keep as other emails (the rest are dropped); all of them when left out. */
+  otherEmails?: string[];
+};
+
+/** Every email of these contacts (main and other), main ones first, without repeats. */
+export const mergeEmails = (list: Pick<Contact, 'email' | 'otherEmails'>[]) => [
+  ...new Set([
+    ...list.flatMap((c) => (c.email ? [c.email] : [])),
+    ...list.flatMap((c) => c.otherEmails),
+  ]),
+];
+
 /**
  * Merges duplicate contacts into `keep`: one person in the end, with every registration, the
- * saved card details (keep's first, gaps filled from the others; tags combined; notes put
- * together), and the membership. The merged contact uses keep's email, or the first email among
- * the others when keep is a walk-in without one. When two of them registered for the same event,
- * the registration that counts most stays (came > registered > waitlist > cancelled) and a seat
- * freed on an upcoming event goes to the waitlist. Returns the merged contact's key.
+ * saved card details, and the membership. The merged contact uses keep's email as its main email,
+ * or the first email among the others when keep is a walk-in without one; the other emails stay
+ * on the card as other emails (those in `choice.otherEmails`, or all of them), so registrations
+ * made later with any of them count as this person. Details come from `choice` when picked (any
+ * value one of them has), else keep's, with gaps filled from the others; tags are combined and
+ * notes put together. When two of them registered for the same event, the registration that
+ * counts most stays (came > registered > waitlist > cancelled) and a seat freed on an upcoming
+ * event goes to the waitlist. Returns the merged contact's key.
  */
 export async function mergeContacts(
   keys: string[],
   keep: string,
   actor: string,
   now = new Date(),
+  choice: MergeChoice = {},
 ): Promise<Result> {
   const db = getDb();
   const wanted = [...new Set([keep, ...keys])];
@@ -831,10 +958,13 @@ export async function mergeContacts(
       status: registrations.status,
     })
     .from(registrations);
+  const mainOf = aliasMap(list.map((c) => ({ email: c.key, otherEmails: c.otherEmails })));
   const mine = (key: string) =>
-    regs.filter((r) =>
-      key.startsWith('id:') ? false : contactKey({ email: r.email, name: r.name }) === key,
-    );
+    regs.filter((r) => {
+      if (key.startsWith('id:')) return false;
+      const k = contactKey({ email: r.email, name: r.name });
+      return (mainOf.get(k) ?? k) === key;
+    });
   const moving = list.flatMap((c) => mine(c.key));
   const byEvent = new Map<number, typeof moving>();
   for (const r of moving) byEvent.set(r.eventId, [...(byEvent.get(r.eventId) ?? []), r]);
@@ -871,8 +1001,15 @@ export async function mergeContacts(
 
   // The saved card: keep's details first, gaps filled from the others.
   const cards = list.filter((c) => c.savedId);
-  const first = <K extends 'phone' | 'company' | 'role' | 'linkedin'>(k: K) =>
-    list.find((c) => c[k])?.[k] ?? null;
+  // A picked value counts only if one of them has it; otherwise keep's, gaps filled from the others.
+  const first = <K extends MergeField>(k: K) => {
+    const picked = choice[k];
+    if (picked && list.some((c) => c[k] === picked)) return picked;
+    return list.find((c) => c[k])?.[k] ?? null;
+  };
+  const otherEmails = mergeEmails(list).filter(
+    (e) => e !== email && (!choice.otherEmails || choice.otherEmails.includes(e)),
+  );
   const notes = list
     .map((c) => c.notes?.trim())
     .filter(Boolean)
@@ -885,7 +1022,8 @@ export async function mergeContacts(
   if (extra.length) await db.delete(contacts).where(inArray(contacts.id, extra));
   const card = {
     email,
-    name: main.name,
+    otherEmails,
+    name: first('name') ?? main.name,
     phone: first('phone'),
     company: first('company'),
     role: first('role'),
@@ -900,8 +1038,7 @@ export async function mergeContacts(
       .update(contacts)
       .set({ ...card, updatedAt: now })
       .where(eq(contacts.id, main.savedId));
-  else if (email && (cards.length > 0 || others.some((c) => c.name !== main.name)))
-    await db.insert(contacts).values(card);
+  else if (email) await db.insert(contacts).values(card);
 
   // Membership: one row, under the merged email; an active one wins over the others.
   const memberRows = list.flatMap((c) => (c.member ? [c.member] : []));
@@ -940,11 +1077,12 @@ export async function mergeContacts(
  * the self-service /my-data page. Null when nothing is left under this key.
  */
 export async function loadContact(key: string, now = new Date()) {
+  key = await resolveEmailKey(key);
   const where = key.startsWith('name:')
     ? inArray(registrations.id, await walkInIds(key))
     : key.startsWith('id:')
       ? undefined
-      : eq(registrations.email, key);
+      : inArray(registrations.email, await emailsOf(key));
   const isEmail = !key.startsWith('name:') && !key.startsWith('id:');
   const [regs, card, memberRows] = await Promise.all([
     where ? contactRegistrations().where(where) : [],

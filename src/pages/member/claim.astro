@@ -3,31 +3,45 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Section from '../../components/Section.astro';
 import Alert from '../../components/Alert.astro';
 import Button from '../../components/Button.astro';
+import FormField from '../../components/FormField.astro';
 import MemberSignupFields from '../../components/MemberSignupFields.astro';
 import { loadContact } from '../../lib/contacts';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import {
   MemberSignupSchema,
   claimEmail,
+  claimEvent,
   claimMembership,
   memberPagePath,
   signupInput,
 } from '../../lib/members';
+import { NOTE_MAX } from '../../lib/registrations';
+import { formatEventDate } from '../../lib/format';
 
-// "Claim your membership" from the invitation sent from Contacts: the form is prefilled with what
-// the contact card knows. The link proves the email, so the membership is active at once.
+// "Claim your membership" from the invitation sent from Contacts, or from an event's registration
+// box when someone we know isn't a member yet: the form is prefilled with what the contact card
+// and their registrations know. The link proves the email, so the membership is active at once,
+// and a link from an event also registers them for it.
 const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
 const address = token ? await claimEmail(token) : null;
+const event = address ? await claimEvent(token) : null;
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = {};
 let failed = false;
 if (address && Astro.request.method === 'POST') {
   values = formToObject(await Astro.request.formData(), ['interests']);
   const parsed = MemberSignupSchema.safeParse(signupInput({ ...values, email: address }));
+  const note = String(values.note ?? '').slice(0, NOTE_MAX);
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else {
-    const link = await claimMembership(token, parsed.data);
-    if (link) return Astro.redirect(`${memberPagePath(link)}&welcome=1`, 303);
+    const done = await claimMembership(token, parsed.data, new Date(), note);
+    if (done) {
+      // Sent from an event: the member page says how the registration went.
+      const reg = done.registration
+        ? `&event=${encodeURIComponent(done.registration.event.slug)}&reg=${done.registration.outcome.status}`
+        : '';
+      return Astro.redirect(`${memberPagePath(done.link)}&welcome=1${reg}`, 303);
+    }
     failed = true;
   }
 } else if (address) {
@@ -47,19 +61,42 @@ if (address && Astro.request.method === 'POST') {
 <BaseLayout title="Claim your membership" noindex cache={false}>
   <Section>
     <div class="max-w-2xl">
-      <h1 class="text-3xl">Claim your membership</h1>
+      <h1 class="text-3xl">
+        {event ? 'Confirm your membership and registration' : 'Claim your membership'}
+      </h1>
       {address && !failed ? (
         <form method="post" class="mt-6 grid gap-4">
-          <p>
-            Membership of La French Tech Bangkok is free. We've filled in what we know about you:
-            check it, accept the code of conduct and you're in.
-          </p>
+          {event ? (
+            <p>
+              Our events are for members, and membership of La French Tech Bangkok is free. We've
+              filled in what we know about you: check it, accept the code of conduct, and you're a
+              member and registered for <strong>{event.title}</strong> (
+              {formatEventDate(event.startsAt, event.endsAt)}).
+            </p>
+          ) : (
+            <p>
+              Membership of La French Tech Bangkok is free. We've filled in what we know about you:
+              check it, accept the code of conduct and you're in.
+            </p>
+          )}
           {Object.keys(errors).length > 0 && (
             <Alert tone="danger">Please fix the highlighted fields.</Alert>
           )}
           <MemberSignupFields values={values} errors={errors} fixedEmail={address} />
+          {event && (
+            <FormField
+              name="note"
+              label="Anything we should know for the event, or something you're looking for?"
+              rows={2}
+              maxlength={NOTE_MAX}
+              value={String(values.note ?? '')}
+              hint="Optional. Only the organisers see it."
+            />
+          )}
           <div>
-            <Button type="submit">Claim my membership</Button>
+            <Button type="submit">
+              {event ? 'Become a member and register' : 'Claim my membership'}
+            </Button>
           </div>
         </form>
       ) : (

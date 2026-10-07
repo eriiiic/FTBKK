@@ -164,8 +164,10 @@ export const eventEmails = sqliteTable(
  */
 export const contacts = sqliteTable('contacts', {
   id: id(),
-  /** Lowercased. Null for someone added without an email. */
+  /** The main email, lowercased. Null for someone added without an email. */
   email: text('email').unique(),
+  /** Their other emails (lowercased): registrations and sign-ups with these count as this person. */
+  otherEmails: json<string[]>('other_emails').notNull().default([]),
   name: text('name').notNull(),
   phone: text('phone'),
   company: text('company'),

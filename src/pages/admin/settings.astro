@@ -1,6 +1,7 @@
 ---
 import { z } from 'zod';
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { usingTestSender } from '../../lib/email';
 import FormField from '../../components/FormField.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
@@ -127,6 +128,14 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
 
     <section class="admin-panel grid gap-4">
       <h2 class="text-lg">Membership</h2>
+      {usingTestSender() && (
+        <Alert tone="warning">
+          Emails only reach the Resend account owner: the sender is still Resend's test address
+          (onboarding@resend.dev). Verify the domain in Resend and set EMAIL_FROM to it (see
+          docs/deploy.md) before opening membership, or sign-up and registration emails won't
+          arrive.
+        </Alert>
+      )}
       <FormField
         name="memberSignupOpen"
         label="Open free individual membership (events become members only)"
