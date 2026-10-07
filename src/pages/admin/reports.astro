@@ -1,0 +1,197 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import LineChart from '../../components/admin/LineChart.astro';
+import { getDb } from '../../db';
+import { events, members, registrations } from '../../db/schema';
+import { memberReports } from '../../lib/member-reports';
+import { formatDate } from '../../lib/format';
+
+// Community > Reports, for the board: membership growth, who the members are, and the share of
+// event attendees who are members.
+const db = getDb();
+const [memberRows, eventRows, regRows] = await Promise.all([
+  db
+    .select({
+      email: members.email,
+      status: members.status,
+      profileType: members.profileType,
+      nationality: members.nationality,
+      interests: members.interests,
+      confirmedAt: members.confirmedAt,
+      createdAt: members.createdAt,
+    })
+    .from(members),
+  db
+    .select({
+      id: events.id,
+      title: events.title,
+      startsAt: events.startsAt,
+      status: events.status,
+    })
+    .from(events),
+  db
+    .select({
+      eventId: registrations.eventId,
+      email: registrations.email,
+      status: registrations.status,
+    })
+    .from(registrations),
+]);
+const r = memberReports(memberRows, eventRows, regRows, new Date());
+const pct = (v: number | null) => (v === null ? '–' : `${Math.round(v * 100)}%`);
+const kpis = [
+  { label: 'Active members', value: String(r.totals.active) },
+  { label: 'New members, last 30 days', value: String(r.totals.new30) },
+  {
+    label: 'Attendees who are members',
+    value: pct(r.attendeeShare.now),
+    hint: `Active members today, out of ${r.attendeeShare.people} attendees at past events of the last 12 months`,
+  },
+  {
+    label: 'Members on the day',
+    value: pct(r.attendeeShare.then),
+    hint: 'Same events, counting who was already a member when the event took place',
+  },
+];
+// The per-event chart reads left to right, oldest first.
+const chrono = [...r.perEvent].reverse();
+const shortDate = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'Asia/Bangkok',
+});
+const share = (part: number, of: number) => (of ? Math.round((part / of) * 100) : null);
+const breakdowns = [
+  { title: 'Profile type', rows: r.byProfile },
+  { title: 'Sectors of interest', rows: r.bySector, hint: 'A member can pick several.' },
+  { title: 'Nationality group', rows: r.byNationality },
+];
+---
+
+<AdminLayout title="Reports">
+  <p class="mb-6 max-w-3xl text-sm text-muted">
+    For the board: how membership grows, who the active members are, and how many people at our
+    events are members. Figures are live. Event figures count check-ins, or registrations at events
+    where check-in wasn't used. More in <a href="/admin/events/stats">Event stats</a> and{' '}
+    <a href="/admin/members?tab=all">Members</a>.
+  </p>
+
+  <section aria-label="Key numbers" class="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+    {kpis.map((k) => (
+      <div class="admin-panel">
+        <p class="text-xs text-muted">{k.label}</p>
+        <p class="mt-1 text-3xl font-bold text-navy">{k.value}</p>
+        {k.hint && <p class="mt-1 text-xs text-muted">{k.hint}</p>}
+      </div>
+    ))}
+  </section>
+
+  <div class="mb-6 grid gap-6 xl:grid-cols-2">
+    <LineChart
+      title="Members by month (last 12 months)"
+      labels={r.byMonth.map((m) => m.label)}
+      series={[
+        { name: 'Members in total', values: r.byMonth.map((m) => m.total), tone: 'navy' },
+        { name: 'New that month', values: r.byMonth.map((m) => m.added), tone: 'brand' },
+      ]}
+      empty="No members yet."
+    />
+    <LineChart
+      title="Share of attendees who are members, per event (%)"
+      labels={chrono.map((e) => `${e.event.title} (${formatDate(e.event.startsAt)})`)}
+      ticks={chrono.map((e) => shortDate.format(e.event.startsAt))}
+      series={[
+        {
+          name: 'Members today',
+          values: chrono.map((e) => share(e.membersNow, e.people)),
+          tone: 'navy',
+        },
+        {
+          name: 'Members on the day',
+          values: chrono.map((e) => share(e.membersThen, e.people)),
+          tone: 'brand',
+        },
+      ]}
+      empty="No past event with attendees in the last 12 months."
+    />
+  </div>
+
+  <div class="mb-6 grid gap-6 lg:grid-cols-3">
+    {breakdowns.map((b) => {
+      const max = Math.max(1, ...b.rows.map(([, n]) => n));
+      return (
+        <figure class="admin-panel">
+          <figcaption class="font-semibold text-navy">
+            {b.title}
+            <span class="block text-xs font-normal text-muted">
+              Active members{b.hint ? `. ${b.hint}` : ''}
+            </span>
+          </figcaption>
+          {b.rows.length ? (
+            <ul class="mt-4 grid gap-3">
+              {b.rows.map(([label, n]) => (
+                <li class="grid grid-cols-[9rem_1fr_2.5rem] items-center gap-3 text-sm">
+                  <span class="truncate" title={label}>
+                    {label}
+                  </span>
+                  <span class="h-3 overflow-hidden rounded-full bg-surface">
+                    <span
+                      class="block h-full rounded-full bg-accent"
+                      style={`width:${(n / max) * 100}%`}
+                    />
+                  </span>
+                  <span class="text-right font-semibold">{n}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="mt-6 mb-4 text-sm text-muted">No active members yet.</p>
+          )}
+        </figure>
+      );
+    })}
+  </div>
+
+  <section class="admin-panel overflow-x-auto" aria-labelledby="per-event-title">
+    <h2 id="per-event-title" class="mb-3 text-lg">
+      Members at our events (last 12 months)
+    </h2>
+    {r.perEvent.length ? (
+      <table class="admin-table" data-sortable>
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Date</th>
+            <th>People</th>
+            <th>Members on the day</th>
+            <th>Members today</th>
+          </tr>
+        </thead>
+        <tbody>
+          {r.perEvent.map((e) => (
+            <tr>
+              <td>
+                <a href={`/admin/events/${e.event.id}`}>{e.event.title}</a>
+              </td>
+              <td class="whitespace-nowrap" data-sort={e.event.startsAt.getTime()}>
+                {formatDate(e.event.startsAt)}
+              </td>
+              <td data-sort={e.people}>
+                {e.people}
+                <span class="block text-xs text-muted">{e.counted}</span>
+              </td>
+              <td data-sort={e.people ? e.membersThen / e.people : -1}>
+                {e.membersThen} ({pct(e.people ? e.membersThen / e.people : null)})
+              </td>
+              <td data-sort={e.people ? e.membersNow / e.people : -1}>
+                {e.membersNow} ({pct(e.people ? e.membersNow / e.people : null)})
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      <p class="text-sm text-muted">No past event in the last 12 months.</p>
+    )}
+  </section>
+</AdminLayout>
