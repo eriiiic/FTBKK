@@ -12,8 +12,29 @@ interface Props {
   error?: string;
   withLink?: boolean;
   max?: number;
+  /** Field names shown to the editor, for rows that aren't cards (for example the home numbers). */
+  item?: string;
+  titleLabel?: string;
+  textLabel?: string;
+  textRows?: number;
+  titleMax?: number;
+  textMax?: number;
 }
-const { prefix, legend, items, hint, error, withLink = false, max = 6 } = Astro.props;
+const {
+  prefix,
+  legend,
+  items,
+  hint,
+  error,
+  withLink = false,
+  max = 6,
+  item = 'card',
+  titleLabel = 'title',
+  textLabel = 'Text',
+  textRows = 2,
+  titleMax = 80,
+  textMax = 400,
+} = Astro.props;
 const rows: Card[] = items.length < max ? [...items, { title: '', text: '' }] : items;
 ---
 
@@ -26,17 +47,21 @@ const rows: Card[] = items.length < max ? [...items, { title: '', text: '' }] : 
       <FormField
         id={`${prefix}-title-${i}`}
         name={`${prefix}Title`}
-        label={i < items.length ? `Card ${i + 1}: title` : 'New card: title'}
+        label={
+          i < items.length
+            ? `${item[0]!.toUpperCase()}${item.slice(1)} ${i + 1}: ${titleLabel}`
+            : `New ${item}: ${titleLabel}`
+        }
         value={c.title}
-        maxlength={80}
+        maxlength={titleMax}
       />
       <FormField
         id={`${prefix}-text-${i}`}
         name={`${prefix}Text`}
-        label="Text"
-        rows={2}
+        label={textLabel}
+        rows={textRows}
         value={c.text}
-        maxlength={400}
+        maxlength={textMax}
       />
       {withLink && (
         <div class="sm:col-start-2">

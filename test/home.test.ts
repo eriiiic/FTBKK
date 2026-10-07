@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickPartners, pickPhotos, pickStats } from '../src/lib/home';
+import { pickPartners, pickPhotos } from '../src/lib/home';
 
 describe('home page', () => {
   it('uses the picked photos first, then one photo per recent event, then covers', () => {
@@ -26,20 +26,6 @@ describe('home page', () => {
     expect(photos[0]!.alt).toBe('Our crowd');
     expect(photos[2]!.alt).toBe('Panel');
     expect(photos[1]!.alt).toBe('Connect #52');
-  });
-
-  it('shows up to four numbers, leaving out zeros', () => {
-    const stats = pickStats({
-      members: 0,
-      organisations: 31,
-      events: 40,
-      people: 418,
-      partners: 12,
-    });
-    expect(stats.map((s) => s.value)).toEqual([31, 40, 418, 12]);
-    expect(
-      pickStats({ members: 5, organisations: 1, events: 1, people: 1, partners: 1 }),
-    ).toHaveLength(4);
   });
 
   it('lists institutions first, then the most frequent hosts and sponsors with a logo', () => {

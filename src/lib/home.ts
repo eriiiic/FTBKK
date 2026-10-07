@@ -1,16 +1,9 @@
 import { and, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { getDb } from '../db';
-import {
-  eventSponsors,
-  events,
-  members,
-  organisations,
-  registrations,
-  type RecapPhoto,
-} from '../db/schema';
+import { eventSponsors, events, organisations, type RecapPhoto } from '../db/schema';
 import { mediaUrl } from './format';
 
-// Data for the home page: live numbers, photos and the partners strip. The pure helpers are
+// Data for the home page: photos and the partners strip. The pure helpers are
 // exported for tests; homeData() runs the queries.
 
 export const MAX_HOME_PHOTOS = 8;
@@ -54,30 +47,6 @@ export function pickPhotos(
   return out;
 }
 
-export interface HomeStat {
-  value: number;
-  label: string;
-}
-
-/** Up to four live numbers, in this order, leaving out the ones still at zero. */
-export function pickStats(n: {
-  members: number;
-  organisations: number;
-  events: number;
-  people: number;
-  partners: number;
-}): HomeStat[] {
-  return [
-    { value: n.members, label: 'Members' },
-    { value: n.organisations, label: 'Organisations in the directory' },
-    { value: n.events, label: 'Events held' },
-    { value: n.people, label: 'People came to our events' },
-    { value: n.partners, label: 'Partners and hosts' },
-  ]
-    .filter((s) => s.value > 0)
-    .slice(0, 4);
-}
-
 export interface Partner {
   name: string;
   logo: string;
@@ -108,28 +77,16 @@ export function pickPartners(institutions: LogoRow[], sponsors: LogoRow[], max =
     .map((x) => x.p);
 }
 
-export async function homeData(chosen: RecapPhoto[], countMembers: boolean) {
+export async function homeData(chosen: RecapPhoto[]) {
   const db = getDb();
   const now = new Date();
-  const [recent, [counts], sponsorRows, institutions] = await Promise.all([
+  const [recent, sponsorRows, institutions] = await Promise.all([
     db
       .select({ title: events.title, recap: events.recap, coverKey: events.coverKey })
       .from(events)
       .where(and(eq(events.status, 'published'), lt(events.startsAt, now)))
       .orderBy(desc(events.startsAt))
       .limit(12),
-    db
-      .select({
-        members: countMembers
-          ? sql<number>`(select count(*) from ${members} where ${members.status} = 'active')`
-          : sql<number>`0`,
-        organisations: sql<number>`(select count(*) from ${organisations} where ${organisations.status} = 'published')`,
-        events: sql<number>`(select count(*) from ${events} where ${events.status} = 'published' and ${events.startsAt} < ${Math.floor(now.getTime() / 1000)})`,
-        // Distinct people who checked in: by email, plus walk-ins who gave none.
-        people: sql<number>`(select count(distinct lower(${registrations.email})) + sum(${registrations.email} is null) from ${registrations} where ${registrations.status} = 'attended')`,
-        partners: sql<number>`(select count(distinct lower(${eventSponsors.name})) from ${eventSponsors})`,
-      })
-      .from(sql`(select 1)`),
     db
       .select({
         name: sql<string>`coalesce(${organisations.name}, ${eventSponsors.name})`,
@@ -155,13 +112,6 @@ export async function homeData(chosen: RecapPhoto[], countMembers: boolean) {
   ]);
   return {
     photos: pickPhotos(chosen, recent),
-    stats: pickStats({
-      members: Number(counts?.members ?? 0),
-      organisations: Number(counts?.organisations ?? 0),
-      events: Number(counts?.events ?? 0),
-      people: Number(counts?.people ?? 0),
-      partners: Number(counts?.partners ?? 0),
-    }),
     partners: pickPartners(institutions, sponsorRows),
   };
 }

@@ -345,8 +345,10 @@ enrolment at check-in.
   first is the big photo at the top of Home, the second sits next to the mission and the next four
   make the community collage. Until there are enough, photos from recent event recaps and event
   covers fill in, so the page never looks empty. Add a short description to each photo for screen
-  readers. The community block's heading and text and the closing band's heading are in the
-  Home page section (empty = a default text).
+  readers. The Home page section also has the **Numbers** band (up to four, each a figure
+  typed as it should appear, such as 300+, and a label, such as Members; the band is hidden while
+  there are none), the community block's heading and text, and the closing band's heading (empty
+  = a default text).
 - **Site texts**: the home page, "You can join us" cards, the Join the community page (why join,
   and the membership block; empty = a default text), the About page, the Tech Pulse page's
   introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**

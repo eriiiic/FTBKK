@@ -9,9 +9,8 @@ https://ft-bkk-site.edelattre.workers.dev until the domain moves over.
 Public pages:
 
 - **Home**: a full-width photo hero with Join the community and Our mission; the mission, values
-  and pillars next to a photo; a navy band of live numbers (members once sign-up is open,
-  organisations in the directory, events held, people who came, partners and hosts; zeros are
-  left out); the next four events (or the latest recaps when none is scheduled); the ecosystem
+  and pillars next to a photo; a navy band of up to four key numbers typed in Site texts (for example
+  "300+ Members"; no numbers, no band); the next four events (or the latest recaps when none is scheduled); the ecosystem
   directory as a navy carousel with category chips; the latest three posts; a community block
   with a photo collage and the "You can join us" cards; a strip of partner logos (institutions,
   then the hosts and sponsors of our events); and a closing band with Join and Contact us. Photos

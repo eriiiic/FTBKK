@@ -23,6 +23,8 @@ export interface Settings {
   pillars: { title: string; text: string }[];
   /** Home page photos picked in Site texts (hero first); events' photos fill in after them. */
   homePhotos: { key: string; alt?: string }[];
+  /** The numbers band on Home, typed by hand: title = the figure ("300+"), text = its label. */
+  homeNumbers: { title: string; text: string }[];
   /** Home "Community" block; empty = the defaults in lib/home.ts. */
   homeCommunityTitle: string;
   homeCommunityText: string;
@@ -66,6 +68,7 @@ export const defaultSettings: Settings = {
   ecosystemHeading: '',
   pillars: [],
   homePhotos: [],
+  homeNumbers: [],
   homeCommunityTitle: '',
   homeCommunityText: '',
   homeClosingTitle: '',
