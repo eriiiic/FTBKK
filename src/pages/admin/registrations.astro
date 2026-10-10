@@ -1,16 +1,29 @@
 ---
 import { z } from 'zod';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import Badge from '../../components/Badge.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
 import { getDb } from '../../db';
-import { events, registrations, type Event } from '../../db/schema';
+import { events, members, registrations, type Event } from '../../db/schema';
+import FormField from '../../components/FormField.astro';
+import {
+  EMAIL_LIMIT,
+  REGISTRANT_COLUMNS,
+  RegistrantSchema,
+  addRegistrants,
+  parseRegistrantsCsv,
+  type AddSummary,
+  type Registrant,
+} from '../../lib/add-registrants';
+import { decodeGuestFile } from '../../lib/csv';
 import { formatDate, formatEventDate } from '../../lib/format';
 import { audit } from '../../lib/orgs';
 import { getSettings } from '../../lib/settings';
 import {
+  GUESTS_MAX,
+  NOTE_MAX,
   fillSeats,
   guestsLabel,
   promoteFromWaitlist,
@@ -27,59 +40,131 @@ const eventId = Number(Astro.url.searchParams.get('event')) || nextUp?.id || all
 const event: Event | undefined = allEvents.find((e) => e.id === eventId);
 let error = '';
 
+let added: AddSummary | null = null;
+/** Typed back into the "Type someone in" form when it has a problem. */
+let manual: Record<string, string> = {};
+let addOpen = Astro.url.searchParams.has('add');
+
 if (Astro.request.method === 'POST' && event) {
-  const parsed = z
-    .object({
-      action: z.enum(['attended', 'registered', 'promote', 'cancel', 'promote-next']),
-      id: z.coerce.number().int().optional(),
-    })
-    .safeParse(Object.fromEntries(await Astro.request.formData()));
-  if (!parsed.success) error = 'Unknown action.';
-  else {
-    const { action, id } = parsed.data;
-    const where = and(eq(registrations.id, id ?? 0), eq(registrations.eventId, event.id));
-    const [reg] = id ? await db.select().from(registrations).where(where) : [];
-    if (action === 'attended' && reg) {
-      await db
-        .update(registrations)
-        .set({ status: 'attended', checkedInAt: new Date() })
-        .where(where);
-    } else if (action === 'registered' && reg) {
-      await db.update(registrations).set({ status: 'registered', checkedInAt: null }).where(where);
-    } else if (action === 'promote' && reg?.status === 'waitlist') {
-      // A manual promotion can go over capacity: the organiser decides.
-      const [row] = await db
-        .update(registrations)
-        .set({ status: 'registered' })
-        .where(where)
-        .returning();
-      if (row?.email)
-        await sendPromotion(event, { ...row, email: row.email, event_id: row.eventId });
-    } else if (action === 'promote-next') {
-      const settings = await getSettings();
-      const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
-      if (row) await sendPromotion(event, row);
-      else error = 'No free seat, or nobody on the waitlist.';
-    } else if (action === 'cancel' && reg) {
-      await db.update(registrations).set({ status: 'cancelled' }).where(where);
-      // A freed seat goes to the next person on the waitlist, as when people cancel themselves.
-      if (reg.status === 'registered') await fillSeats(event, (await getSettings()).memberPriority);
-    }
-    if (reg)
-      await audit(
-        actor,
-        `registration_${action}`,
-        'registration',
-        reg.id,
-        { status: reg.status },
-        null,
+  const form = await Astro.request.formData();
+  const kind = String(form.get('action') ?? '');
+  if (kind === 'add-members' || kind === 'add-manual' || kind === 'add-csv') {
+    addOpen = true;
+    const opts = {
+      sendEmail: form.get('sendEmail') === 'on',
+      actor,
+      source: ({ 'add-members': 'members', 'add-manual': 'manual', 'add-csv': 'csv' } as const)[
+        kind
+      ],
+    };
+    const attended = form.get('attended') === 'on';
+    let people: Registrant[] = [];
+    let errors: AddSummary['errors'] = [];
+    if (kind === 'add-members') {
+      const ids = form
+        .getAll('member')
+        .map(Number)
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .slice(0, 1000);
+      const picked = ids.length
+        ? await db.select().from(members).where(inArray(members.id, ids))
+        : [];
+      if (!picked.length) error = 'Tick at least one member.';
+      people = picked.flatMap((m) => {
+        const r = RegistrantSchema.safeParse({
+          name: m.name,
+          email: m.email,
+          company: m.company ?? '',
+          role: m.jobTitle ?? '',
+          phone: m.phone ?? '',
+          attended,
+        });
+        if (!r.success)
+          errors.push({ line: 0, message: `${m.name}: ${r.error.issues[0]?.message}` });
+        return r.success ? [r.data] : [];
+      });
+    } else if (kind === 'add-manual') {
+      manual = Object.fromEntries(
+        [...form].filter((e): e is [string, string] => typeof e[1] === 'string'),
       );
+      const r = RegistrantSchema.safeParse({ ...manual, attended });
+      if (r.success) people = [r.data];
+      else error = r.error.issues.map((e) => e.message).join(' ');
+    } else {
+      const file = form.get('file');
+      if (!(file instanceof File) || !file.size) error = 'Choose a CSV file.';
+      else if (file.size > 2_000_000) error = 'The file is too big (2 MB at most).';
+      else {
+        const parsed = parseRegistrantsCsv(
+          decodeGuestFile(new Uint8Array(await file.arrayBuffer())),
+        );
+        people = parsed.rows.map((r) => r.data);
+        errors = parsed.errors;
+        if (!people.length && !errors.length) error = 'The file has no one in it.';
+      }
+    }
     if (!error) {
-      // Keep the search and filter, so the next person can be checked in straight away.
-      const back = new URLSearchParams(Astro.url.search);
-      back.set('event', String(event.id));
-      back.set('saved', 'done');
-      return Astro.redirect(`/admin/registrations?${back}`);
+      added = { ...(await addRegistrants(event, people, opts)), errors };
+      if (kind === 'add-manual' && added.added.length) manual = {};
+    }
+  } else {
+    const parsed = z
+      .object({
+        action: z.enum(['attended', 'registered', 'promote', 'cancel', 'promote-next']),
+        id: z.coerce.number().int().optional(),
+      })
+      .safeParse(Object.fromEntries(form));
+    if (!parsed.success) error = 'Unknown action.';
+    else {
+      const { action, id } = parsed.data;
+      const where = and(eq(registrations.id, id ?? 0), eq(registrations.eventId, event.id));
+      const [reg] = id ? await db.select().from(registrations).where(where) : [];
+      if (action === 'attended' && reg) {
+        await db
+          .update(registrations)
+          .set({ status: 'attended', checkedInAt: new Date() })
+          .where(where);
+      } else if (action === 'registered' && reg) {
+        await db
+          .update(registrations)
+          .set({ status: 'registered', checkedInAt: null })
+          .where(where);
+      } else if (action === 'promote' && reg?.status === 'waitlist') {
+        // A manual promotion can go over capacity: the organiser decides.
+        const [row] = await db
+          .update(registrations)
+          .set({ status: 'registered' })
+          .where(where)
+          .returning();
+        if (row?.email)
+          await sendPromotion(event, { ...row, email: row.email, event_id: row.eventId });
+      } else if (action === 'promote-next') {
+        const settings = await getSettings();
+        const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
+        if (row) await sendPromotion(event, row);
+        else error = 'No free seat, or nobody on the waitlist.';
+      } else if (action === 'cancel' && reg) {
+        await db.update(registrations).set({ status: 'cancelled' }).where(where);
+        // A freed seat goes to the next person on the waitlist, as when people cancel themselves.
+        if (reg.status === 'registered')
+          await fillSeats(event, (await getSettings()).memberPriority);
+      }
+      if (reg)
+        await audit(
+          actor,
+          `registration_${action}`,
+          'registration',
+          reg.id,
+          { status: reg.status },
+          null,
+        );
+      if (!error) {
+        // Keep the search and filter, so the next person can be checked in straight away.
+        const back = new URLSearchParams(Astro.url.search);
+        back.set('event', String(event.id));
+        back.set('saved', 'done');
+        return Astro.redirect(`/admin/registrations?${back}`);
+      }
     }
   }
 }
@@ -119,6 +204,27 @@ const tone = (s: string) =>
       : s === 'waitlist'
         ? 'warning'
         : 'neutral';
+
+// "Pick members": active members who aren't registered yet (someone on the waitlist can be picked).
+const registeredEmails = new Set(
+  rows.filter((r) => r.status === 'registered' || r.status === 'attended').map((r) => r.email),
+);
+const memberChoices = event
+  ? (
+      await db
+        .select({
+          id: members.id,
+          name: members.name,
+          email: members.email,
+          company: members.company,
+        })
+        .from(members)
+        .where(eq(members.status, 'active'))
+        .orderBy(asc(members.name))
+    ).filter((m) => !registeredEmails.has(m.email))
+  : [];
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const peopleCount = (n: number) => (n === 1 ? '1 person' : `${n} people`);
 ---
 
 <AdminLayout title="Registrations">
@@ -162,6 +268,13 @@ const tone = (s: string) =>
               Check-in mode
             </Button>
             <Button
+              href={`/admin/registrations?event=${event.id}&add=1#add`}
+              size="sm"
+              variant="secondary"
+            >
+              Add people
+            </Button>
+            <Button
               href={`/admin/events/${event.id}/registrations.csv`}
               size="sm"
               variant="secondary"
@@ -201,6 +314,305 @@ const tone = (s: string) =>
           </form>
         )}
       </div>
+
+      {added && (
+        <Alert tone={added.added.length ? 'success' : 'warning'} class="mb-4">
+          <p class="font-semibold">
+            {added.added.length ? `${peopleCount(added.added.length)} added.` : 'Nobody was added.'}
+            {added.skipped.length > 0 && ` ${added.skipped.length} skipped (already registered).`}
+            {added.errors.length > 0 &&
+              ` ${plural(added.errors.length, 'row')} with a problem, not added.`}
+            {added.emailed > 0 && ` Confirmation sent to ${peopleCount(added.emailed)}.`}
+          </p>
+          {added.notEmailed > 0 && (
+            <p class="mt-1 text-ink">
+              {peopleCount(added.notEmailed)} got no confirmation email (at most {EMAIL_LIMIT} are
+              sent at a time). They still get the reminder with their ticket the day before.
+            </p>
+          )}
+          {added.overCapacity > 0 && (
+            <p class="mt-1 text-warning">
+              The event is now {plural(added.overCapacity, 'seat')} over its capacity of{' '}
+              {event.capacity}.
+            </p>
+          )}
+          {added.skipped.length > 0 && (
+            <details class="mt-2 text-ink">
+              <summary class="cursor-pointer text-sm font-semibold">Skipped</summary>
+              <ul class="mt-1 list-disc pl-5 text-sm">
+                {added.skipped.map((p) => (
+                  <li>
+                    {p.name} ({p.email}): {p.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {added.errors.length > 0 && (
+            <details class="mt-2 text-ink" open>
+              <summary class="cursor-pointer text-sm font-semibold">Not added</summary>
+              <ul class="mt-1 list-disc pl-5 text-sm">
+                {added.errors.map((e) => (
+                  <li>
+                    {e.line > 0 && `Line ${e.line}: `}
+                    {e.message}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </Alert>
+      )}
+
+      <details id="add" class="admin-panel mb-4" open={addOpen}>
+        <summary class="cursor-pointer">
+          <h2 class="inline text-lg">Add people</h2>
+          <span class="ml-2 text-sm text-muted">
+            Register people yourself: members, someone you type in, or a CSV list.
+          </span>
+        </summary>
+        <p class="mt-3 text-sm text-muted">
+          People you add are registered even when the event is full, closed, members-only or
+          private, and count toward capacity. Anyone already registered is skipped. Their contact
+          card is matched by email, including a contact's other emails.
+        </p>
+        <div class="mt-4 grid gap-3">
+          <details name="add-how" class="rounded-lg border border-line p-4">
+            <summary class="cursor-pointer font-semibold">
+              Pick members ({memberChoices.length} not registered yet)
+            </summary>
+            {memberChoices.length ? (
+              <form method="post" class="mt-3 grid gap-3" data-member-picker>
+                <label for="member-filter" class="sr-only">
+                  Find a member
+                </label>
+                <input
+                  id="member-filter"
+                  type="search"
+                  placeholder="Find by name, email or company"
+                  class="rounded-lg border border-line px-3 py-1.5"
+                  data-member-filter
+                />
+                <label class="flex items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" class="size-4 accent-brand" data-member-all />
+                  Tick all shown
+                </label>
+                <ul class="grid max-h-72 gap-1 overflow-y-auto rounded-lg bg-surface p-2">
+                  {memberChoices.map((m) => (
+                    <li data-search={`${m.name} ${m.email} ${m.company ?? ''}`.toLowerCase()}>
+                      <label class="flex items-start gap-2 rounded px-2 py-1 hover:bg-paper">
+                        <input
+                          type="checkbox"
+                          name="member"
+                          value={m.id}
+                          class="mt-1 size-4 accent-brand"
+                        />
+                        <span>
+                          {m.name}
+                          <span class="block text-xs break-all text-muted">
+                            {m.email}
+                            {m.company && ` · ${m.company}`}
+                          </span>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <FormField
+                  name="attended"
+                  id="members-attended"
+                  type="checkbox"
+                  label="Mark them as checked in"
+                />
+                <FormField
+                  name="sendEmail"
+                  id="members-email"
+                  type="checkbox"
+                  label="Send each of them the confirmation email with their ticket"
+                />
+                <div>
+                  <Button
+                    type="submit"
+                    name="action"
+                    value="add-members"
+                    size="sm"
+                    data-member-submit
+                  >
+                    Register the ticked members
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <p class="mt-3 text-sm text-muted">
+                Every active member is already registered, or there are no active members yet.
+              </p>
+            )}
+          </details>
+
+          <details
+            name="add-how"
+            class="rounded-lg border border-line p-4"
+            open={Object.keys(manual).length > 0}
+          >
+            <summary class="cursor-pointer font-semibold">Type someone in</summary>
+            <form method="post" class="mt-3 grid gap-3 sm:grid-cols-2">
+              <FormField
+                name="name"
+                id="add-name"
+                label="Name"
+                required
+                value={manual.name}
+                maxlength={120}
+              />
+              <FormField
+                name="email"
+                id="add-email"
+                type="email"
+                label="Email"
+                required
+                value={manual.email}
+              />
+              <FormField
+                name="company"
+                id="add-company"
+                label="Company"
+                value={manual.company}
+                maxlength={120}
+              />
+              <FormField
+                name="role"
+                id="add-role"
+                label="Job title"
+                value={manual.role}
+                maxlength={120}
+              />
+              <FormField
+                name="phone"
+                id="add-phone"
+                type="tel"
+                label="Phone"
+                value={manual.phone}
+                maxlength={40}
+              />
+              <FormField
+                name="guests"
+                id="add-guests"
+                label="Guests"
+                placeholder="No guests"
+                value={manual.guests}
+                options={Array.from({ length: GUESTS_MAX }, (_, i) => ({
+                  value: String(i + 1),
+                  label: guestsLabel(i + 1),
+                }))}
+              />
+              <div class="sm:col-span-2">
+                <FormField
+                  name="note"
+                  id="add-note"
+                  label="Note (admins only)"
+                  rows={2}
+                  value={manual.note}
+                  maxlength={NOTE_MAX}
+                />
+              </div>
+              <div class="grid gap-2 sm:col-span-2">
+                <FormField
+                  name="attended"
+                  id="manual-attended"
+                  type="checkbox"
+                  label="Mark as checked in"
+                  checked={manual.attended === 'on'}
+                />
+                <FormField
+                  name="sendEmail"
+                  id="manual-email"
+                  type="checkbox"
+                  label="Send the confirmation email with their ticket"
+                  checked={manual.sendEmail === 'on'}
+                />
+              </div>
+              <div class="sm:col-span-2">
+                <Button type="submit" name="action" value="add-manual" size="sm">
+                  Register this person
+                </Button>
+              </div>
+            </form>
+          </details>
+
+          <details name="add-how" class="rounded-lg border border-line p-4">
+            <summary class="cursor-pointer font-semibold">Import a CSV file</summary>
+            <div class="mt-3 grid gap-3">
+              <p class="text-sm">
+                One person per row. The first row names the columns, in any order; other columns are
+                ignored. Commas, semicolons or tabs all work, and Excel's "CSV UTF-8" too.
+              </p>
+              <table class="admin-table text-sm">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>What goes in it</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {REGISTRANT_COLUMNS.map((c) => (
+                    <tr>
+                      <td class="font-mono whitespace-nowrap">
+                        {c.key}
+                        {'required' in c && c.required && (
+                          <span class="ml-1 font-sans text-xs text-brand">required</span>
+                        )}
+                      </td>
+                      <td>
+                        {c.hint}
+                        {c.key === 'name' && ' Or two columns, "first name" and "last name".'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div>
+                <Button
+                  href="/admin/registrants-template.csv"
+                  size="sm"
+                  variant="secondary"
+                  download
+                >
+                  Download the CSV template
+                </Button>
+              </div>
+              <form method="post" enctype="multipart/form-data" class="grid gap-3">
+                <FormField
+                  name="file"
+                  id="add-file"
+                  type="file"
+                  label="CSV file"
+                  accept=".csv,.tsv,.txt,text/csv"
+                  required
+                />
+                <FormField
+                  name="attended"
+                  id="csv-attended"
+                  type="checkbox"
+                  label="Mark everyone as checked in"
+                  hint='Or use the "attended" column for some of them.'
+                />
+                <FormField
+                  name="sendEmail"
+                  id="csv-email"
+                  type="checkbox"
+                  label="Send each new registrant the confirmation email with their ticket"
+                  hint={`At most ${EMAIL_LIMIT} emails per import. Nobody checked in gets one.`}
+                />
+                <div>
+                  <Button type="submit" name="action" value="add-csv" size="sm">
+                    Import
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </details>
+        </div>
+      </details>
 
       <div class="admin-panel overflow-x-auto">
         <form method="get" role="search" class="mb-4 flex flex-wrap gap-2">
@@ -341,4 +753,35 @@ const tone = (s: string) =>
   ) : (
     <p class="text-muted">No events yet.</p>
   )}
+  <script>
+    // Pick members: filter the list as you type, and tick every member shown.
+    const picker = document.querySelector<HTMLFormElement>('[data-member-picker]');
+    if (picker) {
+      const filter = picker.querySelector<HTMLInputElement>('[data-member-filter]')!;
+      const all = picker.querySelector<HTMLInputElement>('[data-member-all]')!;
+      const submit = picker.querySelector<HTMLButtonElement>('[data-member-submit]')!;
+      const items = [...picker.querySelectorAll<HTMLLIElement>('li[data-search]')];
+      const box = (li: HTMLLIElement) => li.querySelector<HTMLInputElement>('input')!;
+      const update = () => {
+        const n = items.filter((li) => box(li).checked).length;
+        submit.textContent = n
+          ? `Register ${n} member${n === 1 ? '' : 's'}`
+          : 'Register the ticked members';
+        submit.disabled = n === 0;
+        const shown = items.filter((li) => !li.hidden);
+        all.checked = shown.length > 0 && shown.every((li) => box(li).checked);
+      };
+      filter.addEventListener('input', () => {
+        const q = filter.value.trim().toLowerCase();
+        for (const li of items) li.hidden = !!q && !li.dataset.search!.includes(q);
+        update();
+      });
+      all.addEventListener('change', () => {
+        for (const li of items) if (!li.hidden) box(li).checked = all.checked;
+        update();
+      });
+      picker.addEventListener('change', update);
+      update();
+    }
+  </script>
 </AdminLayout>

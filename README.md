@@ -158,7 +158,9 @@ Public pages:
   email), an optional **"Anything we should know?"** question (dietary needs,
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
   check-in screen and the contact's event history), check-in flags people who aren't members and
-  can enrol a walk-in as a member (they get the confirmation email), confirmation email with a calendar invite, reminder the day before, QR
+  can enrol a walk-in as a member (they get the confirmation email), **admins can add registrants**
+  themselves in Registrations (pick members, type someone in, or import a CSV with a downloadable
+  template; `src/lib/add-registrants.ts`), confirmation email with a calendar invite, reminder the day before, QR
   ticket and cancel link, **speakers** (a "Who's taking the stage" section of cards with photo,
   role such as Keynote speaker, Moderator or Panelist, title, company, talk title, an optional short
   bio for the event and LinkedIn; picked from People and reused across events), **hosts, sponsors and partners** with their logo (linked to
