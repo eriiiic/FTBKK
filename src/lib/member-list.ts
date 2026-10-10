@@ -5,7 +5,7 @@ import { members } from '../db/schema';
 import { loadContacts, type Contact } from './contacts';
 import { SECTORS } from './directory';
 import { fromLocalInput } from './admin';
-import { MEMBER_STATUSES, NATIONALITY_GROUPS, PROFILE_TYPES } from './members';
+import { MEMBER_STATUSES, PROFILE_TYPES } from './members';
 
 // Admin > Members > All members: the filters, shared by the page and its CSV export. Event figures
 // (attended, no-shows) and the newsletter answer come from Contacts, matched by email.
@@ -56,7 +56,6 @@ export const MemberListFilters = z.object({
     .catch(''),
   status: oneOf(Object.keys(MEMBER_STATUSES)),
   type: oneOf(Object.keys(PROFILE_TYPES)),
-  nationality: oneOf(Object.keys(NATIONALITY_GROUPS)),
   sector: oneOf([...SECTORS]),
   from: day,
   to: day,
@@ -97,7 +96,6 @@ export function filterMembers(list: MemberListItem[], f: MemberListFilters): Mem
   return list.filter((m) => {
     if (f.status && m.status !== f.status) return false;
     if (f.type && m.profileType !== f.type) return false;
-    if (f.nationality && m.nationality !== f.nationality) return false;
     if (f.sector && !m.interests.includes(f.sector)) return false;
     const joined = joinedAt(m).getTime();
     if (joined < from || joined >= to) return false;
