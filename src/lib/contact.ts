@@ -9,6 +9,7 @@ import { verifyTurnstile } from './turnstile';
 import { rateLimit } from './ratelimit';
 import { sendEmail } from './email';
 import { renderTemplate } from './email-templates';
+import { adminNotifyEmails } from './orgs';
 import { CONTACT_TOPICS, blockedBy, topicLabel, type ContactTopic } from './messages';
 import type { Settings } from './settings';
 
@@ -34,7 +35,7 @@ export interface ContactResult {
 
 /**
  * Handles a contact form post: anti-spam check, rate limit, validation, then the message lands in
- * Messages and is emailed to the contact address. A blocked sender sees the usual thank-you; the message is kept in Spam, unannounced.
+ * Messages and is emailed to the admin notification addresses (Settings). A blocked sender sees the usual thank-you; the message is kept in Spam, unannounced.
  */
 export async function handleContactForm(
   request: Request,
@@ -91,8 +92,8 @@ export async function handleContactForm(
       topic: topicLabel(data.topic),
       message: data.message,
     });
-    await sendEmail({
-      to: settings.contactEmail,
+    const res = await sendEmail({
+      to: await adminNotifyEmails(settings),
       replyTo: data.email,
       subject: w.subject,
       paragraphs: w.paragraphs,
@@ -104,6 +105,16 @@ export async function handleContactForm(
       ],
       footer: 'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
     });
+    // The message is safe in Messages either way; the note tells the team the email never left.
+    if (!res.ok && saved)
+      await getDb()
+        .insert(messageNotes)
+        .values({
+          submissionId: saved.id,
+          kind: 'status',
+          body: `The notification email could not be sent: ${res.error ?? 'unknown error'}`,
+          author: 'website',
+        });
   }
   return { values: {}, sent: true, errors: {} };
 }

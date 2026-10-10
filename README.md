@@ -210,7 +210,10 @@ confirmation, welcome, member page link, the link sent on a repeat sign-up, the 
 a newcomer registering for an event, the claim invitation, the yearly reminder and the paused
 email), the newsletter
 confirmation, the "your data" link, and the notifications to the team (contact form message, new
-listing, claim, listing change and membership application to review, weekly directory summary).
+member, new listing, claim, listing change and membership application to review, weekly directory
+summary). Every team notification goes to the addresses in Settings > Admin notifications (the
+contact email when empty); **Send a test** there sends one right away and shows Resend's answer.
+A contact form message whose email fails gets a note saying so in Messages.
 Lists built by the site (the renewals of the directory summary) are placeholders (`{renewals}`)
 that must stay in the message (not only the subject or button), like a rejection `{reason}`, the contact form `{message}` or a claim's `{domain-check}`. Optional
 parts of the welcome email are placeholders too: `{whatsapp}` (the WhatsApp sentence, empty

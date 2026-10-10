@@ -292,8 +292,8 @@ uses any more.
   listings get no reminders: use **Send** to invite someone you know there to claim it.
 - **History**: who changed what, and when.
 
-Moderators also get an email for each new request and a summary every Monday. Set who receives
-them in Settings > Directory moderators.
+The team also gets an email for each new request and a summary every Monday, at the addresses in
+Settings > Admin notifications.
 
 ## Members
 
@@ -306,6 +306,7 @@ enrolment at check-in.
 - People sign up on `/join`, click the link in the confirmation email and are **active** at once:
   they get a welcome email with the WhatsApp invitation (the link from Settings > Social links)
   and a link to their member page, where they edit their profile, see their events and can leave.
+  The team gets a "New member" email at the Admin notifications addresses (Settings).
 - **Members > To review**: active members nobody has looked at yet, newest first. It never
   blocks anyone (they are members already); it just helps the board keep track of who joined.
   Add a **note** if useful, then tick them and **Mark as reviewed**. Members made from a contact's
@@ -363,12 +364,15 @@ enrolment at check-in.
   Tick several messages to move them at once; search covers every field and the team notes.
   **Add a note** records what was done (who answered, what was said, why it is spam) with your
   name and the time; "Save and mark answered" files the message in the same click. Every move
-  between folders is logged under the message too. New messages are emailed to the contact
-  email from Settings. Messages from the Join page carry its topics (Join the
+  between folders is logged under the message too. New messages are emailed to the addresses in
+  Settings > Admin notifications (the contact email when empty); if that email fails, the message
+  gets a note saying why. Messages from the Join page carry its topics (Join the
   WhatsApp group, Volunteer, Host an event, Partnership, Speak at an event…): for "Join the
   WhatsApp group", reply with the invite link (the link itself is in Settings and never shown
   on the site).
-- **Settings**: site name and description, contact email, directory moderators, social links (the
+- **Settings**: site name and description, contact email, **Admin notifications** (who gets the
+  team's emails: contact form messages, new members, directory requests and the Monday summary;
+  **Send a test** emails them now and shows whether Resend accepted it), social links (the
   WhatsApp invite link is kept here for the team and the welcome email to members), membership
   switches (individual sign-up on the Join page, company membership applications, member
   priority on events), the analytics token and the **Default images for Talks and Connects**:
@@ -453,8 +457,10 @@ and when:
   membership" invitation, the yearly reminder and the "membership paused" email.
 - **Community**: the newsletter confirmation (Email the community is written each time).
   **Privacy**: the "your data" link.
-- **Admin notifications** (to the team): a contact form message, a new listing, a claim, a
-  listing change and a membership application to review, and the Monday directory summary.
+- **Admin notifications** (to the team, at the addresses in Settings > Admin notifications): a
+  contact form message, a new member (first confirmation only, not renewals), a new listing, a
+  claim, a listing change and a membership application to review, and the Monday directory
+  summary.
 
 A **Default** badge means the text the site came with; **Edited** shows when and by whom.
 

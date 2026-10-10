@@ -10,7 +10,7 @@ import {
   type PartnerGroupRow,
 } from './directory';
 import { email, optionalText, optionalUrl } from './forms';
-import { getSettings } from './settings';
+import { getSettings, type Settings } from './settings';
 import { sendEmail } from './email';
 import { renderTemplate } from './email-templates';
 import { issueToken } from './tokens';
@@ -202,8 +202,13 @@ export async function savePartner(
   );
 }
 
-export async function moderatorEmails() {
-  const s = await getSettings();
+/**
+ * Who gets the admin emails (contact form messages, new members, directory requests and the
+ * Monday summary): Settings > Admin notifications (stored as moderatorEmails), else the contact
+ * email.
+ */
+export async function adminNotifyEmails(s?: Settings) {
+  s ??= await getSettings();
   return s.moderatorEmails.length ? s.moderatorEmails : [s.contactEmail];
 }
 

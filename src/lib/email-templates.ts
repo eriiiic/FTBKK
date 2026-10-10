@@ -103,6 +103,7 @@ const sampleDataUrl = `${SITE}/my-data?token=sample`;
 const sampleEventUrl = `${SITE}/events/sample`;
 const sampleOrgUrl = `${SITE}/ecosystem/siam-robotics`;
 const adminEcosystemUrl = `${SITE}/admin/ecosystem`;
+const ADMIN_AUDIENCE = 'The admin notification addresses in Settings (else the contact email)';
 
 /** The {reason} of a rejection when the moderator typed none. */
 export const NO_REASON = 'No reason given.';
@@ -171,6 +172,7 @@ export type TemplateKey =
   | 'member.renewal'
   | 'member.lapsed'
   | 'admin.contact-form'
+  | 'admin.new-member'
   | 'admin.listing-to-review'
   | 'admin.claim-to-review'
   | 'admin.change-to-review'
@@ -669,7 +671,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
   'admin.contact-form': {
     label: 'Contact form message',
     group: 'Admin notifications',
-    audience: 'The contact address in Settings',
+    audience: ADMIN_AUDIENCE,
     trigger: 'When someone sends the contact form (not when the sender is blocked)',
     subject: 'Website contact ({topic}): {name}',
     body: '{message}',
@@ -695,10 +697,35 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
       footer: 'Sent from the contact form on french-tech-bangkok.com. Reply to answer directly.',
     },
   },
+  'admin.new-member': {
+    label: 'New member',
+    group: 'Admin notifications',
+    audience: ADMIN_AUDIENCE,
+    trigger:
+      'When someone confirms their membership (not a renewal, and not when the team ticks Member on a contact)',
+    subject: 'New member: {name}',
+    body: '{name} ({email}) just joined La French Tech Bangkok. They show in Members, under To review, where you can add a note.',
+    buttonLabel: 'See new members',
+    placeholders: [
+      P.name,
+      { key: 'email', description: 'Their email', sample: 'camille@example.com' },
+    ],
+    added:
+      'Their company, job title, what describes them best, how they heard about us and LinkedIn, and the link to Members (the button).',
+    preview: {
+      buttonUrl: `${SITE}/admin/members`,
+      details: [
+        ['Company', 'Siam Robotics'],
+        ['Job title', 'CEO'],
+        ['Describes them', 'Founder or co-founder'],
+        ['How they heard', 'LinkedIn'],
+      ],
+    },
+  },
   'admin.listing-to-review': {
     label: 'New listing to review',
     group: 'Admin notifications',
-    audience: 'The directory moderators',
+    audience: ADMIN_AUDIENCE,
     trigger: 'When someone confirms the email of a new listing request',
     subject: 'New directory listing to review: {org}',
     body: '{org} asked to be listed in the ecosystem directory and verified {email}.\n\nTarget: answer within 5 days.',
@@ -717,7 +744,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
   'admin.claim-to-review': {
     label: 'Claim to review',
     group: 'Admin notifications',
-    audience: 'The directory moderators',
+    audience: ADMIN_AUDIENCE,
     trigger: 'When someone confirms the email of a claim',
     subject: 'Listing claim to review: {org}',
     body: '{name} ({role}) verified {email} and asks to manage {org}.\n\n{domain-check}',
@@ -740,7 +767,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
   'admin.change-to-review': {
     label: 'Listing change to review',
     group: 'Admin notifications',
-    audience: 'The directory moderators',
+    audience: ADMIN_AUDIENCE,
     trigger: 'When a manager changes the name, category or description of a listing',
     subject: 'Listing change to review: {org}',
     body: '{email} asked to change {fields} on {org}.',
@@ -756,7 +783,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
   'admin.membership-application': {
     label: 'Membership application',
     group: 'Admin notifications',
-    audience: 'The directory moderators',
+    audience: ADMIN_AUDIENCE,
     trigger: 'When a listing manager applies for membership',
     subject: 'Membership application: {org}',
     body: '{org} applied for the free French Tech Bangkok membership.\n\n{motivation}',
@@ -779,7 +806,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
   'admin.directory-digest': {
     label: 'Directory: weekly summary',
     group: 'Admin notifications',
-    audience: 'The directory moderators',
+    audience: ADMIN_AUDIENCE,
     trigger: 'Every Monday at 9:00, when something waits for review or a renewal is due',
     subject: 'Directory: {items} to review{oldest}',
     body: 'Weekly summary of the ecosystem directory. Target: answer within {target} days.\n\n{renewals}',

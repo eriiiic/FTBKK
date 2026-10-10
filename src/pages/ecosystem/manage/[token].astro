@@ -21,7 +21,7 @@ import {
   OrgFields,
   REVIEWED_FIELDS,
   audit,
-  moderatorEmails,
+  adminNotifyEmails,
   orgsOwnedBy,
   siteUrl,
 } from '../../../lib/orgs';
@@ -84,7 +84,7 @@ if (Astro.request.method === 'POST' && row && org) {
         motivation: parsed.data.motivation,
       });
       await sendEmail({
-        to: await moderatorEmails(),
+        to: await adminNotifyEmails(),
         subject: w.subject,
         paragraphs: w.paragraphs,
         details: [
@@ -151,7 +151,7 @@ if (Astro.request.method === 'POST' && row && org) {
             org: org.name,
           });
           await sendEmail({
-            to: await moderatorEmails(),
+            to: await adminNotifyEmails(),
             subject: w.subject,
             paragraphs: w.paragraphs,
             action: { label: w.buttonLabel, url: siteUrl('/admin/ecosystem') },
