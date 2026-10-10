@@ -25,7 +25,8 @@ Public pages:
   > slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
 - **Event covers**: French Tech Connect and French Tech Talk events without a cover show a default
   image, set in Settings (built-in images until then; `lib/event-covers.ts`).
-- **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
+- **About**: the community, the board (each card shows the member's French Tech responsibility,
+  such as President or Commission lead, instead of their company), "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the
   same style as `/join`. Texts are edited in the admin (Site texts).

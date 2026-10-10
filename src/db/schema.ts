@@ -441,6 +441,8 @@ export const people = sqliteTable('people', {
     onDelete: 'set null',
   }),
   organisationName: text('organisation_name'),
+  /** Role at La French Tech Bangkok (president, commission lead...), shown on board cards. */
+  ftRole: text('ft_role'),
   /** 'speaker' is someone who only spoke at events; board and institutional people can speak too. */
   group: text('group', { enum: ['board', 'institutional', 'speaker'] }).notNull(),
   linkedin: text('linkedin'),

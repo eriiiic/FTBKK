@@ -17,11 +17,16 @@ const PersonSchema = z.object({
   name: z.string().min(2, 'Enter a name.').max(120),
   title: optionalText(120),
   organisationName: optionalText(120),
+  ftRole: optionalText(120),
   linkedin: optionalUrl(),
   group: z.enum(['board', 'institutional', 'speaker']),
 });
 const GROUPS = [
-  { key: 'board', label: 'Board', note: 'Shown on the About page in this order.' },
+  {
+    key: 'board',
+    label: 'Board',
+    note: 'Shown on the About page in this order. Board cards show the French Tech responsibility under the name instead of the organisation.',
+  },
   {
     key: 'institutional',
     label: 'Institutional partners',
@@ -197,6 +202,17 @@ const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
                     class="block text-sm"
                   />
                 </label>
+                {p.group === 'board' && (
+                  <label class="text-xs text-muted">
+                    French Tech responsibility
+                    <input
+                      name="ftRole"
+                      value={p.ftRole ?? ''}
+                      placeholder="President, Commission lead..."
+                      class={input}
+                    />
+                  </label>
+                )}
                 {p.photoKey && (
                   <label class="flex items-center gap-2 text-xs">
                     <input type="checkbox" name="removePhoto" class="accent-brand" /> Remove photo
@@ -246,6 +262,10 @@ const input = 'w-full rounded-lg border border-line bg-paper px-2 py-1 text-sm';
       </label>
       <label class="text-sm">
         LinkedIn <input name="linkedin" class={input} />
+      </label>
+      <label class="text-sm">
+        French Tech responsibility (board)
+        <input name="ftRole" placeholder="President, Commission lead..." class={input} />
       </label>
       <label class="text-sm">
         Group
