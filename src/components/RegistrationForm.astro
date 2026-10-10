@@ -28,6 +28,8 @@ interface Props {
   membersOnly?: boolean;
   /** Members only: 'join' shows the membership form for an email that isn't a member yet. */
   step?: 'email' | 'join';
+  /** Private event: the invitation token, kept in the form's address. */
+  invite?: string;
 }
 const {
   event,
@@ -37,7 +39,9 @@ const {
   result,
   membersOnly = false,
   step = 'email',
+  invite,
 } = Astro.props;
+const action = `/events/${event.slug}${invite ? `?invite=${encodeURIComponent(invite)}` : ''}#register`;
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 ---
 
@@ -79,7 +83,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         : 'Registration is closed for this event.'}
     </Alert>
   ) : membersOnly && step === 'join' ? (
-    <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
+    <form method="post" action={action} class="mt-4 grid gap-4">
       <input type="hidden" name="step" value="join" />
       <input type="hidden" name="note" value={str('note')} />
       <input type="hidden" name="guests" value={str('guests')} />
@@ -97,7 +101,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       </div>
     </form>
   ) : membersOnly ? (
-    <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
+    <form method="post" action={action} class="mt-4 grid gap-4">
       <input type="hidden" name="step" value="email" />
       {state.spotsLeft !== null && (
         <p class={`text-sm font-semibold ${state.full ? 'text-warning' : 'text-success'}`}>
@@ -163,7 +167,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       </p>
     </form>
   ) : (
-    <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
+    <form method="post" action={action} class="mt-4 grid gap-4">
       {state.spotsLeft !== null && (
         <p class={`text-sm font-semibold ${state.full ? 'text-warning' : 'text-success'}`}>
           {state.full

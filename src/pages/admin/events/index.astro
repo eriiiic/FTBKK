@@ -18,6 +18,8 @@ const rows = await getDb()
     endsAt: events.endsAt,
     status: events.status,
     capacity: events.capacity,
+    inviteOnly: events.inviteOnly,
+    listed: events.listed,
     registered: registrationCount(['registered', 'attended']),
   })
   .from(events)
@@ -71,7 +73,7 @@ const groups = [
                     {e.capacity ? ` / ${e.capacity}` : ''}
                   </a>
                 </td>
-                <td data-sort={e.status}>
+                <td data-sort={e.status} class="space-x-1 whitespace-nowrap">
                   <Badge
                     tone={
                       e.status === 'published'
@@ -83,6 +85,8 @@ const groups = [
                   >
                     {e.status}
                   </Badge>
+                  {e.inviteOnly && <Badge tone="accent">private</Badge>}
+                  {!e.listed && <Badge>unlisted</Badge>}
                 </td>
               </tr>
             ))}

@@ -7,7 +7,7 @@
 // up to date (shareImageFor), otherwise the cover, as before.
 import { z } from 'zod';
 import type { Event, Post } from '../db/schema';
-import { eventCover, eventKind, type EventCovers } from './event-covers';
+import { KIND_NAMES, eventCover, eventKind, type EventCovers } from './event-covers';
 import { formatDate, formatTime, mediaUrl, TZ } from './format';
 import type { ShareSpec } from './share-spec';
 
@@ -20,8 +20,7 @@ export { SHARE_HEIGHT, SHARE_WIDTH, type ShareEntity, type ShareSpec } from './s
 
 export function eventLabel(series: string) {
   const kind = eventKind(series);
-  if (kind === 'connect') return 'French Tech Connect';
-  if (kind === 'talk') return 'French Tech Talk';
+  if (kind !== 'other') return KIND_NAMES[kind];
   return series && series !== 'Other' ? series : 'Event';
 }
 

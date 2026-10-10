@@ -42,9 +42,21 @@ uses any more.
 
 ## Events
 
-- **New event**: title, type (French Tech Connect, French Tech Talk, or Other with a series name
-  such as Workshop), start time (Bangkok time), venue, then publish. Connect and Talk events
-  without a cover show the default image from Settings.
+- **New event**: title, type (French Tech Connect, French Tech Talk, French Tech Select, or Other
+  with a series name such as Workshop), start time (Bangkok time), venue, then publish. Connect,
+  Talk and Select events without a cover show the default image from Settings.
+- **Private and listing** (on the event form):
+  - **Private: registration by invitation link only**. The event page shows the event with
+    "Registration is by invitation only" instead of the form. Save, then copy the **Invitation
+    link** shown in the same box and share it yourself (email, WhatsApp). Anyone who opens it can
+    register, following the usual rules (capacity, waitlist, members only while Membership is on).
+    **New link** makes a fresh one: the old link stops working, people already registered stay
+    registered.
+  - **List publicly** (ticked by default). Untick it to keep the event off the events page, the
+    home page, the sitemap and search engines. Its page still exists for anyone with the address.
+  - Both work separately: a private event can stay listed (everyone sees it, only guests can
+    register), or a public event can be unlisted. The events list shows "private" and "unlisted"
+    next to the status.
 - **Duplicate** (on an event page) copies everything except the dates, handy for the next French
   Tech Connect.
 - **Capacity** empty means unlimited. When full, people join the waitlist.
@@ -392,9 +404,10 @@ enrolment at check-in.
   **Send a test** emails them now and shows whether Resend accepted it), social links (the
   WhatsApp invite link is kept here for the team and the welcome email to members), membership
   switches (individual sign-up on the Join page, company membership applications, member
-  priority on events), the analytics token and the **Default images for Talks and Connects**:
-  the cover shown for French Tech Connect and French Tech Talk events that have none of their
-  own (built-in images until you upload others).
+  priority on events), the analytics token and the **Default event images**: the cover shown
+  for French Tech Connect, French Tech Talk and French Tech Select events that have none of their
+  own (built-in images for Connect and Talk until you upload others; Select has none until you
+  upload one).
 - **Home page** (Website pages > Home): every photo has its own slot: **Main header** (the big
   photo at the top, also faint in the red closing band; its description is the small caption;
   default: the Bangkok skyline), **About us** (the arched photo; default: a photo from the latest
@@ -436,7 +449,7 @@ enrolment at check-in.
 ## Social media
 
 Every event and blog post has a **share image** (1200x630): the logo, a red label (French Tech
-Connect, French Tech Talk, the series, or Blog), the title, the date and venue or the author, and
+Connect, French Tech Talk, French Tech Select, the series, or Blog), the title, the date and venue or the author, and
 the cover photo. It is what LinkedIn, Facebook and WhatsApp show when someone shares the link. You
 don't have to do anything: when you open an event or post in the admin and its title, date, venue
 or photo changed, the image is redrawn in your browser. **Admin > Social media** has a button to

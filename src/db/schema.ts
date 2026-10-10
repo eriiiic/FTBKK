@@ -71,6 +71,12 @@ export const events = sqliteTable(
     status: text('status', { enum: ['draft', 'published', 'cancelled'] })
       .notNull()
       .default('draft'),
+    /** Private: only people holding the invitation link (inviteToken) can register. */
+    inviteOnly: integer('invite_only', { mode: 'boolean' }).notNull().default(false),
+    /** The secret of the invitation link (/events/<slug>?invite=<token>); a new one revokes it. */
+    inviteToken: text('invite_token'),
+    /** Shown on the events list, home page and sitemap; unlisted = page by direct link only. */
+    listed: integer('listed', { mode: 'boolean' }).notNull().default(true),
     /** Photos, slides, video and blog write-up of a past event; null = no recap yet. */
     recap: json<EventRecap>('recap'),
     /** The 1200x630 social share image (R2 key, lib/share.ts); its name carries a fingerprint. */

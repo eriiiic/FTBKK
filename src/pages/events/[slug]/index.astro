@@ -75,6 +75,9 @@ let state = registrationState(event, await countTaken(event.id), now, {
 });
 
 const isPost = Astro.request.method === 'POST';
+// Private events: only people holding the invitation link (?invite=) can register.
+const invite = Astro.url.searchParams.get('invite') ?? '';
+const invited = !event.inviteOnly || (!!event.inviteToken && invite === event.inviteToken);
 // With membership open, every event is members only: members register with their email, and
 // someone new fills the free membership form once, which also registers them when they confirm.
 const membersOnly = settings.memberSignupOpen;
@@ -86,7 +89,7 @@ let result: {
   email: string;
   guests?: number;
 } | null = null;
-if (isPost) {
+if (isPost && invited) {
   const form = await Astro.request.formData();
   values = formToObject(form, ['interests']);
   const ip = clientIp(Astro.request);
@@ -226,7 +229,8 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  cache={!isPost}
+  cache={!isPost && !invite}
+  noindex={!event.listed}
   title={event.title}
   description={description}
   image={shareImage ?? cover}
@@ -239,6 +243,7 @@ const jsonLd = {
         <div class="md:col-span-3">
           <div class="flex flex-wrap gap-2">
             <Badge tone="accent">{event.series}</Badge>
+            {event.inviteOnly && <Badge>By invitation</Badge>}
             {event.status === 'cancelled' && <Badge tone="danger">Cancelled</Badge>}
             {!upcoming && <Badge>Past event</Badge>}
           </div>
@@ -303,7 +308,7 @@ const jsonLd = {
           </dl>
           {upcoming && event.status !== 'cancelled' && (
             <div class="mt-6 flex flex-wrap gap-3">
-              {state.open && (
+              {state.open && invited && (
                 <Button href="#register">{state.full ? 'Join the waitlist' : 'Register'}</Button>
               )}
               <Button href={`/events/${event.slug}/calendar.ics`} variant="secondary">
@@ -324,9 +329,19 @@ const jsonLd = {
       <aside class="self-start md:sticky md:top-24 md:col-span-2">
         {event.status === 'cancelled' ? (
           <Alert tone="danger">This event has been cancelled.</Alert>
+        ) : upcoming && !invited ? (
+          <div class="rounded-card bg-surface p-6">
+            <p class="font-semibold text-navy">Private event</p>
+            <p class="mt-2 text-sm text-muted">
+              {invite
+                ? 'This invitation link is no longer valid. Ask the person who invited you for the current one.'
+                : 'Registration is by invitation only. If you were invited, open the link in your invitation.'}
+            </p>
+          </div>
         ) : upcoming ? (
           <RegistrationForm
             event={event}
+            invite={event.inviteOnly ? invite : undefined}
             state={state}
             membersOnly={membersOnly}
             step={step}

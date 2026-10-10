@@ -120,7 +120,7 @@ export async function homeData(fallbackPartners: readonly { title: string; link?
     db
       .select({ title: events.title, recap: events.recap, coverKey: events.coverKey })
       .from(events)
-      .where(and(eq(events.status, 'published'), lt(events.startsAt, now)))
+      .where(and(eq(events.status, 'published'), eq(events.listed, true), lt(events.startsAt, now)))
       .orderBy(desc(events.startsAt))
       .limit(12),
     db

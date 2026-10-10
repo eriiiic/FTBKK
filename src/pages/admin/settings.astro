@@ -10,7 +10,7 @@ import { fieldErrors, formToObject } from '../../lib/forms';
 import { adminNotifyEmails, audit, siteUrl } from '../../lib/orgs';
 import PhotoSlot from '../../components/admin/PhotoSlot.astro';
 import { readPhotoSlot } from '../../lib/photo-slots';
-import { CONNECT, DEFAULT_EVENT_COVERS, TALK } from '../../lib/event-covers';
+import { COVER_KINDS, DEFAULT_EVENT_COVERS, KIND_NAMES } from '../../lib/event-covers';
 
 // Site-wide settings. The texts shown on public pages are in Website pages (/admin/site-texts).
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -56,7 +56,7 @@ let values: Record<string, unknown> = {
   moderatorEmails: current.moderatorEmails.join('\n'),
 };
 
-// Default covers of Connect and Talk events (R2 keys; null = the built-in image).
+// Default covers of Connect, Talk and Select events (R2 keys; null = the built-in image).
 let covers = current.eventCovers;
 const asPhoto = (key: string | null) => (key ? { key } : null);
 
@@ -82,7 +82,7 @@ if (form?.get('intent') === 'test-notify') {
   const parsed = Schema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
   const nextCovers = { ...covers };
-  for (const kind of ['connect', 'talk'] as const) {
+  for (const kind of COVER_KINDS) {
     const name = `cover-${kind}`;
     const r = await readPhotoSlot(form, name, asPhoto(covers[kind]), {
       prefix: 'events/defaults',
@@ -175,27 +175,22 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     </section>
 
     <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Default images for Talks and Connects</h2>
+      <h2 class="text-lg">Default event images</h2>
       <p class="text-sm text-muted">
-        Events of type {CONNECT} or {TALK} that have no cover of their own show this image on the
-        site (events list, event page, home page and link previews). Pick the type on each event.
+        Events of type {KIND_NAMES.connect}, {KIND_NAMES.talk} or {KIND_NAMES.select} that have no
+        cover of their own show this image on the site (events list, event page, home page and link
+        previews). Pick the type on each event.
       </p>
-      <PhotoSlot
-        name="cover-connect"
-        label={CONNECT}
-        photo={asPhoto(covers.connect)}
-        defaultSrc={DEFAULT_EVENT_COVERS.connect}
-        withAlt={false}
-        error={errors['cover-connect']}
-      />
-      <PhotoSlot
-        name="cover-talk"
-        label={TALK}
-        photo={asPhoto(covers.talk)}
-        defaultSrc={DEFAULT_EVENT_COVERS.talk}
-        withAlt={false}
-        error={errors['cover-talk']}
-      />
+      {COVER_KINDS.map((kind) => (
+        <PhotoSlot
+          name={`cover-${kind}`}
+          label={KIND_NAMES[kind]}
+          photo={asPhoto(covers[kind])}
+          defaultSrc={DEFAULT_EVENT_COVERS[kind]}
+          withAlt={false}
+          error={errors[`cover-${kind}`]}
+        />
+      ))}
     </section>
 
     <section class="admin-panel grid gap-4">
