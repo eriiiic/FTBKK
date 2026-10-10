@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
+import { downloadPath } from '../../lib/tech-pulse';
+import { downloadsForMembers, editionForKey } from '../../lib/tech-pulse-downloads';
 
 /** R2 prefixes that must never be served publicly (database backups hold personal data). */
 const PRIVATE_PREFIXES = ['backups/'];
@@ -9,6 +11,15 @@ export const GET: APIRoute = async ({ params, request }) => {
   const key = params.key;
   if (!key || key.includes('..') || PRIVATE_PREFIXES.some((p) => key.startsWith(p)))
     return new Response('Not found', { status: 404 });
+  // A Tech Pulse report while downloads are members-only: through the members-only download.
+  if (/\.pdf$/i.test(key) && (await downloadsForMembers())) {
+    const edition = await editionForKey(key);
+    if (edition)
+      return new Response(null, {
+        status: 302,
+        headers: { Location: downloadPath(edition.slug), 'Cache-Control': 'private, no-store' },
+      });
+  }
   const obj = await env.MEDIA.get(key, { onlyIf: request.headers, range: request.headers });
   if (!obj) return new Response('Not found', { status: 404 });
   const headers = new Headers();

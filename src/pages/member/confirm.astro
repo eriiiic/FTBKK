@@ -9,6 +9,8 @@ import { peekToken } from '../../lib/tokens';
 // Membership confirmation link from the sign-up email. GET only shows a button, so email link
 // scanners can't confirm anyone; the button POSTs, then opens the member page.
 const token = (Astro.url.searchParams.get('token') ?? '').slice(0, 100);
+// Joined to download Thailand Tech Pulse: the edition they asked for.
+const download = (Astro.url.searchParams.get('download') ?? '').slice(0, 200);
 let valid = true;
 if (Astro.request.method === 'POST') {
   const done = await confirmMembership(token);
@@ -17,7 +19,9 @@ if (Astro.request.method === 'POST') {
     const reg = done.registration
       ? `&event=${encodeURIComponent(done.registration.event.slug)}&reg=${done.registration.outcome.status}`
       : '';
-    return Astro.redirect(`${memberPagePath(done.link)}&welcome=1${reg}`, 303);
+    // Joined to download a report: the member page offers it.
+    const dl = download ? `&download=${encodeURIComponent(download)}` : '';
+    return Astro.redirect(`${memberPagePath(done.link)}&welcome=1${reg}${dl}`, 303);
   }
   valid = false;
 } else valid = Boolean(token && (await peekToken(token, 'member_confirm')));

@@ -10,7 +10,8 @@ export type TokenPurpose =
   | 'member_confirm'
   | 'member'
   | 'member_claim'
-  | 'member_renew';
+  | 'member_renew'
+  | 'download';
 
 const DAY = 86400;
 /** Lifetimes in seconds. Confirm links double as reactivation links, so they live a year. */
@@ -31,6 +32,8 @@ export const TOKEN_TTL: Record<TokenPurpose, number> = {
   member_claim: 60 * DAY,
   /** One-click yearly reconfirmation (reminders, then the lapsed email). */
   member_renew: 60 * DAY,
+  /** Remembers a member's browser for members-only downloads (Tech Pulse), kept in a cookie. */
+  download: 365 * DAY,
 };
 /** Confirm links can be used again (yearly confirm, reactivation); the rest are single use. */
 export const REUSABLE: Record<TokenPurpose, boolean> = {
@@ -44,6 +47,7 @@ export const REUSABLE: Record<TokenPurpose, boolean> = {
   member: true,
   member_claim: false,
   member_renew: false,
+  download: true,
 };
 
 export function randomToken(bytes = 32) {
