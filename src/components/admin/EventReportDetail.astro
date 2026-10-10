@@ -1,0 +1,201 @@
+---
+import Button from '../Button.astro';
+import Badge from '../Badge.astro';
+import Kpi from './Kpi.astro';
+import BarList from './BarList.astro';
+import LineChart from './LineChart.astro';
+import { KIND_LABELS, type eventDetail } from '../../lib/event-stats';
+import { formatRating, RATING_LABELS } from '../../lib/feedback';
+import { formatDate, formatEventDate } from '../../lib/format';
+import { delta, pct } from '../../lib/report-period';
+
+// Reports > Events and attendance, one event: its numbers next to the usual for its type (the
+// same type's events in the 12 months before), registration pace, arrivals and feedback.
+interface Props {
+  detail: ReturnType<typeof eventDetail>;
+  back: string;
+}
+const { detail: d, back } = Astro.props;
+const r = d.row;
+const u = d.usual;
+const kind = KIND_LABELS[r.kind];
+const versus = `vs usual for ${kind} (${d.usualCount} event${d.usualCount === 1 ? '' : 's'} before)`;
+const round = (v: number | null) => (v === null ? '–' : String(Math.round(v)));
+const known = r.firstTimers + r.returning;
+const share = (n: number) => (known ? n / known : null);
+const kpis = [
+  {
+    label: 'Registered',
+    value: `${r.registered}${r.event.capacity ? ` / ${r.event.capacity}` : ''}`,
+    delta: delta(r.registered, u?.avgRegistered ?? null),
+    hint: u ? `Usual: ${round(u.avgRegistered)}` : 'Seats taken, guests included',
+  },
+  {
+    label: 'Checked in',
+    value: r.showUp === null && r.attended === 0 ? '–' : String(r.attended),
+    delta: r.showUp === null ? null : delta(r.attended, u?.avgAttended ?? null),
+    hint:
+      r.showUp === null
+        ? r.past
+          ? 'Check-in was not used'
+          : 'After the event'
+        : `${r.walkIns} walk-ins, ${r.guests} guests`,
+  },
+  {
+    label: 'Show-up rate',
+    value: pct(r.showUp),
+    delta: delta(r.showUp, u?.showUp ?? null, 'rate'),
+    hint: r.noShows === null ? '' : `${r.noShows} no-shows (${pct(1 - (r.showUp ?? 0))})`,
+  },
+  {
+    label: 'Seats filled',
+    value: pct(r.fill),
+    delta: delta(r.fill, u?.fill ?? null, 'rate'),
+    hint: r.event.capacity ? `${r.waitlist} on the waitlist` : 'No capacity set',
+  },
+  {
+    label: 'First-timers',
+    value: pct(share(r.firstTimers)),
+    delta: delta(share(r.firstTimers), u?.newShare ?? null, 'rate'),
+    hint: r.past ? `${r.firstTimers} new faces, ${r.returning} came back` : 'After the event',
+  },
+  {
+    label: 'Members among attendees',
+    value: pct(share(r.members)),
+    delta: delta(share(r.members), u?.memberShare ?? null, 'rate'),
+    hint: r.past ? `${r.members} of ${known} named attendees` : 'After the event',
+  },
+  {
+    label: 'Average rating',
+    value: r.feedback.average === null ? '–' : `${formatRating(r.feedback.average)} / 5`,
+    delta: delta(r.feedback.average, u?.feedback.average ?? null, 'rating'),
+    hint: r.feedback.emailed
+      ? `${r.feedback.responses} answers of ${r.feedback.emailed} emailed (${pct(r.feedback.responseRate)})`
+      : `${r.feedback.responses} answers`,
+  },
+  {
+    label: 'Cancelled',
+    value: String(r.cancelled),
+    delta: null,
+    hint: 'Seats given back before the event',
+  },
+];
+---
+
+<section class="admin-panel mb-6" aria-labelledby="event-title">
+  <p class="mb-2 text-sm">
+    <a href={back}>← All events of the period</a>
+  </p>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <p class="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wider text-brand uppercase">
+        {kind}
+        {!r.past && <Badge tone="accent">upcoming</Badge>}
+        {r.event.status === 'cancelled' && <Badge tone="danger">cancelled</Badge>}
+      </p>
+      <h2 id="event-title" class="mt-1 text-xl">
+        {r.event.title}
+      </h2>
+      <p class="text-sm text-muted">{formatEventDate(r.event.startsAt)}</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <Button href={`/admin/events/${r.event.id}`} size="sm" variant="ghost">
+        Edit event
+      </Button>
+      <Button href={`/admin/registrations?event=${r.event.id}`} size="sm" variant="ghost">
+        Registrations
+      </Button>
+      {r.past ? (
+        <Button href={`/admin/events/${r.event.id}/feedback`} size="sm" variant="secondary">
+          Feedback with names
+        </Button>
+      ) : (
+        <Button href={`/admin/events/${r.event.id}/checkin`} size="sm">
+          Open check-in
+        </Button>
+      )}
+    </div>
+  </div>
+  {!u && (
+    <p class="mt-3 text-xs text-muted">
+      No earlier {kind} event in the 12 months before this one to compare with.
+    </p>
+  )}
+</section>
+
+<section aria-label="Key numbers" class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+  {kpis.map((k) => (
+    <Kpi label={k.label} value={k.value} hint={k.hint} delta={k.delta} versus={versus} />
+  ))}
+</section>
+
+<div class="mb-6 grid items-start gap-6 xl:grid-cols-2">
+  <LineChart
+    title="Registration pace, 30 days before the event"
+    labels={d.pace.labels}
+    series={[
+      { name: 'This event', values: d.pace.current, tone: 'brand' as const },
+      ...(d.pace.previous
+        ? [
+            {
+              name: d.pace.previousTitle ?? `Previous ${kind}`,
+              values: d.pace.previous,
+              tone: 'muted' as const,
+              dashed: true,
+            },
+          ]
+        : []),
+    ]}
+    empty="No registrations on this site for this event."
+  />
+  <BarList
+    title="Arrivals at the door"
+    hint="People checked in per 15 minutes, guests included"
+    rows={d.door}
+    tone="navy"
+    empty={r.past ? 'Check-in was not used at this event.' : 'Shows on the day of the event.'}
+  />
+  <BarList title="How people heard about it" rows={d.howHeard} shares />
+  <BarList
+    title="Companies represented"
+    hint="Top 10, from the registration form"
+    rows={d.companies}
+    tone="navy"
+    empty="Nobody gave a company."
+  />
+</div>
+
+<div class="grid items-start gap-6 lg:grid-cols-[1fr_2fr]">
+  <BarList
+    title="Feedback ratings"
+    hint={`${r.feedback.responses} answers, ${r.feedback.comments} with a comment`}
+    rows={[5, 4, 3, 2, 1].map((n) => [
+      `${n} · ${RATING_LABELS[n]}`,
+      r.feedback.distribution[n - 1] ?? 0,
+    ])}
+    tone="brand"
+    shares
+  />
+  <section class="admin-panel" aria-labelledby="event-comments-title">
+    <h2 id="event-comments-title" class="font-semibold text-navy">
+      What people said
+    </h2>
+    {d.comments.length ? (
+      <ul class="mt-4 grid gap-4">
+        {d.comments.map((c) => (
+          <li class="border-l-4 border-line pl-4">
+            <p class="text-xs text-muted">
+              <span class="font-semibold text-navy">{c.rating} / 5</span> ·{' '}
+              {formatDate(c.createdAt)}
+            </p>
+            <p class="mt-1 text-sm whitespace-pre-line">{c.comment}</p>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="mt-6 mb-4 text-sm text-muted">
+        {r.past ? 'No comment yet.' : 'The feedback email goes out the morning after the event.'}
+      </p>
+    )}
+  </section>
+</div>

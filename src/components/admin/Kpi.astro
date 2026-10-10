@@ -1,0 +1,27 @@
+---
+import type { Delta } from '../../lib/report-period';
+
+// One key figure on Reports, with an optional change against the previous period.
+interface Props {
+  label: string;
+  value: string;
+  hint?: string | undefined;
+  delta?: Delta | null | undefined;
+  /** "vs 1 Jan – 31 Mar 2025" */
+  versus?: string | undefined;
+}
+const { label, value, hint, delta, versus } = Astro.props;
+const tone = { good: 'text-success', bad: 'text-danger', flat: 'text-muted' };
+---
+
+<div class="admin-panel">
+  <p class="text-xs text-muted">{label}</p>
+  <p class="mt-1 text-3xl font-bold text-navy">{value}</p>
+  {delta && (
+    <p class="mt-1 text-xs">
+      <span class={`font-semibold ${tone[delta.tone]}`}>{delta.text}</span>
+      <span class="text-muted"> {versus ?? 'vs previous period'}</span>
+    </p>
+  )}
+  {hint && <p class="mt-1 text-xs text-muted">{hint}</p>}
+</div>

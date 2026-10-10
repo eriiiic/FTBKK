@@ -295,16 +295,14 @@ uses any more.
   Each person gets it once; walk-ins without an email are skipped. The click records the rating
   and opens a page where they can add a comment (up to 2,000 characters) or change the rating,
   any time later, with the same link.
-- **Reports > Events and attendance** shows, for each past event that got the feedback email, the number of feedback
-  responses and the average rating (events from before feedback emails show "–"); click the
-  number to open the event's **Feedback** page (also linked at the top of a
-  past event's page). It shows the average, the share of emailed people who answered, how many
-  gave each rating, and every rating and comment with the person's name. Names are for the team
-  only: **Hide names (to share)** shows the comments without names, ready to show speakers,
-  sponsors or the board, and **Export feedback CSV** downloads them (without names and emails
-  when names are hidden).
-- Every Sunday a JSON backup of the database is saved to R2 under `backups/` (the last 12 weeks
-  are kept). It is never served publicly.
+- **Reports > Events and attendance** includes the feedback: average rating, answer rate and
+  latest comments for the period, a rating per event, and every comment of one event when you
+  pick it. Names stay on the event's **Feedback** page (also linked at the top of a past event's
+  page and from the Rating column). It shows the average, the share of emailed people who
+  answered, how many gave each rating, and every rating and comment with the person's name. Names
+  are for the team only: **Hide names (to share)** shows the comments without names, ready to show
+  speakers, sponsors or the board, and **Export feedback CSV** downloads them (without names and
+  emails when names are hidden).
 
 ## Ecosystem
 
@@ -378,12 +376,7 @@ enrolment at check-in.
   who registers for an event fills the membership form again.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
   (didn't confirm their year).
-- **Reports > Membership**, for the board: active members, new members in the last 30
-  days, members by month over the last 12 months (new each month and the running total), active
-  members by profile type and sector of interest, and the share of event
-  attendees who are members, per event and overall for the last 12 months. That share is shown
-  twice: members today, and members on the day of the event. Attendees are the people checked
-  in, or the registered ones at events where check-in wasn't used.
+- **Reports > Membership**: see [Reports](#reports) below.
 - **Cancelling from the member page**: members see a **Can't come? Cancel** (or **Leave the
   waitlist**) link under each upcoming registration on their page; it works like the cancel link
   in the event emails, and the freed seat goes to the waitlist.
@@ -391,6 +384,39 @@ enrolment at check-in.
   subscribers, or to the contacts you ticked in Contacts (**Email…**). `{name}` becomes the
   person's first name. **Send me a test** first; the same email can't go to the same audience
   twice within 10 minutes unless you tick "Send it again". Sent emails are listed on the right.
+
+## Reports
+
+**Reports** has two tabs, for the team and the board. Figures are live.
+
+- **Pick a period** at the top: last 30 or 90 days, last 12 months (the default), this year, last
+  year, all time, or **Custom dates**. Every figure and chart follows it, and the key numbers say
+  how they changed against the period just before (this year and last year compare with the same
+  weeks a year earlier). Green is better, red is worse. The address of the page keeps the
+  filters, so you can bookmark or send it.
+- **Events and attendance**: pick an **Event type** (Connect, Talk, Select, Other) to see only
+  those. Key numbers: events held, registrations, check-ins (with walk-ins and guests), show-up
+  rate and no-shows, average per event, seats filled, first-timers (people at their first event of
+  ours) and returning people, members among attendees, unique people, average rating and
+  cancellations. Charts per event (registered and checked in, first-timers and returning, rating),
+  registrations and check-ins per week, month or year, how people heard about the events, the
+  feedback ratings, the latest comments (without names), each event type side by side, and a
+  sortable table with one line per event. Guests count as seats; first-timers, returning people
+  and members count named people only. Events where check-in wasn't used show "–" for show-up.
+- **One event**: pick it in the **Event** list, or click its name in the table. You get its
+  numbers next to the usual for its type (the same type's events in the 12 months before), the
+  registration pace against the previous event of that type, arrivals at the door per 15
+  minutes, how people heard about it, the companies represented, the ratings and every comment
+  (no names). Buttons lead to the event, its registrations and its feedback with names.
+- **Membership**: active members, new members in the period, sign-ups that never confirmed,
+  lapsed members and renewals due in the next 30 days; the share of active members who came to an
+  event; the share of attendees who are members (on the day of the event, and today); new members
+  who had come to an event before joining; attendees who were not members and are members now;
+  how members rate the events compared with non-members. Charts of members per week, month or year
+  and the member share per event; active members by profile type and sector, how new members heard
+  of us, the most regular members and a table of members at each event.
+- **Export CSV** downloads what is shown: on Events, one line per event (or, with one event
+  picked, its figures and comments); on Membership, the growth table or the members at each event.
 
 ## Board and speakers, Messages, Website pages, Settings
 

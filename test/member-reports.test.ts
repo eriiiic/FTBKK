@@ -52,17 +52,29 @@ describe('memberReports', () => {
     { eventId: 2, email: 'y@x.io', status: 'cancelled' as const },
     { eventId: 3, email: 'a@x.io', status: 'registered' as const },
   ];
-  const r = memberReports(members, events, regs, now);
+  const feedback = [
+    { eventId: 1, email: 'a@x.io', rating: 5 },
+    { eventId: 1, email: 'b@x.io', rating: 3 },
+  ];
+  const year = { from: new Date('2025-10-06T17:00:00Z'), to: new Date('2026-10-06T17:00:00Z') };
+  const previous = { from: new Date('2024-10-06T17:00:00Z'), to: year.from };
+  const r = memberReports(members, events, regs, feedback, year, previous, now);
 
   it('counts members by month with a running total', () => {
-    expect(r.byMonth).toHaveLength(12);
-    expect(r.byMonth.at(-1)).toMatchObject({ key: '2026-10', added: 1, total: 3 });
-    expect(r.byMonth.find((x) => x.key === '2026-08')).toMatchObject({ added: 1, total: 2 });
-    expect(r.byMonth[0]).toMatchObject({ key: '2025-11', added: 0, total: 1 });
+    expect(r.growth.unit).toBe('month');
+    expect(r.growth.rows).toHaveLength(13);
+    expect(r.growth.rows.at(-1)).toMatchObject({ key: '2026-10', added: 1, total: 3 });
+    expect(r.growth.rows.find((x) => x.key === '2026-08')).toMatchObject({ added: 1, total: 2 });
+    expect(r.growth.rows[0]).toMatchObject({ key: '2025-10', added: 0, total: 1 });
   });
 
   it('breaks active members down by profile and sector', () => {
-    expect(r.totals).toMatchObject({ active: 2, pending: 1, lapsed: 1, new30: 1 });
+    expect(r.totals).toMatchObject({
+      active: 2,
+      lapsed: 1,
+      newMembers: 2,
+      newBefore: 1,
+    });
     expect(r.byProfile).toEqual([
       ['Founder or co-founder', 1],
       ['Investor', 1],
@@ -90,6 +102,27 @@ describe('memberReports', () => {
       membersNow: 1,
     });
     expect(r.attendeeShare).toEqual({ people: 3, then: 1 / 3, now: 1 });
+  });
+
+  it('follows members to events and event-goers to membership', () => {
+    // Both active members came this year; b@ came to event 1 before joining.
+    expect(r.totals).toMatchObject({
+      activeWhoCame: 2,
+      neverCame: 0,
+      cameBefore: 1,
+      newFaces: 1,
+      nonMemberAttendees: 1,
+      converted: 1,
+      conversion: 1,
+    });
+    expect(r.mostEngaged[0]).toMatchObject({ email: 'b@x.io', events: 2 });
+  });
+
+  it("compares members' ratings with everyone else's", () => {
+    expect(r.feedback).toEqual({
+      member: { responses: 1, average: 5 },
+      other: { responses: 1, average: 3 },
+    });
   });
 });
 
