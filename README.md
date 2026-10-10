@@ -68,7 +68,7 @@ Public pages:
   texts are edited in Site texts.
 - **Free individual membership** (shown on `/join` once Settings > "Open free individual
   membership" is ticked): email, name, profile type, company, job title, LinkedIn, sectors of
-  interest, optional phone and nationality (for the board's figures), how they heard of us, the
+  interest, optional phone, how they heard of us, the
   code of conduct and privacy consent, and an optional newsletter box (Turnstile and rate limits).
   We email a single-use `member_confirm` link (7 days); `/member/confirm` asks for one click and
   the member is **active** at once, then gets a welcome email with the WhatsApp invitation, the
@@ -78,11 +78,11 @@ Public pages:
   (`renewal_due_at`): a daily cron job emails a one-click reminder 30 and 7 days before
   (`member_renew` link, `/member/renew`), then marks the member **lapsed** with a last email;
   a lapsed member renews in one click from that email or their member page.
-- **Member admin and reports**: Members > All members filters on status, profile, nationality,
+- **Member admin and reports**: Members > All members filters on status, profile,
   sector, joined dates, events attended, no-show rate and newsletter, and exports the filtered
   list as CSV (`/admin/members.csv`, `src/lib/member-list.ts`). Community > Reports
-  (`/admin/reports`, `src/lib/member-reports.ts`) shows members by month, profile type, sector and
-  nationality group, and the share of event attendees who are members (today and on the day).
+  (`/admin/reports`, `src/lib/member-reports.ts`) shows members by month, profile type and sector,
+  and the share of event attendees who are members (today and on the day).
   Members can cancel an upcoming registration or leave a waitlist from their member page
   (`cancelRegistration` in `src/lib/registrations.ts`, shared with the email cancel link).
 - **Members-only events** (once membership is open): the registration box asks only for the

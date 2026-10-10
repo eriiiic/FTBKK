@@ -579,8 +579,6 @@ export const members = sqliteTable(
     linkedin: text('linkedin'),
     /** PROFILE_TYPES key in lib/members.ts. */
     profileType: text('profile_type').notNull().default('other'),
-    /** NATIONALITY_GROUPS key in lib/members.ts, for the board's reporting only. */
-    nationality: text('nationality'),
     /** Sectors of interest (the directory's SECTORS). */
     interests: json<string[]>('interests').notNull().default([]),
     howHeard: text('how_heard'),

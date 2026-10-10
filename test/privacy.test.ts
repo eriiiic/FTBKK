@@ -70,7 +70,14 @@ describe('privacy notice', () => {
     expect(first[2]).toBe(seed);
     expect(membership[2]).toBe(first[1]);
     expect(latest[2]).toBe(membership[1]);
-    expect(JSON.parse(latest[1]!.replace(/''/g, "'"))).toBe(DEFAULT_PRIVACY_NOTICE);
+    // 0033 then drops the nationality from any notice, edited or not.
+    const noNationality = readFileSync(
+      new URL('../migrations/0033_drop_member_nationality.sql', import.meta.url),
+      'utf8',
+    ).match(/replace\(value, '(.*?)', ''\) WHERE key = 'privacyNotice'/)![1]!;
+    expect(JSON.parse(latest[1]!.replace(/''/g, "'")).replace(noNationality, '')).toBe(
+      DEFAULT_PRIVACY_NOTICE,
+    );
   });
 });
 
