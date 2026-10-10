@@ -14,8 +14,10 @@ Public pages:
   Support entrepreneurs, Accelerate collaborations, Shine internationally); a band of up to four key
   numbers typed in Site texts (the mockup's 300+, 120+, 50+ and 3 until then); the next four
   events (or the latest recaps when none is scheduled); the ecosystem directory as a navy carousel
-  with category chips, showing 15 organisations picked at random for All and for each category,
-  so it isn't always the same names; the latest three posts; a community block with three
+  with category chips, showing 20 organisations picked at random for All and for each category,
+  so it isn't always the same names, drifting slowly sideways in a loop (it stops under the
+  pointer or keyboard focus, after a swipe or an arrow, off screen and with its pause button, and
+  stays still for visitors who ask for reduced motion); the latest three posts; a community block with three
   photos; "They support La French Tech Bangkok" (the partners ticked "Show on Home" in Ecosystem
   > Partners, with a link to all partners; migration 0031 turned the earlier list of Business
   > France, the Franco-Thai Chamber of Commerce, the Embassy of France, La French Tech and
@@ -23,7 +25,8 @@ Public pages:
   > slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
 - **Event covers**: French Tech Connect and French Tech Talk events without a cover show a default
   image, set in Settings (built-in images until then; `lib/event-covers.ts`).
-- **About**: the community, the board, "Speakers we've hosted" (everyone who spoke
+- **About**: the community, the board (each card shows the member's French Tech responsibility,
+  such as President or Commission lead, instead of their company), "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the
   contact form. About opens with a navy hero and an "On this page" index of its sections, in the
   same style as `/join`. Texts are edited in the admin (Site texts).
@@ -67,7 +70,7 @@ Public pages:
   texts are edited in Site texts.
 - **Free individual membership** (shown on `/join` once Settings > "Open free individual
   membership" is ticked): email, name, profile type, company, job title, LinkedIn, sectors of
-  interest, optional phone and nationality (for the board's figures), how they heard of us, the
+  interest, optional phone, how they heard of us, the
   code of conduct and privacy consent, and an optional newsletter box (Turnstile and rate limits).
   We email a single-use `member_confirm` link (7 days); `/member/confirm` asks for one click and
   the member is **active** at once, then gets a welcome email with the WhatsApp invitation, the
@@ -77,11 +80,11 @@ Public pages:
   (`renewal_due_at`): a daily cron job emails a one-click reminder 30 and 7 days before
   (`member_renew` link, `/member/renew`), then marks the member **lapsed** with a last email;
   a lapsed member renews in one click from that email or their member page.
-- **Member admin and reports**: Members > All members filters on status, profile, nationality,
+- **Member admin and reports**: Members > All members filters on status, profile,
   sector, joined dates, events attended, no-show rate and newsletter, and exports the filtered
   list as CSV (`/admin/members.csv`, `src/lib/member-list.ts`). Community > Reports
-  (`/admin/reports`, `src/lib/member-reports.ts`) shows members by month, profile type, sector and
-  nationality group, and the share of event attendees who are members (today and on the day).
+  (`/admin/reports`, `src/lib/member-reports.ts`) shows members by month, profile type and sector,
+  and the share of event attendees who are members (today and on the day).
   Members can cancel an upcoming registration or leave a waitlist from their member page
   (`cancelRegistration` in `src/lib/registrations.ts`, shared with the email cancel link).
 - **Members-only events** (once membership is open): the registration box asks only for the
@@ -128,8 +131,10 @@ Public pages:
   (institutional, corporate, investors and VCs, coworkings and venues, hospitality, experts, schools
   and universities, community and media by default; the admin can add, rename, reorder and remove
   groups, saved in `settings.partnerGroups`, defaults in `lib/directory.ts`), whatever its
-  directory category. `/ecosystem` opens with a **Partners** section (`#partners`): a logo wall per
-  group, then a "Become a partner" call that opens the contact form on the Partnership topic. Partner
+  directory category. `/ecosystem` opens with a compact header and **All organisations** right
+  under it, so listings show above the fold (on phones only the search shows, the other filters
+  fold behind a "Filters" button). The **Partners** section (`#partners`, linked from the header's
+  "Our partners" button) follows the directory: a logo wall per group, then a "Become a partner" call that opens the contact form on the Partnership topic. Partner
   listings carry a Partner badge and the directory has a Partner filter. Partners ticked "Show on
   Home" feed "They support La French Tech Bangkok" on Home, in their order: the directory is the
   only place partners are managed (Admin > Ecosystem > Partners, or the listing's page).

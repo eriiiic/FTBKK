@@ -18,7 +18,6 @@ const form = {
   interests: ['AI', 'Fintech'],
   linkedin: 'linkedin.com/in/jane',
   howHeard: '',
-  nationality: '',
   terms: true,
   newsletter: true,
 };
@@ -28,7 +27,6 @@ describe('membership sign-up', () => {
     const r = MemberSignupSchema.parse(signupInput(form));
     expect(r.email).toBe('jane@example.com');
     expect(r.linkedin).toBe('https://linkedin.com/in/jane');
-    expect(r.nationality).toBeNull();
     expect(r.howHeard).toBeNull();
     expect(r.newsletter).toBe(true);
     expect(r.phone).toBeNull();

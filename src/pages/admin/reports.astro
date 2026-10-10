@@ -15,7 +15,6 @@ const [memberRows, eventRows, regRows] = await Promise.all([
       email: members.email,
       status: members.status,
       profileType: members.profileType,
-      nationality: members.nationality,
       interests: members.interests,
       confirmedAt: members.confirmedAt,
       createdAt: members.createdAt,
@@ -64,7 +63,6 @@ const share = (part: number, of: number) => (of ? Math.round((part / of) * 100) 
 const breakdowns = [
   { title: 'Profile type', rows: r.byProfile },
   { title: 'Sectors of interest', rows: r.bySector, hint: 'A member can pick several.' },
-  { title: 'Nationality group', rows: r.byNationality },
 ];
 ---
 

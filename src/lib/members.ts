@@ -42,15 +42,6 @@ export const PROFILE_TYPES = {
 export type ProfileType = keyof typeof PROFILE_TYPES;
 const PROFILE_KEYS = Object.keys(PROFILE_TYPES) as [ProfileType, ...ProfileType[]];
 
-/** For the team's reporting only; never shown publicly. */
-export const NATIONALITY_GROUPS = {
-  french: 'French or francophone',
-  thai: 'Thai',
-  other: 'Other',
-} as const;
-type Nationality = keyof typeof NATIONALITY_GROUPS;
-const NATIONALITY_KEYS = Object.keys(NATIONALITY_GROUPS) as [Nationality, ...Nationality[]];
-
 export const MEMBER_STATUSES = {
   pending: 'Email not confirmed',
   active: 'Active',
@@ -76,10 +67,6 @@ export const MemberProfileSchema = z.object({
   jobTitle: optionalText(120),
   linkedin: optionalUrl(),
   profileType: z.enum(PROFILE_KEYS, { error: 'Choose what describes you best.' }),
-  nationality: z
-    .union([z.literal(''), z.enum(NATIONALITY_KEYS)])
-    .optional()
-    .transform((v) => v || null),
   interests: z
     .array(z.enum(SECTORS))
     .max(5, 'Pick up to 5 sectors.')
@@ -403,7 +390,6 @@ export async function enrolAtDoor(
       jobTitle: existing?.jobTitle ?? null,
       linkedin: existing?.linkedin ?? null,
       profileType: (existing?.profileType as ProfileType | undefined) ?? 'other',
-      nationality: (existing?.nationality as MemberProfile['nationality']) ?? null,
       interests: (existing?.interests ?? []) as MemberProfile['interests'],
       howHeard: existing?.howHeard ?? null,
       terms: true,

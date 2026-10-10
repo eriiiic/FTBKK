@@ -19,7 +19,6 @@ import {
 import {
   MEMBER_STATUSES,
   MemberAdminAction,
-  NATIONALITY_GROUPS,
   PROFILE_TYPES,
   applyMemberAction,
   type MemberStatus,
@@ -67,19 +66,13 @@ const tone = {
 } as const;
 const select = 'rounded-lg border border-line px-3 py-1.5';
 const selects: {
-  name: 'status' | 'type' | 'nationality' | 'sector' | 'attended' | 'noshow' | 'newsletter';
+  name: 'status' | 'type' | 'sector' | 'attended' | 'noshow' | 'newsletter';
   label: string;
   any: string;
   options: Record<string, string>;
 }[] = [
   { name: 'status', label: 'Status', any: 'All statuses', options: MEMBER_STATUSES },
   { name: 'type', label: 'Profile', any: 'All profiles', options: PROFILE_TYPES },
-  {
-    name: 'nationality',
-    label: 'Nationality',
-    any: 'All nationalities',
-    options: NATIONALITY_GROUPS,
-  },
   {
     name: 'sector',
     label: 'Sector of interest',
@@ -297,14 +290,7 @@ const selects: {
                   {m.company ?? ''}
                   {m.jobTitle && <span class="block text-xs text-muted">{m.jobTitle}</span>}
                 </td>
-                <td>
-                  {PROFILE_TYPES[m.profileType as ProfileType] ?? m.profileType}
-                  {m.nationality && (
-                    <span class="block text-xs text-muted">
-                      {NATIONALITY_GROUPS[m.nationality as keyof typeof NATIONALITY_GROUPS]}
-                    </span>
-                  )}
-                </td>
+                <td>{PROFILE_TYPES[m.profileType as ProfileType] ?? m.profileType}</td>
                 <td class="text-xs">{m.interests.join(', ')}</td>
                 <td>
                   <Badge tone={tone[m.status]}>{MEMBER_STATUSES[m.status]}</Badge>

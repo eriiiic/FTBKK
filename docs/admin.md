@@ -320,7 +320,7 @@ enrolment at check-in.
   Add a **note** if useful, then tick them and **Mark as reviewed**. Members made from a contact's
   Edit form, and suspended members, count as reviewed. There is no email about it.
 - **All members**: search by name, email or company and filter by status, profile type,
-  nationality, sector of interest, when they joined (between two dates), events attended (never,
+  sector of interest, when they joined (between two dates), events attended (never,
   once, 3 or 5 times or more), no-shows (always came, 25% or 50% no-shows and more) and newsletter
   (agreed or not). The Events column shows events attended, no-shows and the newsletter.
   **Export these members (CSV)** downloads the list with the filters applied, with their profile,
@@ -344,7 +344,7 @@ enrolment at check-in.
   (didn't confirm their year).
 - **Reports** (Community menu), for the board: active members, new members in the last 30
   days, members by month over the last 12 months (new each month and the running total), active
-  members by profile type, sector of interest and nationality group, and the share of event
+  members by profile type and sector of interest, and the share of event
   attendees who are members, per event and overall for the last 12 months. That share is shown
   twice: members today, and members on the day of the event. Attendees are the people checked
   in, or the registered ones at events where check-in wasn't used.
@@ -359,7 +359,9 @@ enrolment at check-in.
 ## Board and speakers, Messages, Website pages, Settings
 
 - **Board and speakers** (formerly People): board and institutional partners on the About page, with their job title and
-  company. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
+  company. Board members also have a **French Tech responsibility** (President, Commission
+  lead...): their About card shows it under the name in place of the company, and shows no
+  company when it is empty. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
   (added here or from an event's Speakers section); edit their photo, title or company here and
   every event page updates. Each person shows how many events they spoke at; removing a person
   also removes them from those events.

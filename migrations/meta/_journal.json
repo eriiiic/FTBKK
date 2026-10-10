@@ -171,10 +171,24 @@
       "breakpoints": true
     },
     {
+      "idx": 24,
+      "version": "6",
+      "when": 1791390000000,
+      "tag": "0033_drop_member_nationality",
+      "breakpoints": true
+    },
+    {
       "idx": 25,
       "version": "6",
       "when": 1791400000000,
-      "tag": "0034_registration_guests",
+      "tag": "0035_person_ft_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791410000000,
+      "tag": "0036_registration_guests",
       "breakpoints": true
     }
   ]
