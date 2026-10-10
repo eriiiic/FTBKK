@@ -870,7 +870,7 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     group: 'Admin notifications',
     audience: 'The admin who scheduled the post',
     trigger:
-      'At the time set in Social media, for WhatsApp, and for LinkedIn or Facebook while the page is not connected (or when posting failed)',
+      'At the time set in Social media posts, for WhatsApp, and for LinkedIn or Facebook while the page is not connected (or when posting failed)',
     subject: 'Time to post on {networks}: {title}',
     body: 'Your post about {title} is due on {networks}. Copy the text below and paste it with the link; the link shows the share image.\n\n{text}\n\n{errors}',
     buttonLabel: 'Open WhatsApp with this text',
@@ -892,14 +892,14 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
       },
     ],
     required: ['text'],
-    added: 'The link and the image address, and a link to Social media in the admin.',
+    added: 'The link and the image address, and a link to Social media posts in the admin.',
     preview: {
       buttonUrl: 'https://wa.me/?text=sample',
       details: [
         ['Link', sampleEventUrl],
         ['Image', `${SITE}/media/share/event-1-0123456789.jpg`],
       ],
-      links: [{ label: 'Social media in the admin', url: `${SITE}/admin/social` }],
+      links: [{ label: 'Social media posts in the admin', url: `${SITE}/admin/social` }],
     },
   },
 };

@@ -2,16 +2,28 @@
 
 The admin lives at `/admin`. Cloudflare Access asks for your email and sends a one-time code;
 only emails on the Access policy get in. Every change is saved straight to the live site (public
-pages refresh within a minute) and recorded in Ecosystem > History.
+pages refresh within a minute) and recorded in Settings > Change history.
 
-The menu is grouped: **Events** (All events, Registrations, Check-in, Stats), **Community**
-(Members, Contacts, Messages, Reports, Board and speakers), **Ecosystem** (To review, All
-listings, Renewals), **Blog** (Posts, PDFs and files), **Website pages** (Home, About, Join, Tech
-Pulse, Thai page, Code of conduct and privacy: one screen per public page, each with its own Save
-button), **Emails** (Email the community, Automatic emails) and **Settings**. Click a group's title to fold or unfold it; the group of the page you are on is
-always open, and the others stay as you left them in this browser. On a phone, open it with the
-**Menu** button. Everyone who can sign in to the admin can do everything: there are no roles,
-owners or approval steps.
+The menu has a group per kind of work, then the figures, then the switches:
+
+| Group                       | What is in it                                                                                                                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Events**                  | All events, Registrations, Check-in                                                                                                                                                       |
+| **Community**               | Members, Contacts, Messages, Board and speakers                                                                                                                                           |
+| **Ecosystem**               | To review, All listings, Partners, Renewals                                                                                                                                               |
+| **Blog**                    | Posts, PDFs and files                                                                                                                                                                     |
+| **Website pages**           | The texts and photos of each public page: Home, About, Join, Tech Pulse, Thai page, Code of conduct and privacy (one screen each, with its own Save button)                               |
+| **Emails and social media** | Email the community, Social media posts (share and schedule events and posts), Automatic emails                                                                                           |
+| **Reports**                 | Events and attendance, Membership (two tabs of the same Reports screen, for the board)                                                                                                    |
+| **Settings**                | General (site name, contact email, admin notifications, analytics), Membership (the sign-up switches), Default event covers, Social links (the footer links to our pages), Change history |
+
+As a rule: what visitors read is under **Website pages**, what we post or send is under **Emails
+and social media**, and switches and site-wide values are under **Settings**. Click a group's
+title to fold or unfold it; the group of the page you are on is always open, and the others stay
+as you left them in this browser. On a phone, open it with the **Menu** button. Old addresses
+(`/admin/events/stats`, `/admin/reports`, Ecosystem's History tab) redirect to the new screens.
+Everyone who can sign in to the admin can do everything: there are no roles, owners or approval
+steps.
 
 ## Posts
 
@@ -44,7 +56,7 @@ uses any more.
 
 - **New event**: title, type (French Tech Connect, French Tech Talk, French Tech Select, or Other
   with a series name such as Workshop), start time (Bangkok time), venue, then publish. Connect,
-  Talk and Select events without a cover show the default image from Settings.
+  Talk and Select events without a cover show the default image from Settings > Default event covers.
 - **Private and listing** (on the event form):
   - **Private: registration by invitation link only**. The event page shows the event with
     "Registration is by invitation only" instead of the form. Save, then copy the **Invitation
@@ -123,8 +135,8 @@ uses any more.
 - **Guests**: the form has a **"Bringing guests?"** choice (none, or 1 to 5). We don't ask for
   guests' names. Each guest takes a seat: someone with 2 guests takes 3 seats, and if the 3 seats
   aren't free the whole group joins the waitlist. Every count (Events list, dashboard,
-  Registrations, check-in, Stats) counts people including guests; unique and returning attendees
-  in Stats only count named people. Guests show as **+2 guests** next to the name in
+  Registrations, check-in, Reports) counts people including guests; unique and returning attendees
+  in Reports only count named people. Guests show as **+2 guests** next to the name in
   Registrations, in the **Guests** column of the CSV, on the check-in screen (checking the person
   in checks their guests in with them), on the ticket, and in the confirmation email.
 - When the event is full, new people join the **waitlist**. If someone cancels, the first people
@@ -237,7 +249,7 @@ uses any more.
   you saved a contact card (your notes are not shown; the page tells them to ask for a copy). They can **Unsubscribe from the newsletter** (recorded on their contact
   card as "Not subscribed" with today's date) or **Delete my data** (asks to confirm, then does
   exactly what **Delete this contact** does: their card, registrations and feedback go, and freed
-  seats go to the waitlist). An unsubscribe shows in Ecosystem > History with the actor
+  seats go to the waitlist). An unsubscribe shows in Settings > Change history with the actor
   `self-service:<their email>`. Deleting a contact (here or with **Delete this contact**) also
   wipes the old values of their contact entries in the history and logs the deletion under
   `deleted:<short code>` instead of their email. After a deletion the link stops working. If someone asks by email
@@ -277,7 +289,7 @@ uses any more.
   Each person gets it once; walk-ins without an email are skipped. The click records the rating
   and opens a page where they can add a comment (up to 2,000 characters) or change the rating,
   any time later, with the same link.
-- **Event stats** shows, for each past event that got the feedback email, the number of feedback
+- **Reports > Events and attendance** shows, for each past event that got the feedback email, the number of feedback
   responses and the average rating (events from before feedback emails show "–"); click the
   number to open the event's **Feedback** page (also linked at the top of a
   past event's page). It shows the average, the share of emailed people who answered, how many
@@ -317,10 +329,9 @@ uses any more.
 - **Renewals**: owners confirm their listing once a year (reminders at 30 and 14 days before and on
   the day). Unconfirmed listings are hidden 30 days later and deleted after 12 months. Unclaimed
   listings get no reminders: use **Send** to invite someone you know there to claim it.
-- **History**: who changed what, and when.
 
 The team also gets an email for each new request and a summary every Monday, at the addresses in
-Settings > Admin notifications.
+Settings > General > Admin notifications.
 
 ## Members
 
@@ -361,7 +372,7 @@ enrolment at check-in.
   who registers for an event fills the membership form again.
 - Statuses: _Email not confirmed_ (signed up, never clicked), _Active_, _Suspended_, _Lapsed_
   (didn't confirm their year).
-- **Reports** (Community menu), for the board: active members, new members in the last 30
+- **Reports > Membership**, for the board: active members, new members in the last 30
   days, members by month over the last 12 months (new each month and the running total), active
   members by profile type and sector of interest, and the share of event
   attendees who are members, per event and overall for the last 12 months. That share is shown
@@ -394,20 +405,26 @@ enrolment at check-in.
   **Add a note** records what was done (who answered, what was said, why it is spam) with your
   name and the time; "Save and mark answered" files the message in the same click. Every move
   between folders is logged under the message too. New messages are emailed to the addresses in
-  Settings > Admin notifications (the contact email when empty); if that email fails, the message
+  Settings > General > Admin notifications (the contact email when empty); if that email fails, the message
   gets a note saying why. Messages from the Join page carry its topics (Join the
   WhatsApp group, Volunteer, Host an event, Partnership, Speak at an event…): for "Join the
   WhatsApp group", reply with the invite link (the link itself is in Settings and never shown
   on the site).
-- **Settings**: site name and description, contact email, **Admin notifications** (who gets the
-  team's emails: contact form messages, new members, directory requests and the Monday summary;
-  **Send a test** emails them now and shows whether Resend accepted it), social links (the
-  WhatsApp invite link is kept here for the team and the welcome email to members), membership
-  switches (individual sign-up on the Join page, company membership applications, member
-  priority on events), the analytics token and the **Default event images**: the cover shown
-  for French Tech Connect, French Tech Talk and French Tech Select events that have none of their
-  own (built-in images for Connect and Talk until you upload others; Select has none until you
-  upload one).
+- **Settings**, one screen per section, each with its own Save button:
+  - **General**: site name and description, contact email, **Admin notifications** (who gets the
+    team's emails: contact form messages, new members, directory requests and the Monday
+    summary; **Send a test** emails them now and shows whether Resend accepted it) and the
+    analytics token.
+  - **Membership**: the switches for individual sign-up on the Join page, company membership
+    applications and member priority on events.
+  - **Default event covers**: the cover shown for French Tech Connect, French Tech Talk and
+    French Tech Select events that have none of their own (built-in images for Connect and Talk
+    until you upload others; Select has none until you upload one).
+  - **Social links**: the links to our LinkedIn, Instagram, Facebook and YouTube pages shown in
+    the footer, and the WhatsApp invite link (kept here for the team and the welcome email to
+    members, never shown publicly). Posting on social media is under Emails and social media >
+    Social media posts.
+  - **Change history**: who changed what in the admin, and when (the last 200 changes).
 - **Home page** (Website pages > Home): every photo has its own slot: **Main header** (the big
   photo at the top, also faint in the red closing band; its description is the small caption;
   default: the Bangkok skyline), **About us** (the arched photo; default: a photo from the latest
@@ -448,13 +465,13 @@ enrolment at check-in.
   `{contactEmail}` becomes a mail link; emptying the field brings the default back. It is linked
   in the footer and under every registration form.
 
-## Social media
+## Social media posts
 
 Every event and blog post has a **share image** (1200x630): the logo, a red label (French Tech
 Connect, French Tech Talk, French Tech Select, the series, or Blog), the title, the date and venue or the author, and
 the cover photo. It is what LinkedIn, Facebook and WhatsApp show when someone shares the link. You
 don't have to do anything: when you open an event or post in the admin and its title, date, venue
-or photo changed, the image is redrawn in your browser. **Admin > Social media** has a button to
+or photo changed, the image is redrawn in your browser. **Emails and social media > Social media posts** has a button to
 make the missing ones for upcoming events and recent posts at once.
 
 **Share on social media** (link at the top of an event or post, or from Admin > Social media):
@@ -491,7 +508,7 @@ and when:
   membership" invitation, the yearly reminder and the "membership paused" email.
 - **Community**: the newsletter confirmation (Email the community is written each time).
   **Privacy**: the "your data" link.
-- **Admin notifications** (to the team, at the addresses in Settings > Admin notifications): a
+- **Admin notifications** (to the team, at the addresses in Settings > General > Admin notifications): a
   contact form message, a new member (first confirmation only, not renewals), a new listing, a
   claim, a listing change and a membership application to review, and the Monday directory
   summary.
