@@ -103,6 +103,8 @@ export const registrations = sqliteTable(
     /** When they answered the newsletter question; null when it was never asked (Wix imports). */
     newsletterConsentAt: ts('newsletter_consent_at'),
     walkIn: integer('walk_in', { mode: 'boolean' }).notNull().default(false),
+    /** Anonymous guests coming with them (0 to 5): no names, but each takes a seat. */
+    guests: integer('guests').notNull().default(0),
     status: text('status', { enum: ['registered', 'waitlist', 'cancelled', 'attended'] })
       .notNull()
       .default('registered'),
@@ -605,6 +607,8 @@ export const members = sqliteTable(
     }),
     /** The note typed with that registration. */
     pendingNote: text('pending_note'),
+    /** Guests they asked to bring to that event. */
+    pendingGuests: integer('pending_guests').notNull().default(0),
     /** Why the team suspended them (team only). */
     suspendedReason: text('suspended_reason'),
     notes: text('notes'),

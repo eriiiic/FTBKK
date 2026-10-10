@@ -7,6 +7,7 @@ import Button from '../../../components/Button.astro';
 import { eventBySlug } from '../../../lib/queries';
 import { formatEventDate } from '../../../lib/format';
 import { ticketCode } from '../../../lib/ticket';
+import { guestsLabel } from '../../../lib/registrations';
 
 // The ticket to show at the entrance, opened from the confirmation or reminder email.
 const event = await eventBySlug(Astro.params.slug!);
@@ -14,10 +15,10 @@ if (!event) return Astro.rewrite('/404');
 const token = Astro.url.searchParams.get('token') ?? '';
 const reg = token
   ? await env.DB.prepare(
-      `SELECT name, status, checked_in_at FROM registrations WHERE token = ? AND event_id = ?`,
+      `SELECT name, status, checked_in_at, guests FROM registrations WHERE token = ? AND event_id = ?`,
     )
       .bind(token, event.id)
-      .first<{ name: string; status: string; checked_in_at: number | null }>()
+      .first<{ name: string; status: string; checked_in_at: number | null; guests: number }>()
   : null;
 const valid = reg && (reg.status === 'registered' || reg.status === 'attended');
 const code = valid ? await ticketCode(token) : '';
@@ -42,7 +43,10 @@ const svg = valid
           set:html={svg}
         />
         <p class="mt-4 font-mono text-2xl font-bold tracking-widest text-navy">{code}</p>
-        <p class="mt-2 text-sm">{reg!.name}</p>
+        <p class="mt-2 text-sm">
+          {reg!.name}
+          {reg!.guests > 0 && ` ${guestsLabel(reg!.guests)}`}
+        </p>
         {reg!.status === 'attended' && (
           <p class="mt-3 text-sm font-semibold text-success">Checked in. Enjoy the event!</p>
         )}

@@ -21,6 +21,18 @@ import {
   type EmailText,
 } from './email-templates';
 
+/** Most anonymous guests one registration can bring. Each guest takes a seat. */
+export const GUESTS_MAX = 5;
+
+/** "+1 guest", "+3 guests"; empty for none. */
+export const guestsLabel = (n: number) => (n > 0 ? `+${n} guest${n === 1 ? '' : 's'}` : '');
+
+/** The "Bringing guests?" choices, 1 to GUESTS_MAX (the empty choice is "no guests"). */
+export const GUEST_OPTIONS = Array.from({ length: GUESTS_MAX }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1} guest${i ? 's' : ''}`,
+}));
+
 /** Longest note a registrant can leave (the textarea's maxlength too). */
 export const NOTE_MAX = 500;
 
@@ -60,6 +72,11 @@ export const RegisterSchema = z.object({
       .optional()
       .default(''),
   ),
+  /** Anonymous guests coming with them; no names asked. A missing or empty field means none. */
+  guests: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? 0 : v),
+    z.coerce.number().int().min(0).max(GUESTS_MAX, `You can bring up to ${GUESTS_MAX} guests.`),
+  ),
   photoConsent: z.literal(true, { error: 'Please accept the photo notice to register.' }),
   /** Opt-in only: an unticked box (absent from the form) is a "no", recorded with the date. */
   newsletter: z.boolean().optional().default(false),
@@ -72,6 +89,7 @@ export const RegisterSchema = z.object({
 export const MemberRegisterSchema = RegisterSchema.pick({
   email: true,
   note: true,
+  guests: true,
   photoConsent: true,
 });
 export type MemberRegister = z.infer<typeof MemberRegisterSchema>;
@@ -141,10 +159,14 @@ export function registrationState(
   return { ...base, open: true };
 }
 
+/** Seats a registration takes in SQL: the person plus their guests. */
+const SEATS = `count(*) + coalesce(sum(guests), 0)`;
+
 /**
  * Atomic insert: decides registered vs waitlist in the same statement, so capacity holds. Only a
  * ticked newsletter box is recorded (dated): an unticked box is not a withdrawal, since the form
- * never shows that someone is already subscribed. Registering again after a cancellation keeps
+ * never shows that someone is already subscribed. A registration with guests needs a seat for each of
+ * them too: when they don't all fit, the whole group goes to the waitlist. Registering again after a cancellation keeps
  * the registration's token, so links in earlier emails ("Manage or delete my data") still work.
  */
 export async function insertRegistration(
@@ -157,12 +179,12 @@ export async function insertRegistration(
   const row = await db
     .prepare(
       `INSERT INTO registrations (event_id, name, email, company, role, how_heard, photo_consent, status, token, phone,
-         newsletter_consent, newsletter_consent_at, note)
+         newsletter_consent, newsletter_consent_at, note, guests)
        SELECT ?1, ?2, ?3, ?4, ?5, ?6, 1,
-         CASE WHEN ?7 IS NULL OR (SELECT count(*) FROM registrations
-           WHERE event_id = ?1 AND status IN ('registered', 'attended')) < ?7
+         CASE WHEN ?7 IS NULL OR (SELECT ${SEATS} FROM registrations
+           WHERE event_id = ?1 AND status IN ('registered', 'attended')) + 1 + ?12 <= ?7
          THEN 'registered' ELSE 'waitlist' END,
-         ?8, ?9, ?10, CASE WHEN ?10 THEN unixepoch() END, ?11
+         ?8, ?9, ?10, CASE WHEN ?10 THEN unixepoch() END, ?11, ?12
        WHERE true
        ON CONFLICT (event_id, email) DO UPDATE SET
          name = excluded.name, company = excluded.company, role = excluded.role, phone = excluded.phone,
@@ -170,7 +192,7 @@ export async function insertRegistration(
          newsletter_consent = CASE WHEN excluded.newsletter_consent
            THEN 1 ELSE registrations.newsletter_consent END,
          newsletter_consent_at = coalesce(excluded.newsletter_consent_at, registrations.newsletter_consent_at),
-         note = excluded.note,
+         note = excluded.note, guests = excluded.guests,
          created_at = unixepoch(), checked_in_at = NULL, reminder_sent_at = NULL
        WHERE registrations.status = 'cancelled'
        RETURNING id, status, token`,
@@ -187,15 +209,17 @@ export async function insertRegistration(
       data.phone || null,
       data.newsletter ? 1 : 0,
       data.note || null,
+      data.guests,
     )
     .first<{ id: number; status: 'registered' | 'waitlist'; token: string }>();
   return row; // null = already registered
 }
 
+/** Seats taken: registered and checked-in people, plus their guests. */
 export async function countTaken(eventId: number, db: D1Database = env.DB) {
   const r = await db
     .prepare(
-      `SELECT count(*) AS n FROM registrations WHERE event_id = ? AND status IN ('registered', 'attended')`,
+      `SELECT ${SEATS} AS n FROM registrations WHERE event_id = ? AND status IN ('registered', 'attended')`,
     )
     .bind(eventId)
     .first<{ n: number }>();
@@ -248,6 +272,7 @@ export async function registerForEvent(
     email: data.email,
     status: row.status,
     token: row.token,
+    guests: data.guests,
   });
   return { status: row.status };
 }
@@ -267,14 +292,26 @@ export async function cancelRegistration(
     .bind(reg.id)
     .first();
   if (!cancelled) return false;
-  if (reg.status === 'registered') {
-    const promoted = await promoteFromWaitlist(event, { memberPriority });
-    if (promoted) await sendPromotion(event, promoted);
-  }
+  if (reg.status === 'registered') await fillSeats(event, memberPriority);
   return true;
 }
 
-/** Moves the first waitlisted person to registered when a seat is free. Returns them, or null. */
+/**
+ * Gives free seats to the waitlist, in order, and emails each person promoted. Someone leaving
+ * with guests can free seats for several people.
+ */
+export async function fillSeats(event: Event, memberPriority: boolean) {
+  for (let i = 0; i < 50; i++) {
+    const promoted = await promoteFromWaitlist(event, { memberPriority });
+    if (!promoted) return;
+    await sendPromotion(event, promoted);
+  }
+}
+
+/**
+ * Moves the first waitlisted person to registered when there are seats for them and their guests
+ * (the waitlist stays in order: a group that doesn't fit yet isn't skipped). Returns them, or null.
+ */
 export async function promoteFromWaitlist(
   event: Pick<Event, 'id' | 'capacity' | 'memberReservedSeats'>,
   opts: { memberPriority?: boolean; force?: boolean } = {},
@@ -287,8 +324,8 @@ export async function promoteFromWaitlist(
       `UPDATE registrations SET status = 'registered'
        WHERE id = (SELECT id FROM registrations WHERE event_id = ?1 AND status = 'waitlist'
                    ORDER BY created_at, id LIMIT 1)
-         AND (?2 IS NULL OR (SELECT count(*) FROM registrations
-              WHERE event_id = ?1 AND status IN ('registered', 'attended')) < ?2)
+         AND (?2 IS NULL OR (SELECT ${SEATS} FROM registrations
+              WHERE event_id = ?1 AND status IN ('registered', 'attended')) + 1 + guests <= ?2)
        RETURNING *`,
     )
     .bind(event.id, cap)
@@ -303,6 +340,7 @@ export interface RegistrationRow {
   email: string;
   status: Registration['status'];
   token: string;
+  guests: number;
 }
 
 // ---------- emails ----------
@@ -324,11 +362,15 @@ function icsAttachment(e: Event) {
 
 export function eventDetails(
   e: Pick<Event, 'startsAt' | 'endsAt' | 'venue' | 'address'>,
+  guests = 0,
 ): [string, string][] {
   return [
     ['When', `${formatEventDate(e.startsAt, e.endsAt)} (Bangkok time)`],
     ...(e.venue || e.address
       ? [['Where', [e.venue, e.address].filter(Boolean).join(', ')] as [string, string]]
+      : []),
+    ...(guests > 0
+      ? [['Guests', `You + ${guests} guest${guests === 1 ? '' : 's'}`] as [string, string]]
       : []),
   ];
 }
@@ -370,7 +412,7 @@ async function ticket(e: Event, token: string) {
 
 export async function sendConfirmation(
   e: Event,
-  r: { name: string; email: string; status: string; token: string },
+  r: { name: string; email: string; status: string; token: string; guests?: number },
 ) {
   const cancelUrl = siteUrl(`/events/${e.slug}/cancel?token=${r.token}`);
   const map = mapLink(e);
@@ -385,7 +427,7 @@ export async function sendConfirmation(
     to: r.email,
     subject: w.subject,
     paragraphs: w.paragraphs,
-    details: [...eventDetails(e), ...sp.details],
+    details: [...eventDetails(e, r.guests), ...sp.details],
     logos: sp.logos,
     action: map && !waitlist && w.buttonLabel ? { label: w.buttonLabel, url: map } : undefined,
     links: [
@@ -406,7 +448,7 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
     to: r.email,
     subject: w.subject,
     paragraphs: w.paragraphs,
-    details: [...eventDetails(e), ...sp.details],
+    details: [...eventDetails(e, r.guests), ...sp.details],
     logos: sp.logos,
     links: [
       { label: 'Event page', url: siteUrl(`/events/${e.slug}`) },
@@ -421,7 +463,7 @@ export async function sendPromotion(e: Event, r: RegistrationRow) {
 /** `text` is the edited wording (loadTemplateText('event.reminder')); null = the default. */
 export function reminderEmail(
   e: Event,
-  r: { name: string; email: string; token: string },
+  r: { name: string; email: string; token: string; guests?: number },
   sp: EmailSponsors = NO_SPONSORS,
   text: EmailText | null = null,
 ): EmailMessage {
@@ -431,7 +473,7 @@ export function reminderEmail(
     to: r.email,
     subject: w.subject,
     paragraphs: w.paragraphs,
-    details: [...eventDetails(e), ...sp.details],
+    details: [...eventDetails(e, r.guests), ...sp.details],
     logos: sp.logos,
     action: map && w.buttonLabel ? { label: w.buttonLabel, url: map } : undefined,
     links: [
@@ -447,7 +489,7 @@ export function reminderEmail(
 
 export async function sendReminders(
   e: Event,
-  rows: { name: string; email: string; token: string }[],
+  rows: { name: string; email: string; token: string; guests?: number }[],
 ) {
   if (!rows.length) return { ok: true, sent: 0 };
   const sp = await emailSponsors(e.id);
@@ -480,12 +522,12 @@ export function eventCancelledEmail(
 }
 
 /**
- * Registrations per event as a column of a select on `events`. The outer id is written out as
+ * People per event (each registration plus its guests) as a column of a select on `events`. The outer id is written out as
  * "events"."id": Drizzle prints ${events.id} as a bare "id", which inside the subquery means the
  * registration's own id, so the count was wrong.
  */
 export const registrationCount = (statuses: Registration['status'][]) =>
-  sql<number>`(select count(*) from ${registrations} r where r.event_id = "events"."id" and r.status in (${sql.join(
+  sql<number>`(select count(*) + coalesce(sum(r.guests), 0) from ${registrations} r where r.event_id = "events"."id" and r.status in (${sql.join(
     statuses.map((s) => sql`${s}`),
     sql`, `,
   )}))`;

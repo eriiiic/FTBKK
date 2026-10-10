@@ -15,7 +15,7 @@ import {
   memberPagePath,
   signupInput,
 } from '../../lib/members';
-import { NOTE_MAX } from '../../lib/registrations';
+import { GUEST_OPTIONS, GUESTS_MAX, NOTE_MAX, RegisterSchema } from '../../lib/registrations';
 import { formatEventDate } from '../../lib/format';
 
 // "Claim your membership" from the invitation sent from Contacts, or from an event's registration
@@ -32,9 +32,14 @@ if (address && Astro.request.method === 'POST') {
   values = formToObject(await Astro.request.formData(), ['interests']);
   const parsed = MemberSignupSchema.safeParse(signupInput({ ...values, email: address }));
   const note = String(values.note ?? '').slice(0, NOTE_MAX);
-  if (!parsed.success) errors = fieldErrors(parsed.error);
+  const guests = RegisterSchema.shape.guests.safeParse(values.guests);
+  if (!parsed.success || !guests.success)
+    errors = {
+      ...(parsed.success ? {} : fieldErrors(parsed.error)),
+      ...(guests.success ? {} : { guests: `Choose up to ${GUESTS_MAX} guests.` }),
+    };
   else {
-    const done = await claimMembership(token, parsed.data, new Date(), note);
+    const done = await claimMembership(token, parsed.data, new Date(), note, guests.data);
     if (done) {
       // Sent from an event: the member page says how the registration went.
       const reg = done.registration
@@ -55,6 +60,8 @@ if (address && Astro.request.method === 'POST') {
         linkedin: c.linkedin ?? '',
       }
     : {};
+  // The guests they asked for on the event page (the field accepts 1 to GUESTS_MAX).
+  values.guests = (Astro.url.searchParams.get('guests') ?? '').slice(0, 1);
 }
 ---
 
@@ -83,6 +90,17 @@ if (address && Astro.request.method === 'POST') {
             <Alert tone="danger">Please fix the highlighted fields.</Alert>
           )}
           <MemberSignupFields values={values} errors={errors} fixedEmail={address} />
+          {event && (
+            <FormField
+              name="guests"
+              label="Bringing guests?"
+              value={String(values.guests ?? '')}
+              options={GUEST_OPTIONS}
+              placeholder="No guests, just me"
+              error={errors.guests}
+              hint={`Up to ${GUESTS_MAX}. No need for their names: each guest takes a seat.`}
+            />
+          )}
           {event && (
             <FormField
               name="note"

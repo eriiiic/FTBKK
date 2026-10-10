@@ -82,3 +82,23 @@ describe('eventStats', () => {
     expect(s.howHeard[0]).toEqual(['LinkedIn', 3]);
   });
 });
+
+describe('eventStats with guests', () => {
+  const withGuests = [
+    { ...regs[0]!, guests: 2 }, // attended with 2 guests
+    ...regs.slice(1, 4),
+    regs[4]!,
+    { ...regs[5]!, guests: 1 }, // waitlisted with 1 guest
+  ];
+  const s = eventStats(events, withGuests, now);
+  it('counts each guest as a person in the event numbers', () => {
+    const past = s.rows.find((r) => r.event.id === 1)!;
+    expect(past).toMatchObject({ registered: 5, attended: 4, cancelled: 1 });
+    expect(s.next).toMatchObject({ registered: 1, waitlist: 2 });
+    expect(s.totals).toMatchObject({ registrations12m: 8, checkIns12m: 4, avgPerEvent: 5 });
+  });
+  it('keeps unique attendees to named people', () => {
+    expect(s.totals.uniqueAttendees).toBe(2);
+    expect(s.howHeard[0]).toEqual(['LinkedIn', 3]);
+  });
+});

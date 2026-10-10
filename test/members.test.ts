@@ -117,9 +117,11 @@ describe('members-only registration', () => {
       role: 'CTO',
       howHeard: 'LinkedIn',
       note: 'Vegetarian',
+      guests: 0,
       photoConsent: true,
       newsletter: false,
     });
+    expect(memberRegistration(m, '', 2).guests).toBe(2);
   });
 
   it('asks only for the email, the note and the photo notice', () => {

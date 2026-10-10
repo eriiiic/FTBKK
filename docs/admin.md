@@ -101,8 +101,16 @@ uses any more.
   the answer: under the person's name in **Registrations** (the search finds words in it too), in
   the **Note** column of the CSV, in small grey text on the check-in screen so door volunteers can
   spot it, and next to each event in the contact's event history. It is never repeated in emails.
-- When the event is full, new people join the **waitlist**. If someone cancels, the first person
-  on the waitlist is registered automatically and emailed.
+- **Guests**: the form has a **"Bringing guests?"** choice (none, or 1 to 5). We don't ask for
+  guests' names. Each guest takes a seat: someone with 2 guests takes 3 seats, and if the 3 seats
+  aren't free the whole group joins the waitlist. Every count (Events list, dashboard,
+  Registrations, check-in, Stats) counts people including guests; unique and returning attendees
+  in Stats only count named people. Guests show as **+2 guests** next to the name in
+  Registrations, in the **Guests** column of the CSV, on the check-in screen (checking the person
+  in checks their guests in with them), on the ticket, and in the confirmation email.
+- When the event is full, new people join the **waitlist**. If someone cancels, the first people
+  on the waitlist are registered automatically and emailed, in order, as long as there are seats
+  for them and their guests.
 - **Registrations** (or the count on the Events page): counts, search, check in, register someone
   from the waitlist (this can go over capacity), cancel, and **Export CSV** for Excel.
 - **Check-in mode** is made for a phone at the door: type a few letters of the name and tap to

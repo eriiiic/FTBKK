@@ -84,6 +84,7 @@ let values: Record<string, unknown> = {};
 let result: {
   status: 'registered' | 'waitlist' | 'duplicate' | 'joined' | 'invited';
   email: string;
+  guests?: number;
 } | null = null;
 if (isPost) {
   const form = await Astro.request.formData();
@@ -96,7 +97,7 @@ if (isPost) {
       now,
     });
     if (outcome.status === 'closed') state = outcome.state;
-    else result = { status: outcome.status, email: data.email };
+    else result = { status: outcome.status, email: data.email, guests: data.guests };
   };
   const suspended = `This membership is suspended. Write to us at ${settings.contactEmail} if you think this is a mistake.`;
   if (!membersOnly) {
@@ -107,9 +108,14 @@ if (isPost) {
       errors.form = 'Too many registrations from your connection. Please try again later.';
     else await register(parsed.data);
   } else if (form.get('step') === 'join') {
-    // Second step for someone new: the membership form, with the note and photo notice carried over.
+    // Second step for someone new: the membership form, with the note, guests and photo notice
+    // carried over.
     step = 'join';
-    const extra = MemberRegisterSchema.pick({ note: true, photoConsent: true }).safeParse(values);
+    const extra = MemberRegisterSchema.pick({
+      note: true,
+      guests: true,
+      photoConsent: true,
+    }).safeParse(values);
     const parsed = MemberSignupSchema.safeParse(signupInput(values));
     if (!parsed.success || !extra.success)
       errors = {
@@ -125,10 +131,14 @@ if (isPost) {
     else {
       const existing = await memberByEmail(parsed.data.email);
       if (existing?.status === 'active')
-        await register(memberRegistration(existing, extra.data.note));
+        await register(memberRegistration(existing, extra.data.note, extra.data.guests));
       else if (existing?.status === 'suspended') errors.form = suspended;
       else if (state.open) {
-        await requestMembership(parsed.data, now, { event, note: extra.data.note });
+        await requestMembership(parsed.data, now, {
+          event,
+          note: extra.data.note,
+          guests: extra.data.guests,
+        });
         result = { status: 'joined', email: parsed.data.email };
       }
     }
@@ -145,14 +155,15 @@ if (isPost) {
         m?.status === 'active' || m?.status === 'suspended'
           ? null
           : await knownNonMember(parsed.data.email);
-      if (m?.status === 'active') await register(memberRegistration(m, parsed.data.note));
+      if (m?.status === 'active')
+        await register(memberRegistration(m, parsed.data.note, parsed.data.guests));
       else if (m?.status === 'suspended') errors.form = suspended;
       else if (known && state.open) {
         // Someone we know from past events: a prefilled form by email instead of an empty one.
         if (!(await rateLimit(`member:${parsed.data.email}`, 3, 86400)))
           errors.form = 'Too many requests for this email. Please try again tomorrow.';
         else {
-          await inviteForEvent(known, parsed.data.email, event, now);
+          await inviteForEvent(known, parsed.data.email, event, now, parsed.data.guests);
           result = { status: 'invited', email: parsed.data.email };
         }
       } else {

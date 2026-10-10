@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_MAX, RegisterSchema, cleanNote, registrationState } from '../src/lib/registrations';
+import {
+  GUEST_OPTIONS,
+  MemberRegisterSchema,
+  NOTE_MAX,
+  RegisterSchema,
+  cleanNote,
+  eventDetails,
+  guestsLabel,
+  registrationState,
+} from '../src/lib/registrations';
 
 const DAY = 86400_000;
 const now = new Date('2026-11-01T03:00:00Z');
@@ -126,5 +135,32 @@ describe('cleanNote', () => {
   });
   it('keeps at most one blank line in a row and trims trailing spaces per line', () => {
     expect(cleanNote('one   \n\n\n\ntwo\t\nthree')).toBe('one\n\ntwo\nthree');
+  });
+});
+
+describe('guests', () => {
+  const form = { name: 'Alice', email: 'alice@example.com', photoConsent: true };
+  it('defaults to none when the field is missing or left on "no guests"', () => {
+    expect(RegisterSchema.parse(form).guests).toBe(0);
+    expect(RegisterSchema.parse({ ...form, guests: '' }).guests).toBe(0);
+  });
+  it('takes 1 to 5 guests from the select, and nothing more', () => {
+    expect(RegisterSchema.parse({ ...form, guests: '3' }).guests).toBe(3);
+    expect(RegisterSchema.safeParse({ ...form, guests: '6' }).success).toBe(false);
+    expect(RegisterSchema.safeParse({ ...form, guests: '-1' }).success).toBe(false);
+    expect(RegisterSchema.safeParse({ ...form, guests: '1.5' }).success).toBe(false);
+    expect(GUEST_OPTIONS.map((o) => o.value)).toEqual(['1', '2', '3', '4', '5']);
+  });
+  it('is asked in the members-only first step too', () => {
+    const m = { email: 'alice@example.com', photoConsent: true, guests: '2' };
+    expect(MemberRegisterSchema.parse(m).guests).toBe(2);
+  });
+  it('reads as "+N guests" and shows in the email details', () => {
+    expect(guestsLabel(0)).toBe('');
+    expect(guestsLabel(1)).toBe('+1 guest');
+    expect(guestsLabel(4)).toBe('+4 guests');
+    const e = { startsAt: now, endsAt: null, venue: null, address: null };
+    expect(eventDetails(e).map(([k]) => k)).toEqual(['When']);
+    expect(eventDetails(e, 2)).toContainEqual(['Guests', 'You + 2 guests']);
   });
 });

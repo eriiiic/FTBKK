@@ -129,7 +129,7 @@ export async function memberByEmail(address: string) {
 }
 
 /** A member's details as an event registration (members-only registration). */
-export function memberRegistration(m: Member, note = '') {
+export function memberRegistration(m: Member, note = '', guests = 0) {
   return {
     name: m.name,
     email: m.email,
@@ -138,6 +138,7 @@ export function memberRegistration(m: Member, note = '') {
     role: m.jobTitle ?? '',
     howHeard: m.howHeard ?? '',
     note,
+    guests,
     photoConsent: true as const,
     newsletter: false,
   };
@@ -152,7 +153,7 @@ export function memberRegistration(m: Member, note = '') {
 export async function requestMembership(
   data: MemberSignup,
   now = new Date(),
-  join: { event: { id: number; title: string }; note: string } | null = null,
+  join: { event: { id: number; title: string }; note: string; guests?: number } | null = null,
 ) {
   const db = getDb();
   // Typed one of a contact's other emails: the membership goes under their main email, and the
@@ -171,6 +172,7 @@ export async function requestMembership(
     termsAcceptedAt: now,
     pendingEventId: join?.event.id ?? null,
     pendingNote: join?.note || null,
+    pendingGuests: join?.guests ?? 0,
     updatedAt: now,
   };
   const [saved] = existing
@@ -217,6 +219,7 @@ export async function confirmMembership(token: string, now = new Date()) {
       renewalReminder: null,
       pendingEventId: null,
       pendingNote: null,
+      pendingGuests: 0,
       updatedAt: now,
     })
     .where(eq(members.id, m.id))
@@ -245,7 +248,7 @@ export async function confirmMembership(token: string, now = new Date()) {
       const settings = await getSettings();
       const outcome = await registerForEvent(
         event,
-        memberRegistration(updated!, m.pendingNote ?? ''),
+        memberRegistration(updated!, m.pendingNote ?? '', m.pendingGuests),
         {
           memberPriority: settings.memberPriority,
           now,
@@ -496,6 +499,7 @@ export async function memberEvents(address: string) {
       startsAt: events.startsAt,
       endsAt: events.endsAt,
       status: registrations.status,
+      guests: registrations.guests,
     })
     .from(registrations)
     .innerJoin(events, eq(events.id, registrations.eventId))
@@ -708,13 +712,15 @@ export async function knownNonMember(address: string) {
 /**
  * A known contact registers for an event while membership is open: we email the address they
  * typed a "claim your membership" link (60 days) for their main email, prefilled from what we
- * know; submitting it makes them a member and registers them for the event.
+ * know; submitting it makes them a member and registers them for the event. The guests they asked
+ * for preselect the claim form's guests field.
  */
 export async function inviteForEvent(
   c: Pick<Contact, 'email' | 'name'>,
   sendTo: string,
   event: Pick<Event, 'id' | 'title'>,
   now = new Date(),
+  guests = 0,
 ) {
   const token = await issueToken('member_claim', c.email!, { refId: event.id, now });
   const w = await renderTemplate('member.claim-event', { name: c.name, event: event.title });
@@ -724,7 +730,9 @@ export async function inviteForEvent(
     paragraphs: w.paragraphs,
     action: {
       label: w.buttonLabel,
-      url: siteUrl(`/member/claim?token=${encodeURIComponent(token)}`),
+      url: siteUrl(
+        `/member/claim?token=${encodeURIComponent(token)}${guests ? `&guests=${guests}` : ''}`,
+      ),
     },
     footer: 'The link works for 60 days.',
   });
@@ -740,6 +748,7 @@ export async function claimMembership(
   data: MemberSignup,
   now = new Date(),
   note = '',
+  guests = 0,
 ): Promise<{
   link: string;
   registration: { event: Event; outcome: RegisterOutcome } | null;
@@ -755,7 +764,7 @@ export async function claimMembership(
     const [event] = await db.select().from(events).where(eq(events.id, row.ref_id));
     if (!event) return null;
     const settings = await getSettings();
-    const outcome = await registerForEvent(event, memberRegistration(m, note), {
+    const outcome = await registerForEvent(event, memberRegistration(m, note, guests), {
       memberPriority: settings.memberPriority,
       now,
     });
