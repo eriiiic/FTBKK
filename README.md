@@ -93,11 +93,19 @@ Public pages:
   (`renewal_due_at`): a daily cron job emails a one-click reminder 30 and 7 days before
   (`member_renew` link, `/member/renew`), then marks the member **lapsed** with a last email;
   a lapsed member renews in one click from that email or their member page.
+- **Reports** (`/admin/reports/events`, `/admin/reports/members`, loaded by `src/lib/reports.ts`):
+  a period picker (last 30/90 days, 12 months, this or last year, all time, custom dates;
+  `src/lib/report-period.ts`) with changes against the previous period, an event type filter, a
+  one-event view (`?event=`, compared with the usual for its type, registration pace, arrivals at
+  the door, companies, feedback and comments), first-timers vs returning, member share, feedback
+  ratings and comments, and CSV exports of what is shown (`/admin/reports/*.csv`). Figures are
+  computed in memory (`src/lib/event-stats.ts`, `src/lib/member-reports.ts`); charts are
+  server-rendered SVG, no chart library.
 - **Member admin and reports**: Members > All members filters on status, profile,
   sector, joined dates, events attended, no-show rate and newsletter, and exports the filtered
   list as CSV (`/admin/members.csv`, `src/lib/member-list.ts`). Reports > Membership
-  (`/admin/reports/members`, `src/lib/member-reports.ts`) shows members by month, profile type and sector,
-  and the share of event attendees who are members (today and on the day).
+  (`/admin/reports/members`, `src/lib/member-reports.ts`) shows growth, profile type and sector,
+  members at events, event-goers who became members and members' ratings.
   Members can cancel an upcoming registration or leave a waitlist from their member page
   (`cancelRegistration` in `src/lib/registrations.ts`, shared with the email cancel link).
 - **Members-only events** (once membership is open): the registration box asks only for the

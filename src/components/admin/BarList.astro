@@ -1,0 +1,48 @@
+---
+// A horizontal bar list (label, bar, count), server-rendered, for breakdowns on Reports.
+interface Props {
+  title: string;
+  rows: [string, number][];
+  hint?: string | undefined;
+  empty?: string;
+  tone?: 'accent' | 'brand' | 'navy';
+  /** Show each count's share of the total next to it. */
+  shares?: boolean;
+}
+const { title, rows, hint, empty = 'No data yet.', tone = 'accent', shares = false } = Astro.props;
+const max = Math.max(1, ...rows.map(([, n]) => n));
+const total = rows.reduce((n, [, v]) => n + v, 0);
+const bar = { accent: 'bg-accent', brand: 'bg-brand', navy: 'bg-navy' };
+---
+
+<figure class="admin-panel">
+  <figcaption class="font-semibold text-navy">
+    {title}
+    {hint && <span class="block text-xs font-normal text-muted">{hint}</span>}
+  </figcaption>
+  {rows.length ? (
+    <ul class="mt-4 grid gap-3">
+      {rows.map(([label, n]) => (
+        <li class="grid grid-cols-[minmax(0,8rem)_1fr_auto] items-center gap-3 text-sm">
+          <span class="truncate" title={label}>
+            {label}
+          </span>
+          <span class="h-3 overflow-hidden rounded-full bg-surface">
+            <span
+              class={`block h-full rounded-full ${bar[tone]}`}
+              style={`width:${(n / max) * 100}%`}
+            />
+          </span>
+          <span class="text-right font-semibold whitespace-nowrap">
+            {n}
+            {shares && total > 0 && (
+              <span class="font-normal text-muted"> ({Math.round((n / total) * 100)}%)</span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p class="mt-6 mb-4 text-sm text-muted">{empty}</p>
+  )}
+</figure>

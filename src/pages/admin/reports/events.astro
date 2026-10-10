@@ -4,289 +4,447 @@ import Button from '../../../components/Button.astro';
 import Badge from '../../../components/Badge.astro';
 import LineChart from '../../../components/admin/LineChart.astro';
 import ReportTabs from '../../../components/admin/ReportTabs.astro';
-import { getDb } from '../../../db';
-import { eventFeedback, events, registrations } from '../../../db/schema';
-import { eventStats } from '../../../lib/event-stats';
-import { feedbackSummary, formatRating } from '../../../lib/feedback';
+import ReportFilters from '../../../components/admin/ReportFilters.astro';
+import Kpi from '../../../components/admin/Kpi.astro';
+import BarList from '../../../components/admin/BarList.astro';
+import EventReportDetail from '../../../components/admin/EventReportDetail.astro';
+import { KIND_LABELS } from '../../../lib/event-stats';
+import { formatRating, RATING_LABELS } from '../../../lib/feedback';
 import { formatDate, formatEventDate } from '../../../lib/format';
 import { DAY_MS } from '../../../lib/lifecycle';
+import { delta, pct, periodQuery } from '../../../lib/report-period';
+import { kindOptions, loadEventReport } from '../../../lib/reports';
 
-const db = getDb();
-const now = new Date();
-const [eventRows, regRows, feedbackRows] = await Promise.all([
-  db
-    .select({
-      id: events.id,
-      title: events.title,
-      series: events.series,
-      startsAt: events.startsAt,
-      capacity: events.capacity,
-      status: events.status,
-    })
-    .from(events),
-  db
-    .select({
-      eventId: registrations.eventId,
-      email: registrations.email,
-      status: registrations.status,
-      createdAt: registrations.createdAt,
-      checkedInAt: registrations.checkedInAt,
-      howHeard: registrations.howHeard,
-      guests: registrations.guests,
-      feedbackSentAt: registrations.feedbackSentAt,
-    })
-    .from(registrations),
-  db.select({ eventId: eventFeedback.eventId, rating: eventFeedback.rating }).from(eventFeedback),
-]);
-const s = eventStats(eventRows, regRows, now);
-const feedback = new Map<number, ReturnType<typeof feedbackSummary>>();
-// Events that got the feedback email (older ones never did: they show "–", not a 0 link).
-const feedbackEmailed = new Set(regRows.filter((r) => r.feedbackSentAt).map((r) => r.eventId));
-for (const id of new Set(feedbackRows.map((f) => f.eventId))) {
-  feedback.set(id, feedbackSummary(feedbackRows.filter((f) => f.eventId === id)));
-}
-const pct = (v: number | null) => (v === null ? '–' : `${Math.round(v * 100)}%`);
+// Reports > Events and attendance: the events of a period (and type), or one event in detail.
+const { now, period, kind, rows, report: s, detail } = await loadEventReport(Astro.url);
+const base = { ...periodQuery(period), ...(kind ? { type: kind } : {}) };
+const href = (extra: Record<string, string> = {}, path = '/admin/reports/events') =>
+  `${path}?${new URLSearchParams({ ...base, ...extra })}`;
+
+// The event picker: the period's events, plus the one shown if it is outside them.
+const picker = [...s.rows];
+if (detail && !picker.some((r) => r.event.id === detail.row.event.id)) picker.unshift(detail.row);
+const pickerOptions = picker.map((r) => ({
+  id: r.event.id,
+  label: `${formatDate(r.event.startsAt, { month: 'short' })} · ${r.event.title}`,
+}));
+
+const t = s.totals;
+const p = s.previous;
+const versus = period.previous ? `vs ${period.previous.label}` : undefined;
+const round = (v: number | null) => (v === null ? '–' : String(Math.round(v)));
+const kpis = [
+  {
+    label: 'Events held',
+    value: String(t.pastEvents),
+    delta: delta(t.pastEvents, p?.pastEvents ?? null),
+    hint: t.events > t.pastEvents ? `${t.events - t.pastEvents} more coming in this period` : '',
+  },
+  {
+    label: 'Registrations',
+    value: String(t.registered),
+    delta: delta(t.registered, p?.registered ?? null),
+    hint: 'Seats taken, guests included',
+  },
+  {
+    label: 'Checked in',
+    value: String(t.attended),
+    delta: delta(t.attended, p?.attended ?? null),
+    hint: `${t.walkIns} walk-ins, ${t.guests} guests`,
+  },
+  {
+    label: 'Show-up rate',
+    value: pct(t.showUp),
+    delta: delta(t.showUp, p?.showUp ?? null, 'rate'),
+    hint:
+      t.showUp === null
+        ? 'Needs check-in at the door'
+        : `${t.noShows} no-shows (${pct(t.noShowRate)}), events where check-in was used`,
+  },
+  {
+    label: 'Average per event',
+    value: round(t.avgRegistered),
+    delta: delta(t.avgRegistered, p?.avgRegistered ?? null),
+    hint: t.avgAttended === null ? 'Registrations' : `Registrations; ${round(t.avgAttended)} came`,
+  },
+  {
+    label: 'Seats filled',
+    value: pct(t.fill),
+    delta: delta(t.fill, p?.fill ?? null, 'rate'),
+    hint: 'Registrations ÷ capacity, events with a capacity',
+  },
+  {
+    label: 'First-timers',
+    value: pct(t.newShare),
+    delta: delta(t.newShare, p?.newShare ?? null, 'rate'),
+    hint: `${t.firstTimers} new faces, ${t.returning} came back`,
+  },
+  {
+    label: 'Members among attendees',
+    value: pct(t.memberShare),
+    delta: delta(t.memberShare, p?.memberShare ?? null, 'rate'),
+    hint: 'Members on the day of the event',
+  },
+  {
+    label: 'People who came',
+    value: String(t.uniqueAttendees),
+    delta: delta(t.uniqueAttendees, p?.uniqueAttendees ?? null),
+    hint: `${t.cameTwice} came to more than one event (guests not counted)`,
+  },
+  {
+    label: 'Average rating',
+    value: t.feedback.average === null ? '–' : `${formatRating(t.feedback.average)} / 5`,
+    delta: delta(t.feedback.average, p?.feedback.average ?? null, 'rating'),
+    hint: `${t.feedback.responses} answers${
+      t.feedback.responseRate === null ? '' : `, ${pct(t.feedback.responseRate)} of those emailed`
+    }`,
+  },
+  {
+    label: 'Cancellations',
+    value: pct(t.cancelRate),
+    delta: delta(t.cancelRate, p?.cancelRate ?? null, 'rate', false),
+    hint: `${t.cancelled} seats given back; ${t.waitlist} on waitlists`,
+  },
+];
+
+const next = s.next;
+const daysToGo = next ? Math.ceil((next.event.startsAt.getTime() - now.getTime()) / DAY_MS) : 0;
 const shortDate = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'short',
   timeZone: 'Asia/Bangkok',
 });
-const next = s.next;
-const daysToGo = next ? Math.ceil((next.event.startsAt.getTime() - now.getTime()) / DAY_MS) : 0;
-const heardMax = Math.max(1, ...s.howHeard.map(([, n]) => n));
-const kpis = [
-  { label: 'Registrations, last 12 months', value: String(s.totals.registrations12m) },
-  { label: 'Check-ins, last 12 months', value: String(s.totals.checkIns12m) },
-  {
-    label: 'Show-up rate',
-    value: pct(s.totals.showUp),
-    hint: 'Checked in ÷ registered, events where check-in was used',
-  },
-  {
-    label: 'Average per event',
-    value: s.totals.avgPerEvent === null ? '–' : String(Math.round(s.totals.avgPerEvent)),
-    hint: 'Registrations per past event',
-  },
-  {
-    label: 'People who came',
-    value: String(s.totals.uniqueAttendees),
-    hint: s.totals.uniqueAttendees
-      ? `${s.totals.returning} came more than once (${pct(s.totals.returning / s.totals.uniqueAttendees)})`
-      : 'Counted from check-ins',
-  },
-  { label: 'Upcoming events', value: String(s.upcomingCount) },
-];
+const trendLabels = s.trend.map((r) => `${r.event.title} (${formatDate(r.event.startsAt)})`);
+const trendTicks = s.trend.map((r) => shortDate.format(r.event.startsAt));
+const rated = s.trend.filter((r) => r.feedback.responses > 0);
+const csvBase = href({}, '/admin/reports/events.csv');
 ---
 
 <AdminLayout title="Reports: events and attendance">
   <ReportTabs />
-  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-    <p class="text-sm text-muted">
-      Registrations made on this site and check-ins at the door. Events imported from Wix have no
-      registrations here.
-    </p>
-    <Button href="/admin/events" size="sm" variant="secondary">
-      All events
-    </Button>
-  </div>
+  <ReportFilters
+    period={period}
+    kinds={kindOptions}
+    kind={kind}
+    events={pickerOptions}
+    event={detail?.row.event.id ?? null}
+    csv={[
+      detail
+        ? {
+            href: href({ event: String(detail.row.event.id) }, '/admin/reports/events.csv'),
+            label: 'Export CSV',
+          }
+        : { href: csvBase, label: 'Export CSV' },
+    ]}
+  />
 
-  {next && (
-    <section class="admin-panel mb-6" aria-labelledby="next-title">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p class="text-xs font-semibold tracking-wider text-brand uppercase">
-            Next event · in {daysToGo} day{daysToGo === 1 ? '' : 's'}
-          </p>
-          <h2 id="next-title" class="mt-1 text-xl">
-            <a href={`/admin/events/${next.event.id}`}>{next.event.title}</a>
-          </h2>
-          <p class="text-sm text-muted">{formatEventDate(next.event.startsAt)}</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <Button href={`/admin/registrations?event=${next.event.id}`} size="sm" variant="ghost">
-            Registrations
-          </Button>
-          <Button href={`/admin/events/${next.event.id}/checkin`} size="sm">
-            Open check-in
-          </Button>
-        </div>
-      </div>
-      <dl class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div>
-          <dt class="text-xs text-muted">Registered</dt>
-          <dd class="text-2xl font-bold text-navy">
-            {next.registered}
-            {next.event.capacity !== null && (
-              <span class="text-base font-normal text-muted"> / {next.event.capacity}</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt class="text-xs text-muted">Waitlist</dt>
-          <dd class="text-2xl font-bold text-navy">{next.waitlist}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-muted">Cancelled</dt>
-          <dd class="text-2xl font-bold text-navy">{next.cancelled}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-muted">Checked in</dt>
-          <dd class="text-2xl font-bold text-navy">{next.attended}</dd>
-        </div>
-      </dl>
-      {next.event.capacity !== null && next.event.capacity > 0 && (
-        <div
-          class="mt-4 h-2 overflow-hidden rounded-full bg-surface"
-          role="img"
-          aria-label={`${Math.round((next.registered / next.event.capacity) * 100)}% of seats taken`}
-        >
-          <div
-            class="h-full rounded-full bg-brand"
-            style={`width:${Math.min(100, (next.registered / next.event.capacity) * 100)}%`}
-          />
-        </div>
+  {detail ? (
+    <EventReportDetail detail={detail} back={href()} />
+  ) : (
+    <>
+      <p class="mb-6 max-w-3xl text-sm text-muted">
+        Events of the period{kind ? ` (${KIND_LABELS[kind]} only)` : ''}: registrations on this
+        site, check-ins at the door and the day-after feedback. Guests count as seats; first-timers,
+        returning people and members count named people only. Pick an event above to see it in
+        detail.
+      </p>
+
+      {next && (
+        <section class="admin-panel mb-6" aria-labelledby="next-title">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold tracking-wider text-brand uppercase">
+                Next event · in {daysToGo} day{daysToGo === 1 ? '' : 's'}
+              </p>
+              <h2 id="next-title" class="mt-1 text-xl">
+                <a href={href({ event: String(next.event.id) })}>{next.event.title}</a>
+              </h2>
+              <p class="text-sm text-muted">{formatEventDate(next.event.startsAt)}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                href={`/admin/registrations?event=${next.event.id}`}
+                size="sm"
+                variant="ghost"
+              >
+                Registrations
+              </Button>
+              <Button href={`/admin/events/${next.event.id}/checkin`} size="sm">
+                Open check-in
+              </Button>
+            </div>
+          </div>
+          <dl class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <dt class="text-xs text-muted">Registered</dt>
+              <dd class="text-2xl font-bold text-navy">
+                {next.registered}
+                {next.event.capacity !== null && (
+                  <span class="text-base font-normal text-muted"> / {next.event.capacity}</span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-xs text-muted">Waitlist</dt>
+              <dd class="text-2xl font-bold text-navy">{next.waitlist}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-muted">Cancelled</dt>
+              <dd class="text-2xl font-bold text-navy">{next.cancelled}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-muted">Guests</dt>
+              <dd class="text-2xl font-bold text-navy">{next.guests}</dd>
+            </div>
+          </dl>
+          {next.event.capacity !== null && next.event.capacity > 0 && (
+            <div
+              class="mt-4 h-2 overflow-hidden rounded-full bg-surface"
+              role="img"
+              aria-label={`${Math.round((next.registered / next.event.capacity) * 100)}% of seats taken`}
+            >
+              <div
+                class="h-full rounded-full bg-brand"
+                style={`width:${Math.min(100, (next.registered / next.event.capacity) * 100)}%`}
+              />
+            </div>
+          )}
+        </section>
       )}
-    </section>
-  )}
 
-  <section
-    aria-label="Key numbers"
-    class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6"
-  >
-    {kpis.map((k) => (
-      <div class="admin-panel">
-        <p class="text-xs text-muted">{k.label}</p>
-        <p class="mt-1 text-3xl font-bold text-navy">{k.value}</p>
-        {k.hint && <p class="mt-1 text-xs text-muted">{k.hint}</p>}
-      </div>
-    ))}
-  </section>
-
-  <div class="mb-6 grid gap-6 xl:grid-cols-2">
-    <LineChart
-      title="Registered and checked in, per event"
-      labels={s.perEvent.labels.map((l, i) => `${l} (${formatDate(s.perEvent.dates[i]!)})`)}
-      ticks={s.perEvent.dates.map((d) => shortDate.format(d))}
-      series={[
-        { name: 'Registered', values: s.perEvent.registered, tone: 'navy' },
-        { name: 'Checked in', values: s.perEvent.attended, tone: 'brand' },
-      ]}
-      empty="No past event with registrations yet."
-    />
-    <LineChart
-      title="New registrations and check-ins, per month"
-      labels={s.monthly.labels}
-      series={[
-        { name: 'Registrations', values: s.monthly.registrations, tone: 'accent' },
-        { name: 'Check-ins', values: s.monthly.checkIns, tone: 'brand' },
-      ]}
-    />
-    <LineChart
-      title="Registration pace, 30 days before the event"
-      labels={s.pace.labels}
-      series={[
-        ...(s.pace.next && next
-          ? [{ name: next.event.title, values: s.pace.next, tone: 'brand' as const }]
-          : []),
-        ...(s.pace.previous
-          ? [
-              {
-                name: s.pace.previousTitle ?? 'Previous event',
-                values: s.pace.previous,
-                tone: 'muted' as const,
-                dashed: true,
-              },
-            ]
-          : []),
-      ]}
-      empty="Shows once events have registrations."
-    />
-    <figure class="admin-panel">
-      <figcaption class="font-semibold text-navy">
-        How people heard about the events (last 12 months)
-      </figcaption>
-      {s.howHeard.length ? (
-        <ul class="mt-4 grid gap-3">
-          {s.howHeard.map(([label, n]) => (
-            <li class="grid grid-cols-[8rem_1fr_2.5rem] items-center gap-3 text-sm">
-              <span class="truncate">{label}</span>
-              <span class="h-3 overflow-hidden rounded-full bg-surface">
-                <span
-                  class="block h-full rounded-full bg-accent"
-                  style={`width:${(n / heardMax) * 100}%`}
-                />
-              </span>
-              <span class="text-right font-semibold">{n}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p class="mt-6 mb-4 text-sm text-muted">No data yet.</p>
-      )}
-    </figure>
-  </div>
-
-  <section class="admin-panel relative overflow-x-auto" aria-labelledby="per-event-title">
-    <h2 id="per-event-title" class="mb-3 text-lg">
-      Per event
-    </h2>
-    <table class="admin-table" data-sortable>
-      <thead>
-        <tr>
-          <th>Event</th>
-          <th>Date</th>
-          <th>Registered</th>
-          <th>Checked in</th>
-          <th>Show-up</th>
-          <th>Waitlist</th>
-          <th>Cancelled</th>
-          <th>Feedback</th>
-          <th>Rating</th>
-        </tr>
-      </thead>
-      <tbody>
-        {s.rows.map((r) => (
-          <tr>
-            <td data-sort={r.event.title}>
-              <a href={`/admin/registrations?event=${r.event.id}`} class="font-semibold">
-                {r.event.title}
-              </a>
-              <span class="block text-xs text-muted">{r.event.series}</span>
-            </td>
-            <td class="whitespace-nowrap" data-sort={r.event.startsAt.getTime()}>
-              {formatDate(r.event.startsAt)}
-              {r.event.startsAt >= now && (
-                <Badge tone="accent" class="ml-1">
-                  upcoming
-                </Badge>
-              )}
-            </td>
-            <td data-sort={r.registered}>
-              {r.registered}
-              {r.event.capacity !== null && <span class="text-muted"> / {r.event.capacity}</span>}
-            </td>
-            <td data-sort={r.attended}>{r.attended}</td>
-            <td data-sort={r.showUp ?? -1}>{pct(r.showUp)}</td>
-            <td data-sort={r.waitlist}>{r.waitlist}</td>
-            <td data-sort={r.cancelled}>{r.cancelled}</td>
-            <td data-sort={feedback.get(r.event.id)?.responses ?? -1} class="whitespace-nowrap">
-              {r.event.startsAt < now &&
-              (feedbackEmailed.has(r.event.id) || feedback.has(r.event.id)) ? (
-                <a href={`/admin/events/${r.event.id}/feedback`}>
-                  {feedback.get(r.event.id)?.responses ?? 0}
-                  <span class="sr-only"> feedback responses for {r.event.title}</span>
-                  <span aria-hidden="true"> ›</span>
-                </a>
-              ) : (
-                <span class="text-muted">–</span>
-              )}
-            </td>
-            <td data-sort={feedback.get(r.event.id)?.average ?? -1}>
-              {formatRating(feedback.get(r.event.id)?.average ?? null)}
-            </td>
-          </tr>
+      <section
+        aria-label="Key numbers"
+        class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4"
+      >
+        {kpis.map((k) => (
+          <Kpi label={k.label} value={k.value} hint={k.hint} delta={k.delta} versus={versus} />
         ))}
-      </tbody>
-    </table>
-  </section>
+      </section>
+
+      <div class="mb-6 grid items-start gap-6 xl:grid-cols-2">
+        <LineChart
+          title="Registered and checked in, per event"
+          labels={trendLabels}
+          ticks={trendTicks}
+          series={[
+            { name: 'Registered', values: s.trend.map((r) => r.registered), tone: 'navy' },
+            {
+              name: 'Checked in',
+              values: s.trend.map((r) => (r.showUp === null ? null : r.attended)),
+              tone: 'brand',
+            },
+          ]}
+          empty="No past event with registrations in this period."
+        />
+        <LineChart
+          title={`New registrations and check-ins, per ${s.overTime.unit}`}
+          labels={s.overTime.labels}
+          series={[
+            { name: 'Registrations', values: s.overTime.registrations, tone: 'accent' },
+            { name: 'Check-ins', values: s.overTime.checkIns, tone: 'brand' },
+          ]}
+        />
+        <LineChart
+          title="First-timers and returning people, per event"
+          labels={trendLabels}
+          ticks={trendTicks}
+          series={[
+            { name: 'First-timers', values: s.trend.map((r) => r.firstTimers), tone: 'accent' },
+            { name: 'Returning', values: s.trend.map((r) => r.returning), tone: 'navy' },
+            { name: 'Members', values: s.trend.map((r) => r.members), tone: 'brand', dashed: true },
+          ]}
+          empty="No past event with attendees in this period."
+        />
+        <LineChart
+          title="Average rating, per event (out of 5)"
+          labels={rated.map((r) => `${r.event.title} (${r.feedback.responses} answers)`)}
+          ticks={rated.map((r) => shortDate.format(r.event.startsAt))}
+          series={[
+            {
+              name: 'Rating',
+              values: rated.map((r) => Math.round((r.feedback.average ?? 0) * 10) / 10),
+              tone: 'brand',
+            },
+          ]}
+          empty="No feedback for the events of this period yet."
+        />
+        {s.pace && next && (
+          <LineChart
+            title="Registration pace, 30 days before the event"
+            labels={s.pace.labels}
+            series={[
+              { name: next.event.title, values: s.pace.current, tone: 'brand' as const },
+              ...(s.pace.previous
+                ? [
+                    {
+                      name: s.pace.previousTitle ?? 'Previous event',
+                      values: s.pace.previous,
+                      tone: 'muted' as const,
+                      dashed: true,
+                    },
+                  ]
+                : []),
+            ]}
+            empty="Shows once the next event has registrations."
+          />
+        )}
+        <BarList
+          title="How people heard about the events"
+          hint="Registrations of the period's events"
+          rows={s.howHeard}
+          shares
+        />
+      </div>
+
+      <div class="mb-6 grid items-start gap-6 lg:grid-cols-[1fr_2fr]">
+        <BarList
+          title="Feedback ratings"
+          hint={`${t.feedback.responses} answers, ${t.feedback.comments} with a comment`}
+          rows={[5, 4, 3, 2, 1].map((n) => [
+            `${n} · ${RATING_LABELS[n]}`,
+            t.feedback.distribution[n - 1] ?? 0,
+          ])}
+          tone="brand"
+          shares
+          empty="No feedback yet."
+        />
+        <section class="admin-panel" aria-labelledby="comments-title">
+          <h2 id="comments-title" class="font-semibold text-navy">
+            Latest comments
+          </h2>
+          {s.comments.length ? (
+            <ul class="mt-4 grid gap-4">
+              {s.comments.map((c) => (
+                <li class="border-l-4 border-line pl-4">
+                  <p class="text-xs text-muted">
+                    <span class="font-semibold text-navy">{c.rating} / 5</span> ·{' '}
+                    <a href={href({ event: String(c.eventId) })}>{c.event.title}</a>
+                  </p>
+                  <p class="mt-1 text-sm whitespace-pre-line">{c.comment}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="mt-6 mb-4 text-sm text-muted">No comments for this period.</p>
+          )}
+          <p class="mt-4 text-xs text-muted">
+            Names stay on each event's feedback page. Pick an event above to read all its comments.
+          </p>
+        </section>
+      </div>
+
+      {s.byKind.length > 1 && (
+        <section class="admin-panel mb-6 overflow-x-auto" aria-labelledby="types-title">
+          <h2 id="types-title" class="mb-3 text-lg">
+            By event type
+          </h2>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Events</th>
+                <th>Avg registered</th>
+                <th>Avg checked in</th>
+                <th>Show-up</th>
+                <th>First-timers</th>
+                <th>Members</th>
+                <th>Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.byKind.map((k) => (
+                <tr>
+                  <td>
+                    <a
+                      href={`/admin/reports/events?${new URLSearchParams({ ...periodQuery(period), type: k.kind })}`}
+                    >
+                      {k.label}
+                    </a>
+                  </td>
+                  <td>{k.t.events}</td>
+                  <td>{round(k.t.avgRegistered)}</td>
+                  <td>{round(k.t.avgAttended)}</td>
+                  <td>{pct(k.t.showUp)}</td>
+                  <td>{pct(k.t.newShare)}</td>
+                  <td>{pct(k.t.memberShare)}</td>
+                  <td>{formatRating(k.t.feedback.average)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      <section class="admin-panel relative overflow-x-auto" aria-labelledby="per-event-title">
+        <h2 id="per-event-title" class="mb-3 text-lg">
+          Per event
+        </h2>
+        {s.rows.length ? (
+          <table class="admin-table" data-sortable>
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Date</th>
+                <th>Registered</th>
+                <th>Checked in</th>
+                <th>Show-up</th>
+                <th>Walk-ins</th>
+                <th>Guests</th>
+                <th>First-timers</th>
+                <th>Members</th>
+                <th>Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.rows.map((r) => (
+                <tr>
+                  <td data-sort={r.event.title}>
+                    <a href={href({ event: String(r.event.id) })} class="font-semibold">
+                      {r.event.title}
+                    </a>
+                    <span class="block text-xs text-muted">{KIND_LABELS[r.kind]}</span>
+                  </td>
+                  <td class="whitespace-nowrap" data-sort={r.event.startsAt.getTime()}>
+                    {formatDate(r.event.startsAt)}
+                    {!r.past && (
+                      <Badge tone="accent" class="ml-1">
+                        upcoming
+                      </Badge>
+                    )}
+                  </td>
+                  <td data-sort={r.registered}>
+                    {r.registered}
+                    {r.event.capacity !== null && (
+                      <span class="text-muted"> / {r.event.capacity}</span>
+                    )}
+                  </td>
+                  <td data-sort={r.attended}>{r.attended}</td>
+                  <td data-sort={r.showUp ?? -1}>{pct(r.showUp)}</td>
+                  <td data-sort={r.walkIns}>{r.walkIns}</td>
+                  <td data-sort={r.guests}>{r.guests}</td>
+                  <td data-sort={r.firstTimers}>{r.past ? r.firstTimers : '–'}</td>
+                  <td data-sort={r.members}>{r.past ? r.members : '–'}</td>
+                  <td data-sort={r.feedback.average ?? -1} class="whitespace-nowrap">
+                    {r.feedback.responses ? (
+                      <a href={`/admin/events/${r.event.id}/feedback`}>
+                        {formatRating(r.feedback.average)}
+                        <span class="text-xs text-muted"> ({r.feedback.responses})</span>
+                        <span class="sr-only"> feedback for {r.event.title}</span>
+                      </a>
+                    ) : (
+                      <span class="text-muted">–</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p class="text-sm text-muted">
+            No event in this period. {rows.length > 0 && 'Try a longer period or All time.'}
+          </p>
+        )}
+      </section>
+    </>
+  )}
 </AdminLayout>

@@ -1,0 +1,124 @@
+---
+import { PERIODS, type Period } from '../../lib/report-period';
+
+// The filter bar on Reports: time period (with custom dates), and on Events the event type and
+// one event. A plain GET form: changing a field reloads the page with it, the URL can be shared.
+interface Props {
+  period: Period;
+  kinds?: { value: string; label: string }[];
+  kind?: string | null;
+  events?: { id: number; label: string }[];
+  event?: number | null;
+  /** The CSV export of what is shown. */
+  csv?: { href: string; label: string }[];
+}
+const { period, kinds, kind = null, events, event = null, csv = [] } = Astro.props;
+const shown = (d: string) => d.split('-').reverse().join('/');
+const field = 'rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink';
+---
+
+<form method="get" class="admin-panel mb-6 flex flex-wrap items-end gap-3" data-report-filters>
+  <label class="grid gap-1 text-xs text-muted">
+    Period
+    <select name="period" class={field} data-period>
+      {Object.entries(PERIODS).map(([k, l]) => (
+        <option value={k} selected={k === period.key}>
+          {l}
+        </option>
+      ))}
+    </select>
+  </label>
+  <fieldset class="flex flex-wrap items-end gap-2" data-custom hidden={period.key !== 'custom'}>
+    <legend class="sr-only">Custom dates</legend>
+    <label class="grid gap-1 text-xs text-muted">
+      From
+      <input type="date" name="from" value={period.fromInput} class={field} />
+    </label>
+    <label class="grid gap-1 text-xs text-muted">
+      To
+      <input type="date" name="to" value={period.toInput} class={field} />
+    </label>
+  </fieldset>
+  {kinds && (
+    <label class="grid gap-1 text-xs text-muted">
+      Event type
+      <select name="type" class={field} data-autosubmit>
+        <option value="">All types</option>
+        {kinds.map((k) => (
+          <option value={k.value} selected={k.value === kind}>
+            {k.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )}
+  {events && (
+    <label class="grid w-full min-w-0 gap-1 text-xs text-muted sm:w-auto">
+      Event
+      <select name="event" class={`${field} w-full sm:w-auto sm:max-w-80`} data-autosubmit>
+        <option value="">All events of the period</option>
+        {events.map((e) => (
+          <option value={e.id} selected={e.id === event}>
+            {e.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )}
+  <button
+    type="submit"
+    class="rounded-lg bg-navy px-4 py-1.5 text-sm font-semibold text-paper hover:bg-navy-soft"
+  >
+    Apply
+  </button>
+  <p class="w-full text-xs text-muted sm:order-last">
+    Showing <strong class="font-semibold text-ink">{period.label}</strong>
+    {period.key !== 'custom' &&
+      period.key !== 'last-year' &&
+      ` (${shown(period.fromInput)} to ${shown(period.toInput)})`}
+    {period.previous && `, compared with ${period.previous.label}`}.
+  </p>
+  {csv.length > 0 && (
+    <span class="flex flex-wrap gap-2 sm:ml-auto">
+      {csv.map((c) => (
+        <a
+          href={c.href}
+          class="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold no-underline hover:border-navy"
+        >
+          {c.label}
+        </a>
+      ))}
+    </span>
+  )}
+</form>
+
+<script>
+  // Changing a filter applies it at once; Custom dates waits for the dates and Apply.
+  document.querySelectorAll<HTMLFormElement>('[data-report-filters]').forEach((form) => {
+    const custom = form.querySelector('[data-custom]') as unknown as HTMLElement | null;
+    const period = form.querySelector('[data-period]') as unknown as HTMLSelectElement;
+    period.addEventListener('change', () => {
+      const v = period.value;
+      if (custom) custom.hidden = v !== 'custom';
+      if (v !== 'custom') form.requestSubmit();
+    });
+    const selects = form.querySelectorAll('[data-autosubmit]') as unknown as HTMLSelectElement[];
+    selects.forEach((s) => {
+      s.addEventListener('change', () => {
+        // A new type lists other events: back to the overview.
+        const event = form.querySelector('select[name=event]') as unknown as HTMLSelectElement;
+        if (s.name === 'type' && event) event.value = '';
+        form.requestSubmit();
+      });
+    });
+    // Keep the URL short: no empty fields, no dates unless they are custom.
+    form.addEventListener('formdata', (e) => {
+      const d = e.formData;
+      if (d.get('period') !== 'custom') {
+        d.delete('from');
+        d.delete('to');
+      }
+      for (const [k, v] of [...d.entries()]) if (v === '') d.delete(k);
+    });
+  });
+</script>
