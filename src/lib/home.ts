@@ -162,7 +162,7 @@ export function shuffled<T>(list: readonly T[], rand: () => number = Math.random
 export function carouselGroups<T extends { category: string }>(
   orgs: readonly T[],
   categories: readonly string[],
-  n = 15,
+  n = 20,
   rand: () => number = Math.random,
 ) {
   return [

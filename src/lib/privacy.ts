@@ -12,7 +12,7 @@ export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run
 
 - What you type in the registration form: your name, email, phone, company, role, how you heard about us, and your answer to "Anything we should know?".
 - Whether you came: we check people in at the door, and the team may add you as a walk-in.
-- If you become a member: what you type in the membership form (your name, email, phone, company, job title, LinkedIn, what describes you best, your nationality if you give it, the sectors you're interested in and how you heard about us) and when you confirmed.
+- If you become a member: what you type in the membership form (your name, email, phone, company, job title, LinkedIn, what describes you best, the sectors you're interested in and how you heard about us) and when you confirmed.
 - Your newsletter choice, and the date you made it.
 - Your feedback after an event, if you give it.
 - Notes and tags the organising team adds to help run the community (for example "speaker" or "volunteer").

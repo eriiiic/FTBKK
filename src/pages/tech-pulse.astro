@@ -2,11 +2,24 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/Button.astro';
 import Icon from '../components/Icon.astro';
+import DownloadGate from '../components/DownloadGate.astro';
 import { allPosts } from '../lib/queries';
 import { getSettings } from '../lib/settings';
 import { renderMarkdown } from '../lib/markdown';
 import { formatDate, mediaUrl } from '../lib/format';
-import { DEFAULT_TECH_PULSE_INTRO, editionOf, isTechPulse, reportFile } from '../lib/tech-pulse';
+import { clientIp, email, fieldErrors, formToObject } from '../lib/forms';
+import { verifyTurnstile } from '../lib/turnstile';
+import { rateLimit } from '../lib/ratelimit';
+import { MemberSignupSchema, memberByEmail, requestMembership, signupInput } from '../lib/members';
+import { rememberMember } from '../lib/tech-pulse-downloads';
+import {
+  DEFAULT_TECH_PULSE_INTRO,
+  downloadPath,
+  editionOf,
+  isTechPulse,
+  reportFile,
+  reportTitle,
+} from '../lib/tech-pulse';
 
 // Thailand Tech Pulse, our quarterly report: every edition, newest first. An edition is a blog
 // post with "Tech Pulse" in its title (see lib/tech-pulse.ts).
@@ -17,13 +30,81 @@ const editions = posts
     ...p,
     edition: editionOf(p.title),
     cover: mediaUrl(p.coverKey),
-    pdf: reportFile(p),
+    // Through /tech-pulse/download, which asks for membership while membership is open.
+    pdf: reportFile(p) ? downloadPath(p.slug) : null,
   }));
 const latest = editions[0];
 const intro = renderMarkdown(settings.techPulseIntro || DEFAULT_TECH_PULSE_INTRO, { breaks: true });
+
+// Members-only downloads (lib/tech-pulse-downloads.ts): a Download button without the member
+// cookie lands here with ?edition=, and the box below asks for the email, like event registration.
+const membersOnly = settings.memberSignupOpen;
+const isPost = Astro.request.method === 'POST';
+let form: FormData | null = null;
+if (isPost) form = await Astro.request.formData();
+const wanted = String(form?.get('edition') ?? Astro.url.searchParams.get('edition') ?? '');
+const chosen = membersOnly ? editions.find((e) => e.slug === wanted && e.pdf) : undefined;
+const gate = chosen
+  ? { slug: chosen.slug, title: chosen.title, label: reportTitle(chosen.title) }
+  : null;
+let step: 'email' | 'join' = 'email';
+let errors: Record<string, string> = {};
+let values: Record<string, unknown> = {};
+let result: { status: 'ready' | 'joined'; email: string } | null = null;
+if (gate && form) {
+  values = formToObject(form, ['interests']);
+  const ip = clientIp(Astro.request);
+  const human = () => verifyTurnstile(form.get('cf-turnstile-response') as string, ip);
+  const secure = Astro.url.protocol === 'https:';
+  const suspended = `This membership is suspended. Write to us at ${settings.contactEmail} if you think this is a mistake.`;
+  if (form.get('step') === 'join') {
+    step = 'join';
+    const parsed = MemberSignupSchema.safeParse(signupInput(values));
+    if (!parsed.success) errors = fieldErrors(parsed.error);
+    else if (!(await human())) errors.form = 'The anti-spam check failed. Please try again.';
+    else if (
+      !(await rateLimit(`member:${ip}`, 5, 3600)) ||
+      !(await rateLimit(`member:${parsed.data.email}`, 3, 86400))
+    )
+      errors.form = 'Too many sign-ups from here. Please try again later.';
+    else {
+      const existing = await memberByEmail(parsed.data.email);
+      if (existing?.status === 'active') {
+        await rememberMember(Astro.cookies, existing, secure);
+        result = { status: 'ready', email: existing.email };
+      } else if (existing?.status === 'suspended') errors.form = suspended;
+      else {
+        await requestMembership(parsed.data, new Date(), null, {
+          slug: gate.slug,
+          title: gate.label,
+        });
+        result = { status: 'joined', email: parsed.data.email };
+      }
+    }
+  } else {
+    // First step: just the email.
+    const parsed = email.safeParse(values.email);
+    if (!parsed.success) errors.email = 'Enter a valid email address.';
+    else if (!(await human())) errors.form = 'The anti-spam check failed. Please try again.';
+    else if (!(await rateLimit(`download:${ip}`, 20, 3600)))
+      errors.form = 'Too many tries from your connection. Please try again later.';
+    else {
+      const m = await memberByEmail(parsed.data);
+      if (m?.status === 'active') {
+        await rememberMember(Astro.cookies, m, secure);
+        result = { status: 'ready', email: m.email };
+      } else if (m?.status === 'suspended') errors.form = suspended;
+      else {
+        step = 'join';
+        values = { email: parsed.data };
+      }
+    }
+  }
+}
 ---
 
 <BaseLayout
+  cache={!isPost}
   title="Thailand Tech Pulse"
   description="Thailand Tech Pulse, La French Tech Bangkok's free quarterly report on the Thai tech ecosystem: digital infrastructure, AI, investment, startups and talent."
   image={latest?.cover}
@@ -47,7 +128,7 @@ const intro = renderMarkdown(settings.techPulseIntro || DEFAULT_TECH_PULSE_INTRO
         {latest && (
           <div class="mt-10 flex flex-wrap gap-3">
             {latest.pdf ? (
-              <Button href={latest.pdf} download>
+              <Button href={latest.pdf}>
                 <Icon name="download" class="size-4" />
                 Download {latest.edition ?? 'the latest edition'}
               </Button>
@@ -87,6 +168,10 @@ const intro = renderMarkdown(settings.techPulseIntro || DEFAULT_TECH_PULSE_INTRO
       )}
     </div>
   </section>
+
+  {gate && (
+    <DownloadGate edition={gate} step={step} errors={errors} values={values} result={result} />
+  )}
 
   <section class="bg-paper py-16 md:py-24" aria-labelledby="editions-title">
     <div class="container-page">
@@ -133,7 +218,7 @@ const intro = renderMarkdown(settings.techPulseIntro || DEFAULT_TECH_PULSE_INTRO
                     Read the summary <Icon name="arrow" class="size-4" />
                   </a>
                   {e.pdf && (
-                    <a href={e.pdf} download class="inline-flex items-center gap-1.5 no-underline">
+                    <a href={e.pdf} class="inline-flex items-center gap-1.5 no-underline">
                       <Icon name="download" class="size-4" /> Download PDF
                     </a>
                   )}

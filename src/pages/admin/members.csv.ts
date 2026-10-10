@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { toDateInput } from '../../lib/admin';
 import { csvCell } from '../../lib/csv';
 import { filterMembers, joinedAt, loadMemberList, parseMemberFilters } from '../../lib/member-list';
-import { MEMBER_STATUSES, NATIONALITY_GROUPS, PROFILE_TYPES } from '../../lib/members';
+import { MEMBER_STATUSES, PROFILE_TYPES } from '../../lib/members';
 
 // Admin only (guarded in middleware). Members > All members as a CSV, with the page's filters.
 export const GET: APIRoute = async ({ url }) => {
@@ -14,7 +14,6 @@ export const GET: APIRoute = async ({ url }) => {
     'Company',
     'Job title',
     'Profile',
-    'Nationality',
     'Sectors of interest',
     'Status',
     'Joined',
@@ -35,7 +34,6 @@ export const GET: APIRoute = async ({ url }) => {
       m.company,
       m.jobTitle,
       PROFILE_TYPES[m.profileType as keyof typeof PROFILE_TYPES] ?? m.profileType,
-      m.nationality ? NATIONALITY_GROUPS[m.nationality as keyof typeof NATIONALITY_GROUPS] : '',
       m.interests.join('; '),
       MEMBER_STATUSES[m.status],
       toDateInput(joinedAt(m)),

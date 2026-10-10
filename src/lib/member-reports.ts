@@ -1,5 +1,5 @@
 import { DAY_MS } from './lifecycle';
-import { NATIONALITY_GROUPS, PROFILE_TYPES } from './members';
+import { PROFILE_TYPES } from './members';
 
 // Community > Reports, for the board: how membership grows, who the members are, and how many of
 // the people at our events are members. Pure functions over rows the page loads.
@@ -8,7 +8,6 @@ export interface ReportMember {
   email: string;
   status: 'pending' | 'active' | 'suspended' | 'lapsed';
   profileType: string;
-  nationality: string | null;
   interests: string[];
   confirmedAt: Date | null;
   createdAt: Date;
@@ -103,10 +102,6 @@ export function memberReports(
     active.flatMap((m) => m.interests),
     {},
   );
-  const byNationality = tally(
-    active.map((m) => m.nationality ?? 'unknown'),
-    { ...NATIONALITY_GROUPS, unknown: 'Not given' },
-  );
 
   // Share of event attendees who are members, past events of the last 12 months.
   const yearAgo = new Date(now.getTime() - 365 * DAY_MS);
@@ -148,7 +143,6 @@ export function memberReports(
     byMonth,
     byProfile,
     bySector,
-    byNationality,
     perEvent,
     attendeeShare: { people, then: share('membersThen'), now: share('membersNow') },
   };

@@ -1,0 +1,115 @@
+---
+// The members-only download box of /tech-pulse, built like an event's registration box: members
+// download with their email; someone new fills the free membership form once, then downloads from
+// their member page when they confirm their email (lib/tech-pulse-downloads.ts).
+import Alert from './Alert.astro';
+import Button from './Button.astro';
+import FormField from './FormField.astro';
+import Icon from './Icon.astro';
+import Turnstile from './Turnstile.astro';
+import MemberSignupFields from './MemberSignupFields.astro';
+import { downloadPath } from '../lib/tech-pulse';
+
+interface Props {
+  edition: { slug: string; title: string; label: string };
+  step: 'email' | 'join';
+  errors?: Record<string, string>;
+  values?: Record<string, unknown>;
+  result?: { status: 'ready' | 'joined'; email: string } | null;
+}
+const { edition, step, errors = {}, values = {}, result } = Astro.props;
+const href = downloadPath(edition.slug);
+const action = `/tech-pulse?edition=${encodeURIComponent(edition.slug)}#download`;
+---
+
+<section
+  id="download"
+  class="scroll-mt-24 bg-surface py-12 md:py-16"
+  aria-labelledby="download-title"
+>
+  <div class="container-page">
+    <div class="max-w-2xl rounded-card border border-line bg-paper p-6 shadow-card md:p-8">
+      <p class="text-xs font-semibold tracking-[0.15em] text-brand uppercase">Members download</p>
+      <h2 id="download-title" class="mt-2 text-2xl">
+        Download {edition.label}
+      </h2>
+      {result?.status === 'ready' ? (
+        <div class="mt-4 grid gap-4">
+          <Alert tone="success">
+            Thanks! Your download is starting. We'll remember this browser, so next time the
+            Download buttons work straight away.
+          </Alert>
+          <div>
+            <Button href={href} data-autostart>
+              <Icon name="download" class="size-4" />
+              Download the PDF
+            </Button>
+          </div>
+          <script is:inline>
+            document.querySelector('[data-autostart]')?.click();
+          </script>
+        </div>
+      ) : result?.status === 'joined' ? (
+        <Alert tone="success" class="mt-4">
+          Almost there: we've sent an email to {result.email}. Click the link in it to confirm your
+          email: you become a member and your member page opens with the download. Nothing in your
+          inbox? Check the spam folder.
+        </Alert>
+      ) : step === 'join' ? (
+        <form method="post" action={action} class="mt-4 grid gap-4">
+          <input type="hidden" name="step" value="join" />
+          <input type="hidden" name="edition" value={edition.slug} />
+          <Alert>
+            {String(values.email ?? '')} isn't a member yet. Our reports are for members, and
+            membership is free: fill this in once and you can download every edition. Wrong email?{' '}
+            <a href={action}>Use another one</a>.
+          </Alert>
+          {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+          <MemberSignupFields
+            values={values}
+            errors={errors}
+            fixedEmail={String(values.email ?? '')}
+          />
+          <Turnstile />
+          <div>
+            <Button type="submit">Become a member and download</Button>
+          </div>
+        </form>
+      ) : (
+        <form method="post" action={action} class="mt-4 grid gap-4">
+          <input type="hidden" name="step" value="email" />
+          <input type="hidden" name="edition" value={edition.slug} />
+          <p class="text-muted">
+            Thailand Tech Pulse is for members of La French Tech Bangkok. Members download with
+            their email. Not a member yet? Enter your email too: membership is free and takes a
+            minute.
+          </p>
+          {errors.form && <Alert tone="danger">{errors.form}</Alert>}
+          <FormField
+            name="email"
+            label="Email"
+            type="email"
+            required
+            autocomplete="email"
+            value={String(values.email ?? '')}
+            error={errors.email}
+          />
+          <Turnstile />
+          <div>
+            <Button type="submit">
+              <Icon name="download" class="size-4" />
+              Download
+            </Button>
+          </div>
+          <p class="text-xs text-muted">
+            See our{' '}
+            <a href="/privacy" class="underline">
+              privacy notice
+            </a>
+            .
+          </p>
+        </form>
+      )}
+    </div>
+  </div>
+</section>

@@ -449,6 +449,8 @@ export const people = sqliteTable('people', {
     onDelete: 'set null',
   }),
   organisationName: text('organisation_name'),
+  /** Role at La French Tech Bangkok (president, commission lead...), shown on board cards. */
+  ftRole: text('ft_role'),
   /** 'speaker' is someone who only spoke at events; board and institutional people can speak too. */
   group: text('group', { enum: ['board', 'institutional', 'speaker'] }).notNull(),
   linkedin: text('linkedin'),
@@ -585,8 +587,6 @@ export const members = sqliteTable(
     linkedin: text('linkedin'),
     /** PROFILE_TYPES key in lib/members.ts. */
     profileType: text('profile_type').notNull().default('other'),
-    /** NATIONALITY_GROUPS key in lib/members.ts, for the board's reporting only. */
-    nationality: text('nationality'),
     /** Sectors of interest (the directory's SECTORS). */
     interests: json<string[]>('interests').notNull().default([]),
     howHeard: text('how_heard'),
