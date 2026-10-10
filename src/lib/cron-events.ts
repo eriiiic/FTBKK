@@ -33,10 +33,10 @@ export async function sendEventReminders(now: Date) {
     const { results } = await env.DB.prepare(
       `UPDATE registrations SET reminder_sent_at = unixepoch()
        WHERE event_id = ? AND status = 'registered' AND reminder_sent_at IS NULL
-       RETURNING name, email, token`,
+       RETURNING name, email, token, guests`,
     )
       .bind(e.id)
-      .all<{ name: string; email: string; token: string }>();
+      .all<{ name: string; email: string; token: string; guests: number }>();
     await sendReminders(e, results);
     sent += results.length;
   }

@@ -4,7 +4,14 @@ import Button from './Button.astro';
 import FormField from './FormField.astro';
 import Turnstile from './Turnstile.astro';
 import MemberSignupFields from './MemberSignupFields.astro';
-import { HOW_HEARD, NOTE_MAX, type RegistrationState } from '../lib/registrations';
+import {
+  GUEST_OPTIONS,
+  GUESTS_MAX,
+  guestsLabel,
+  HOW_HEARD,
+  NOTE_MAX,
+  type RegistrationState,
+} from '../lib/registrations';
 import { formatDate, formatTime } from '../lib/format';
 
 interface Props {
@@ -15,6 +22,7 @@ interface Props {
   result?: {
     status: 'registered' | 'waitlist' | 'duplicate' | 'joined' | 'invited';
     email: string;
+    guests?: number;
   } | null;
   /** Membership is open: members register with their email, newcomers join first (free). */
   membersOnly?: boolean;
@@ -54,12 +62,14 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       </Alert>
     ) : result.status === 'waitlist' ? (
       <Alert tone="warning" class="mt-4">
-        The event is full, so you are on the waitlist. We will email {result.email} if a seat frees
-        up.
+        {result.guests
+          ? `There aren't enough seats left for you and your ${result.guests === 1 ? 'guest' : `${result.guests} guests`}, so you are on the waitlist. We will email ${result.email} when seats free up.`
+          : `The event is full, so you are on the waitlist. We will email ${result.email} if a seat frees up.`}
       </Alert>
     ) : (
       <Alert tone="success" class="mt-4">
-        You're registered! A confirmation with a calendar invite is on its way to {result.email}.
+        You're registered{result.guests ? ` with ${guestsLabel(result.guests).slice(1)}` : ''}! A
+        confirmation with a calendar invite is on its way to {result.email}.
       </Alert>
     )
   ) : !state.open ? (
@@ -72,6 +82,7 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     <form method="post" action={`/events/${event.slug}#register`} class="mt-4 grid gap-4">
       <input type="hidden" name="step" value="join" />
       <input type="hidden" name="note" value={str('note')} />
+      <input type="hidden" name="guests" value={str('guests')} />
       <input type="hidden" name="photoConsent" value="on" />
       <Alert>
         {str('email')} isn't a member yet. Our events are for members, and membership is free: fill
@@ -108,6 +119,15 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         autocomplete="email"
         value={str('email')}
         error={errors.email}
+      />
+      <FormField
+        name="guests"
+        label="Bringing guests?"
+        value={str('guests')}
+        options={GUEST_OPTIONS}
+        placeholder="No guests, just me"
+        error={errors.guests}
+        hint={`Up to ${GUESTS_MAX}. No need for their names: each guest takes a seat.`}
       />
       <FormField
         name="note"
@@ -190,6 +210,15 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
         label="How did you hear about us?"
         value={str('howHeard')}
         options={HOW_HEARD.map((h) => ({ value: h, label: h }))}
+      />
+      <FormField
+        name="guests"
+        label="Bringing guests?"
+        value={str('guests')}
+        options={GUEST_OPTIONS}
+        placeholder="No guests, just me"
+        error={errors.guests}
+        hint={`Up to ${GUESTS_MAX}. No need for their names: each guest takes a seat.`}
       />
       <FormField
         name="note"

@@ -145,7 +145,10 @@ Public pages:
   Home" feed "They support La French Tech Bangkok" on Home, in their order: the directory is the
   only place partners are managed (Admin > Ecosystem > Partners, or the listing's page).
 - **Events**: upcoming and past events with built-in registration: capacity, waitlist with
-  automatic promotion, an optional **"Anything we should know?"** question (dietary needs,
+  automatic promotion, **guests** (a registrant can bring up to 5 anonymous guests, no names asked;
+  each takes a seat and counts in every registration and attendance number, shows as "+2 guests"
+  in Registrations, the CSV, check-in, the ticket and the member page, and in the confirmation
+  email), an optional **"Anything we should know?"** question (dietary needs,
   accessibility, who they'd like to meet; shown to organisers in Registrations, the CSV, the
   check-in screen and the contact's event history), check-in flags people who aren't members and
   can enrol a walk-in as a member (they get the confirmation email), confirmation email with a calendar invite, reminder the day before, QR

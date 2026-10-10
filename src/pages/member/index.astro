@@ -15,6 +15,7 @@ import { formatDate, formatEventDate } from '../../lib/format';
 import { clientIp, email, fieldErrors, formToObject } from '../../lib/forms';
 import { verifyTurnstile } from '../../lib/turnstile';
 import { rateLimit } from '../../lib/ratelimit';
+import { guestsLabel } from '../../lib/registrations';
 import {
   MemberProfileSchema,
   deleteMembers,
@@ -285,6 +286,7 @@ if (download && member && !(await rememberedMember(Astro.cookies)))
                             <a href={`/events/${e.slug}`}>{e.title}</a>
                             <span class="text-sm text-muted">
                               {formatEventDate(e.startsAt, e.endsAt)} · {regLabel[e.status]}
+                              {e.guests > 0 && ` · ${guestsLabel(e.guests)}`}
                             </span>
                             {e.startsAt > now &&
                               (e.status === 'registered' || e.status === 'waitlist') && (
@@ -301,7 +303,9 @@ if (download && member && !(await rememberedMember(Astro.cookies)))
                                     <input type="hidden" name="action" value="cancel" />
                                     <input type="hidden" name="registration" value={e.id} />
                                     <span class="text-muted">
-                                      Your seat goes to the next person on the waitlist.
+                                      {e.guests > 0
+                                        ? 'Your seats go to the next people on the waitlist.'
+                                        : 'Your seat goes to the next person on the waitlist.'}
                                     </span>
                                     <Button type="submit" size="sm" variant="secondary">
                                       Yes, cancel

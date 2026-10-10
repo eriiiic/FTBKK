@@ -11,7 +11,7 @@ import {
   registrations,
 } from '../db/schema';
 import { email as emailField, optionalText, optionalUrl } from './forms';
-import { promoteFromWaitlist, sendPromotion } from './registrations';
+import { fillSeats } from './registrations';
 import { getSettings } from './settings';
 import { audit } from './orgs';
 import { fromLocalInput, toDateInput } from './admin';
@@ -893,8 +893,7 @@ async function fillFreedSeats(freed: Set<number>, now: Date) {
     .where(inArray(events.id, [...freed]));
   for (const event of rows) {
     if ((event.endsAt ?? event.startsAt) < now) continue;
-    const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
-    if (row) await sendPromotion(event, row);
+    await fillSeats(event, settings.memberPriority);
   }
 }
 

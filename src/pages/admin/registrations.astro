@@ -10,7 +10,12 @@ import { events, registrations, type Event } from '../../db/schema';
 import { formatDate, formatEventDate } from '../../lib/format';
 import { audit } from '../../lib/orgs';
 import { getSettings } from '../../lib/settings';
-import { promoteFromWaitlist, sendPromotion } from '../../lib/registrations';
+import {
+  fillSeats,
+  guestsLabel,
+  promoteFromWaitlist,
+  sendPromotion,
+} from '../../lib/registrations';
 
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
@@ -58,11 +63,7 @@ if (Astro.request.method === 'POST' && event) {
     } else if (action === 'cancel' && reg) {
       await db.update(registrations).set({ status: 'cancelled' }).where(where);
       // A freed seat goes to the next person on the waitlist, as when people cancel themselves.
-      if (reg.status === 'registered') {
-        const settings = await getSettings();
-        const row = await promoteFromWaitlist(event, { memberPriority: settings.memberPriority });
-        if (row) await sendPromotion(event, row);
-      }
+      if (reg.status === 'registered') await fillSeats(event, (await getSettings()).memberPriority);
     }
     if (reg)
       await audit(
@@ -92,11 +93,17 @@ const rows = event
       .where(eq(registrations.eventId, event.id))
       .orderBy(asc(registrations.createdAt), asc(registrations.id))
   : [];
+// People, guests included: a registration with 2 guests counts as 3.
+const people = (s: string) =>
+  rows.filter((r) => r.status === s).reduce((n, r) => n + 1 + r.guests, 0);
 const counts = {
-  registered: rows.filter((r) => r.status === 'registered').length,
-  attended: rows.filter((r) => r.status === 'attended').length,
-  waitlist: rows.filter((r) => r.status === 'waitlist').length,
-  cancelled: rows.filter((r) => r.status === 'cancelled').length,
+  registered: people('registered'),
+  attended: people('attended'),
+  waitlist: people('waitlist'),
+  cancelled: people('cancelled'),
+  guests: rows
+    .filter((r) => r.status === 'registered' || r.status === 'attended')
+    .reduce((n, r) => n + r.guests, 0),
 };
 const shown = rows.filter(
   (r) =>
@@ -180,6 +187,12 @@ const tone = (s: string) =>
             </div>
           ))}
         </dl>
+        {counts.guests > 0 && (
+          <p class="mt-2 text-xs text-muted">
+            Counts include guests ({counts.guests} coming with registrants), who have no name or
+            email.
+          </p>
+        )}
         {counts.waitlist > 0 && (
           <form method="post" class="mt-4">
             <Button type="submit" name="action" value="promote-next" size="sm" variant="secondary">
@@ -236,6 +249,11 @@ const tone = (s: string) =>
                 <tr>
                   <td>
                     {r.name}
+                    {r.guests > 0 && (
+                      <span class="ml-1 text-sm font-semibold text-navy">
+                        {guestsLabel(r.guests)}
+                      </span>
+                    )}
                     {r.role && <span class="block text-xs text-muted">{r.role}</span>}
                     {r.walkIn && <span class="block text-xs text-muted">Walk-in</span>}
                     {r.note && (

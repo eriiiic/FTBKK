@@ -19,7 +19,13 @@ export interface StatRegistration {
   createdAt: Date;
   checkedInAt: Date | null;
   howHeard: string | null;
+  /** Anonymous guests coming with them; each counts as one more person. */
+  guests?: number;
 }
+
+/** People a registration stands for: the person plus their guests. */
+const people = (r: StatRegistration) => 1 + (r.guests ?? 0);
+const sum = (rs: StatRegistration[]) => rs.reduce((n, r) => n + people(r), 0);
 
 export interface EventRow {
   event: StatEvent;
@@ -49,7 +55,7 @@ export function eventStats(events: StatEvent[], regs: StatRegistration[], now: D
     .filter((e) => e.status !== 'draft')
     .map((event) => {
       const rs = byEvent.get(event.id) ?? [];
-      const n = (s: StatRegistration['status']) => rs.filter((r) => r.status === s).length;
+      const n = (s: StatRegistration['status']) => sum(rs.filter((r) => r.status === s));
       const attended = n('attended');
       const registered = n('registered') + attended;
       const past = event.startsAt < now;
@@ -78,7 +84,8 @@ export function eventStats(events: StatEvent[], regs: StatRegistration[], now: D
     ? checked.reduce((n, r) => n + r.attended, 0) / checked.reduce((n, r) => n + r.registered, 0)
     : null;
 
-  // Attendees: people who came (or registered, before check-in was used), by email.
+  // Attendees: people who came (or registered, before check-in was used), by email. Guests are
+  // anonymous, so they are not in the unique and returning counts.
   const visits = new Map<string, number>();
   for (const [i, r] of regs.entries()) {
     if (r.status !== 'attended') continue;
@@ -102,7 +109,7 @@ export function eventStats(events: StatEvent[], regs: StatRegistration[], now: D
     return { key: monthKey(date), label: MONTH.format(date) };
   });
   const perMonth = (pick: (r: StatRegistration) => Date | null) =>
-    months.map(({ key }) => regs.filter((r) => pick(r) && monthKey(pick(r)!) === key).length);
+    months.map(({ key }) => sum(regs.filter((r) => pick(r) && monthKey(pick(r)!) === key)));
   const monthly = {
     labels: months.map((m) => m.label),
     registrations: perMonth((r) => r.createdAt),
@@ -127,7 +134,7 @@ export function eventStats(events: StatEvent[], regs: StatRegistration[], now: D
     );
     return Array.from({ length: DAYS + 1 }, (_, i) => {
       const at = new Date(row.event.startsAt.getTime() - (DAYS - i) * DAY_MS);
-      return at > until ? null : rs.filter((r) => r.createdAt <= at).length;
+      return at > until ? null : sum(rs.filter((r) => r.createdAt <= at));
     });
   };
   const previous = withRegs[0];
@@ -154,8 +161,8 @@ export function eventStats(events: StatEvent[], regs: StatRegistration[], now: D
     next,
     upcomingCount: upcoming.length,
     totals: {
-      registrations12m: recent.filter((r) => r.status !== 'cancelled').length,
-      checkIns12m: regs.filter((r) => r.checkedInAt && r.checkedInAt >= yearAgo).length,
+      registrations12m: sum(recent.filter((r) => r.status !== 'cancelled')),
+      checkIns12m: sum(regs.filter((r) => r.checkedInAt && r.checkedInAt >= yearAgo)),
       showUp,
       uniqueAttendees,
       returning,

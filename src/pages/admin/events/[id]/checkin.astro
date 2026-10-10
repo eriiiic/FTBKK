@@ -7,6 +7,7 @@ import { normalizeCode, ticketCode } from '../../../../lib/ticket';
 import { earlierAttendance, earlierFor, greeting, newcomersHint } from '../../../../lib/regulars';
 import { activeMemberEmails } from '../../../../lib/members';
 import { getSettings } from '../../../../lib/settings';
+import { guestsLabel } from '../../../../lib/registrations';
 
 // Full-screen, phone-first check-in for the door: search by name, email, phone or ticket code, or
 // scan the QR code from the confirmation email. Admin only (guarded in middleware).
@@ -32,6 +33,7 @@ const rows = await Promise.all(
         company: registrations.company,
         status: registrations.status,
         walkIn: registrations.walkIn,
+        guests: registrations.guests,
         note: registrations.note,
         token: registrations.token,
       })
@@ -54,6 +56,8 @@ const rows = await Promise.all(
 const newcomers = rows.filter(
   (r) => r.greeting?.kind === 'first' && r.status !== 'waitlist',
 ).length;
+// Counts are people: someone with 2 guests checks 3 people in.
+const seats = (rs: typeof rows) => rs.reduce((n, r) => n + 1 + r.guests, 0);
 const search = (r: (typeof rows)[number]) =>
   [r.name, r.email, r.company, r.phone, r.phone?.replace(/\D/g, ''), r.code]
     .filter(Boolean)
@@ -80,8 +84,8 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           ← Events{' '}
         </a>
         <p class="text-sm" aria-live="polite">
-          <span data-count>{rows.filter((r) => r.status === 'attended').length}</span> /{' '}
-          <span data-total>{rows.length}</span> checked in
+          <span data-count>{seats(rows.filter((r) => r.status === 'attended'))}</span> /{' '}
+          <span data-total>{seats(rows)}</span> checked in
         </p>
       </div>
       <h1 class="mt-1 truncate text-lg text-paper">{event.title}</h1>
@@ -251,12 +255,19 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
             data-name={r.name}
             data-code={r.code}
             data-status={r.status}
+            data-seats={1 + r.guests}
+            data-guests={guestsLabel(r.guests)}
             data-search={search(r)}
             class="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4 text-left data-[status=attended]:border-success data-[status=attended]:bg-success/5"
           >
             <span class="min-w-0">
               <span class="block text-lg font-semibold">
                 {r.name}
+                {r.guests > 0 && (
+                  <span class="ml-1 inline-block rounded-full bg-brand px-2.5 py-0.5 align-middle text-xs font-semibold text-paper">
+                    {guestsLabel(r.guests)}
+                  </span>
+                )}
                 {r.greeting && (
                   <span
                     data-greeting={r.greeting.kind}
@@ -398,8 +409,10 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         }).catch(() => null);
         const result = res?.ok ? 'done' : res?.status === 409 ? 'already' : 'failed';
         if (result !== 'failed') b.dataset.status = undo ? 'registered' : 'attended';
+        // Their guests come in (or out) with them.
+        const seats = Number(b.dataset.seats ?? 1);
         if (result === 'done')
-          count.textContent = String(Number(count.textContent) + (undo ? -1 : 1));
+          count.textContent = String(Number(count.textContent) + (undo ? -seats : seats));
         label.textContent =
           b.dataset.status === 'attended'
             ? '✓ In'
@@ -410,7 +423,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       };
 
       const checkIn = async (b: HTMLButtonElement) => {
-        const name = b.dataset.name ?? '';
+        const name = [b.dataset.name, b.dataset.guests].filter(Boolean).join(' ');
         if (b.dataset.status === 'attended') return say(`${name} is already checked in`, 'warn');
         const wasWaitlist = b.dataset.status === 'waitlist';
         const result = await toggle(b, false);
@@ -560,7 +573,10 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           const wasIn = listed.dataset.status === 'attended';
           listed.dataset.status = 'attended';
           listed.querySelector('[data-label]')!.textContent = '✓ In';
-          if (!wasIn) count.textContent = String(Number(count.textContent) + 1);
+          if (!wasIn)
+            count.textContent = String(
+              Number(count.textContent) + Number(listed.dataset.seats ?? 1),
+            );
           say(
             `✓ ${data.name} had registered: checked in${data.enrolled ? '. Membership email sent' : ''}`,
             'good',
