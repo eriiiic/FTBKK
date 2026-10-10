@@ -433,7 +433,9 @@ enrolment at check-in.
   `## ` heading is the introduction and each `## ` heading starts a numbered section. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
-  appear on Home and About, one per line as `Title | text | link`, where the link is optional.
+  appear on Home (as links under the community block) and About, one per line as
+  `Title | text | link`, where the link is optional; up to six (the default four are An
+  individual, A startup, A business partner and An enterprise).
 - **Code of conduct**: the text of the public `/code-of-conduct` page, in Markdown. It starts with
   a default text (our commitment, expected and unacceptable behaviour, consequences, how to
   report). Write `{contactEmail}` where the contact email should appear; it becomes a mail link.

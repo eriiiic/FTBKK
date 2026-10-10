@@ -18,7 +18,8 @@ Public pages:
   so it isn't always the same names, drifting slowly sideways in a loop (it stops under the
   pointer or keyboard focus, after a swipe or an arrow, off screen and with its pause button, and
   stays still for visitors who ask for reduced motion); the latest three posts; a community block with three
-  photos; "They support La French Tech Bangkok" (the partners ticked "Show on Home" in Ecosystem
+  photos and a link per "You can join us" card (An individual, A startup, A business partner, and
+  An enterprise, added by migration 0038 and pointing to the company listing on `/join#directory`); "They support La French Tech Bangkok" (the partners ticked "Show on Home" in Ecosystem
   > Partners, with a link to all partners; migration 0031 turned the earlier list of Business
   > France, the Franco-Thai Chamber of Commerce, the Embassy of France, La French Tech and
   > Bpifrance into partner listings); and a red closing band with Contact us and Join. Each photo has its own
