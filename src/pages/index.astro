@@ -125,7 +125,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   </section>
 
   {/* About and pillars */}
-  <section id="about" class="scroll-mt-20 overflow-hidden bg-surface py-16 md:py-24">
+  <section id="about" class="scroll-mt-20 overflow-hidden bg-surface py-12 md:py-18">
     <div class="container-page grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)] lg:items-center lg:gap-10">
       <div>
         <p class="eyebrow">About us</p>
@@ -193,7 +193,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   {numbers.length > 0 && (
     <section aria-label="La French Tech Bangkok in numbers" class="bg-brand/5">
       <ul
-        class={`container-page grid grid-cols-2 gap-y-10 py-12 md:py-14 ${['', 'md:grid-cols-1', 'md:grid-cols-2', 'md:grid-cols-3', 'md:grid-cols-4'][numbers.length]}`}
+        class={`container-page grid grid-cols-2 gap-y-10 py-10 md:py-12 ${['', 'md:grid-cols-1', 'md:grid-cols-2', 'md:grid-cols-3', 'md:grid-cols-4'][numbers.length]}`}
       >
         {numbers.map((s, i) => (
           <li class="flex flex-col items-center px-3 text-center md:border-l md:border-brand/15 md:first:border-l-0">
@@ -209,7 +209,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   )}
 
   {/* Events */}
-  <section class="bg-paper py-16 md:py-24" aria-labelledby="events-title">
+  <section class="bg-paper py-12 md:py-18" aria-labelledby="events-title">
     <div class="container-page">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -226,7 +226,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
         </a>
       </div>
       {shownEvents.length ? (
-        <ul class="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <ul class="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {shownEvents.map((e) => {
             const cover = eventCover(e, settings.eventCovers);
             return (
@@ -289,7 +289,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
 
   {/* Ecosystem directory */}
   {companies.length > 0 && (
-    <section class="bg-navy py-16 text-paper md:py-24" aria-labelledby="eco-title" data-eco>
+    <section class="bg-navy py-12 text-paper md:py-18" aria-labelledby="eco-title" data-eco>
       <div class="container-page">
         <div class="grid gap-6 md:grid-cols-2 md:items-end">
           <div>
@@ -312,7 +312,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
           </div>
         </div>
         {groups.length > 1 && (
-          <div class="mt-10 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+          <div class="mt-8 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
             {groups.map((g, i) => (
               <button
                 type="button"
@@ -432,7 +432,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
 
   {/* News */}
   {posts.length > 0 && (
-    <section class="bg-paper py-16 md:py-24" aria-labelledby="news-title">
+    <section class="bg-paper py-12 md:py-18" aria-labelledby="news-title">
       <div class="container-page">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -448,7 +448,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
             See all news <Icon name="arrow" class="size-4" />
           </a>
         </div>
-        <ul class="mt-10 grid gap-6 md:grid-cols-3">
+        <ul class="mt-8 grid gap-6 md:grid-cols-3">
           {posts.map((p) => {
             const cover = mediaUrl(p.coverKey);
             const cat = postCats.get(p.id)?.[0];
@@ -490,7 +490,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   )}
 
   {/* Community */}
-  <section class="overflow-hidden bg-brand/5 py-16 md:py-24" aria-labelledby="community-title">
+  <section class="overflow-hidden bg-brand/5 py-12 md:py-18" aria-labelledby="community-title">
     <div class="container-page grid gap-12 lg:grid-cols-2 lg:items-center">
       <div>
         <p class="eyebrow">Community</p>
@@ -541,7 +541,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
 
   {/* Partners */}
   {home.partners.length > 0 && (
-    <section class="bg-paper py-14 md:py-20" aria-labelledby="partners-title" data-partners>
+    <section class="bg-paper py-10 md:py-16" aria-labelledby="partners-title" data-partners>
       <div class="container-page">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -612,7 +612,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   )}
 
   {/* Closing band */}
-  <section class="relative isolate overflow-hidden bg-brand py-16 text-paper md:py-20">
+  <section class="relative isolate overflow-hidden bg-brand py-12 text-paper md:py-16">
     <img
       src={hero.src}
       srcset={hero.srcset}
