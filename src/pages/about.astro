@@ -208,7 +208,8 @@ if (isPost)
         <ul class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-5">
           {board.map((p) => (
             <li class={`rounded-card border p-5 md:p-6 ${cardOn(boardTone)}`}>
-              <PersonCard person={{ ...p, organisation: p.organisationName }} />
+              {/* Board cards show the French Tech role in the company line, never the company. */}
+              <PersonCard person={{ ...p, organisation: p.ftRole }} />
             </li>
           ))}
         </ul>

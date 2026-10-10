@@ -351,7 +351,9 @@ enrolment at check-in.
 ## Board and speakers, Messages, Website pages, Settings
 
 - **Board and speakers** (formerly People): board and institutional partners on the About page, with their job title and
-  company. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
+  company. Board members also have a **French Tech responsibility** (President, Commission
+  lead...): their About card shows it under the name in place of the company, and shows no
+  company when it is empty. Use ↑ ↓ to reorder. The **Speakers** group holds people who only spoke at events
   (added here or from an event's Speakers section); edit their photo, title or company here and
   every event page updates. Each person shows how many events they spoke at; removing a person
   also removes them from those events.
