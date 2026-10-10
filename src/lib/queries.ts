@@ -17,6 +17,8 @@ const nowDate = () => new Date();
 
 // ---------- events ----------
 
+// Lists leave out unlisted events, whose page is reached by direct link only (eventBySlug).
+
 export async function upcomingEvents(limit?: number) {
   const q = getDb()
     .select()
@@ -24,6 +26,7 @@ export async function upcomingEvents(limit?: number) {
     .where(
       and(
         inArray(events.status, ['published', 'cancelled']),
+        eq(events.listed, true),
         gte(sql`coalesce(${events.endsAt}, ${events.startsAt})`, Math.floor(Date.now() / 1000)),
       ),
     )
@@ -38,6 +41,7 @@ export async function pastEvents() {
     .where(
       and(
         inArray(events.status, ['published', 'cancelled']),
+        eq(events.listed, true),
         lt(sql`coalesce(${events.endsAt}, ${events.startsAt})`, Math.floor(Date.now() / 1000)),
       ),
     )

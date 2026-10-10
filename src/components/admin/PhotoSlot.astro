@@ -30,7 +30,7 @@ const id = `f-${name}`;
         No photo
       </div>
     )}
-    <p class="mt-1 text-xs text-muted">{photo ? 'Your photo' : 'Default'}</p>
+    {src && <p class="mt-1 text-xs text-muted">{photo ? 'Your photo' : 'Default'}</p>}
   </div>
   <div class="grid content-start gap-2 text-sm">
     {hint && <p class="text-muted">{hint}</p>}

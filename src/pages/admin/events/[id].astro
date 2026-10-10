@@ -1,5 +1,5 @@
 ---
-import { CONNECT, TALK, eventKind, seriesFor } from '../../../lib/event-covers';
+import { CONNECT, SELECT, TALK, eventKind, seriesFor } from '../../../lib/event-covers';
 import { asc, desc, eq } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import FormField from '../../../components/FormField.astro';
@@ -21,6 +21,8 @@ import { fieldErrors, formToObject } from '../../../lib/forms';
 import { IMAGE_TYPES, storeUpload } from '../../../lib/uploads';
 import { audit } from '../../../lib/orgs';
 import { mediaUrl, slugify } from '../../../lib/format';
+import { randomToken } from '../../../lib/tokens';
+import { siteUrl } from '../../../lib/site';
 import { getSettings } from '../../../lib/settings';
 import { eventShareItem } from '../../../lib/social';
 import ShareImage from '../../../components/admin/ShareImage.astro';
@@ -153,7 +155,7 @@ let values: Record<string, unknown> = event
         registrationClosesAt: '',
         status: 'draft',
       }
-    : { status: 'draft', series: 'French Tech Connect', registrationOpen: true };
+    : { status: 'draft', series: 'French Tech Connect', registrationOpen: true, listed: true };
 
 // Only the recap form can carry this much (other uploads are 5 MB at most). Refuse it before
 // buffering the body, which could exceed the Worker's memory.
@@ -170,6 +172,15 @@ if (bodyTooLarge) {
     await db.delete(events).where(eq(events.id, event.id));
     await audit(actor, 'delete', 'event', event.id, { title: event.title }, null);
     return Astro.redirect('/admin/events?saved=deleted');
+  }
+  if (event && action === 'new-invite') {
+    // A new invitation link: the old one stops working at once.
+    await db
+      .update(events)
+      .set({ inviteToken: randomToken(12), updatedAt: new Date() })
+      .where(eq(events.id, event.id));
+    await audit(actor, 'new-invite-link', 'event', event.id, null, null);
+    return Astro.redirect(`/admin/events/${event.id}?saved=1#access`);
   }
   if (event && action === 'cancel') {
     await db
@@ -458,7 +469,15 @@ if (bodyTooLarge) {
       const keepCover = values.removeCover
         ? null
         : (event?.coverKey ?? (source?.coverKey && values.copyCover ? source.coverKey : null));
-      const row = { ...d, slug, coverKey: cover.key ?? keepCover, updatedAt: new Date() };
+      // A private event gets its invitation link on the first save; it then stays the same.
+      const inviteToken = event?.inviteToken ?? (d.inviteOnly ? randomToken(12) : null);
+      const row = {
+        ...d,
+        slug,
+        coverKey: cover.key ?? keepCover,
+        inviteToken,
+        updatedAt: new Date(),
+      };
       let eventId = event?.id;
       if (event) {
         await db.update(events).set(row).where(eq(events.id, event.id));
@@ -471,10 +490,12 @@ if (bodyTooLarge) {
         event ? 'update' : 'create',
         'event',
         eventId!,
-        event ? { status: event.status } : null,
+        event ? { status: event.status, inviteOnly: event.inviteOnly, listed: event.listed } : null,
         {
           title: row.title,
           status: row.status,
+          inviteOnly: row.inviteOnly,
+          listed: row.listed,
         },
       );
       return Astro.redirect(`/admin/events/${eventId}?saved=1`);
@@ -515,10 +536,15 @@ const otherName =
 const KINDS = [
   { value: 'connect', label: CONNECT },
   { value: 'talk', label: TALK },
+  { value: 'select', label: SELECT },
   { value: 'other', label: 'Other' },
 ];
 // The share image redraws itself in the browser when the title, date, venue or cover changed.
 const share = event ? await eventShareItem(event, settings.eventCovers) : null;
+const inviteLink =
+  event?.inviteOnly && event.inviteToken
+    ? siteUrl(`/events/${event.slug}?invite=${encodeURIComponent(event.inviteToken)}`)
+    : null;
 ---
 
 <AdminLayout title={isNew ? 'New event' : 'Edit event'}>
@@ -585,7 +611,7 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
             value={otherName}
             maxlength={60}
             placeholder="Workshop, AI Agent, Partner event…"
-            hint="Connect and Talk events without a cover of their own show the default image from Settings."
+            hint="Connect, Talk and Select events without a cover of their own show the default image from Settings."
           />
         </fieldset>
         <div class="grid gap-4 sm:grid-cols-2">
@@ -726,6 +752,57 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
               value={str('memberReservedSeats') || '0'}
             />
           </>
+        )}
+      </div>
+
+      <div id="access" class="admin-panel grid gap-4">
+        <h2 class="text-lg">Private and listing</h2>
+        <FormField
+          name="inviteOnly"
+          label="Private: registration by invitation link only"
+          type="checkbox"
+          checked={!!values.inviteOnly}
+          hint="The page shows the event but no form. Only people opening the invitation link can register."
+        />
+        <FormField
+          name="listed"
+          label="List publicly"
+          type="checkbox"
+          checked={!!values.listed}
+          hint="On the events page, home page and sitemap. Unticked: the page still exists, by direct link only, and search engines skip it."
+        />
+        {inviteLink ? (
+          <div class="grid gap-2 text-sm">
+            <p class="font-semibold text-ink">Invitation link</p>
+            <input
+              type="text"
+              readonly
+              value={inviteLink}
+              aria-label="Invitation link"
+              class="w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+            />
+            <div class="flex flex-wrap gap-3">
+              <Button type="button" size="sm" data-copy={inviteLink}>
+                Copy link
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                variant="secondary"
+                form="new-invite"
+                data-confirm="Make a new link? The current one stops working for anyone who has not registered yet."
+              >
+                New link
+              </Button>
+            </div>
+            <p class="text-muted">
+              Share it yourself (email, WhatsApp). Anyone holding it can register.
+            </p>
+          </div>
+        ) : (
+          values.inviteOnly && (
+            <p class="text-sm text-muted">The invitation link appears here once you save.</p>
+          )
         )}
       </div>
 
@@ -1316,6 +1393,11 @@ const share = event ? await eventShareItem(event, settings.eventCovers) : null;
         </Button>
       </form>
     </div>
+  )}
+  {event && (
+    <form id="new-invite" method="post" hidden>
+      <input type="hidden" name="action" value="new-invite" />
+    </form>
   )}
 </AdminLayout>
 

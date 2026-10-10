@@ -139,6 +139,8 @@ export const EventSchema = z
     memberEarlyDays: optionalInt.transform((v) => v ?? 0),
     memberReservedSeats: optionalInt.transform((v) => v ?? 0),
     status: z.enum(['draft', 'published', 'cancelled']),
+    inviteOnly: z.boolean().optional().default(false),
+    listed: z.boolean().optional().default(false),
   })
   .refine((e) => !e.endsAt || e.endsAt > e.startsAt, {
     path: ['endsAt'],

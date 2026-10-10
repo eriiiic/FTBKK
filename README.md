@@ -23,8 +23,14 @@ Public pages:
   > France, the Franco-Thai Chamber of Commerce, the Embassy of France, La French Tech and
   > Bpifrance into partner listings); and a red closing band with Contact us and Join. Each photo has its own
   > slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
-- **Event covers**: French Tech Connect and French Tech Talk events without a cover show a default
-  image, set in Settings (built-in images until then; `lib/event-covers.ts`).
+- **Event covers**: French Tech Connect, French Tech Talk and French Tech Select events without a
+  cover show a default image, set in Settings (built-in images for Connect and Talk until then,
+  none for Select; `lib/event-covers.ts`).
+- **Private and unlisted events**: a private event takes registrations only from people who open
+  its invitation link (`/events/<slug>?invite=<token>`, made in the admin; "New link" revokes the
+  old one); everyone else sees "Registration is by invitation only". Members-only registration
+  still applies on top. Any event can also be unlisted: its page works by direct link but it stays
+  off the events page, home page, sitemap and welcome email, and gets `noindex` (migration 0038).
 - **About**: the community, the board (each card shows the member's French Tech responsibility,
   such as President or Commission lead, instead of their company), "Speakers we've hosted" (everyone who spoke
   at a past event, most recent first), institutional partners, "You can join us" cards and the

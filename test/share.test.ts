@@ -26,7 +26,7 @@ const event = {
   coverKey: null,
   summary: 'Meet the French tech community.',
 };
-const covers = { connect: null, talk: null };
+const covers = { connect: null, talk: null, select: null };
 
 describe('share image spec', () => {
   it('describes an event: label, date line, venue, default cover', () => {

@@ -29,8 +29,8 @@ export interface Settings {
   homeAboutItems: { title: string; text: string }[];
   /** "They support La French Tech Bangkok" on Home: title = name, link = website. Empty = defaults. */
   homePartners: Card[];
-  /** Default covers of Connect and Talk events (R2 keys); null = the built-in image. */
-  eventCovers: { connect: string | null; talk: string | null };
+  /** Default covers of Connect, Talk and Select events (R2 keys); null = the built-in image. */
+  eventCovers: { connect: string | null; talk: string | null; select: string | null };
   /** The numbers band on Home, typed by hand: title = the figure ("300+"), text = its label. */
   homeNumbers: { title: string; text: string }[];
   /** Home "Community" block; empty = the defaults in lib/home.ts. */
@@ -83,7 +83,7 @@ export const defaultSettings: Settings = {
   homeCommunityPhotos: [],
   homeAboutItems: [],
   homePartners: [],
-  eventCovers: { connect: null, talk: null },
+  eventCovers: { connect: null, talk: null, select: null },
   homeNumbers: [],
   homeCommunityTitle: '',
   homeCommunityText: '',
@@ -133,7 +133,9 @@ export async function getSettings(db: D1Database = env.DB): Promise<Settings> {
       .prepare('SELECT key, value FROM settings')
       .all<{ key: string; value: string }>();
     const saved = Object.fromEntries(results.map((r) => [r.key, JSON.parse(r.value)]));
-    return { ...defaultSettings, ...saved };
+    // Covers saved before a type existed (Select) lack its key.
+    const eventCovers = { ...defaultSettings.eventCovers, ...saved.eventCovers };
+    return { ...defaultSettings, ...saved, eventCovers };
   } catch {
     // Table not migrated yet.
     return defaultSettings;
