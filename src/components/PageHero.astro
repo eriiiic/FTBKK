@@ -3,8 +3,10 @@ interface Props {
   eyebrow?: string;
   title: string;
   intro?: string;
+  /** A shorter header, for pages whose content should show above the fold (Ecosystem). */
+  compact?: boolean;
 }
-const { eyebrow, title, intro } = Astro.props;
+const { eyebrow, title, intro, compact = false } = Astro.props;
 ---
 
 <!-- The navy header shared by the listing pages (Ecosystem, Events, Blog), like About and Join. -->
@@ -17,11 +19,21 @@ const { eyebrow, title, intro } = Astro.props;
     aria-hidden="true"
     class="absolute -bottom-48 -left-32 -z-10 size-[30rem] rounded-full bg-brand/20 blur-3xl"
   ></div>
-  <div class="container-page flex flex-col justify-between gap-8 py-14 md:flex-row md:items-end md:py-20">
+  <div
+    class={`container-page flex flex-col justify-between md:flex-row md:items-end ${
+      compact ? 'gap-5 py-8 md:py-10' : 'gap-8 py-14 md:py-20'
+    }`}
+  >
     <div class="max-w-2xl">
       {eyebrow && <p class="eyebrow eyebrow-light">{eyebrow}</p>}
-      <h1 class="text-4xl leading-[1.1] text-paper md:text-6xl">{title}</h1>
-      {intro && <p class="mt-5 text-lg text-paper/80">{intro}</p>}
+      <h1
+        class={`leading-[1.1] text-paper ${compact ? 'text-3xl md:text-5xl' : 'text-4xl md:text-6xl'}`}
+      >
+        {title}
+      </h1>
+      {intro && (
+        <p class={`text-paper/80 ${compact ? 'mt-3 md:text-lg' : 'mt-5 text-lg'}`}>{intro}</p>
+      )}
       <slot />
     </div>
     {Astro.slots.has('actions') && (

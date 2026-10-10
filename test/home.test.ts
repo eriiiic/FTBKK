@@ -70,6 +70,8 @@ describe('home page helpers', () => {
     // Not simply the first ones in alphabetical order.
     expect(groups[0]!.items.map((o) => o.name)).not.toEqual(orgs.slice(0, 15).map((o) => o.name));
     expect(new Set(groups[0]!.items).size).toBe(15);
+    // 20 by default (Home).
+    expect(carouselGroups(orgs, [], undefined, rand)[0]!.items).toHaveLength(20);
   });
 
   it('marks the starred words of a heading', () => {

@@ -64,7 +64,7 @@ const typed = settings.homeNumbers.filter((n) => n.title);
 const numbers = (typed.length ? typed : DEFAULT_HOME_NUMBERS).slice(0, 4);
 const numberIcons = ['users', 'rocket', 'handshake', 'globe'] as const;
 
-// The directory carousel: 15 at random for All and for each category (companies, not
+// The directory carousel: 20 at random for All and for each category (companies, not
 // institutions, which show in the partners strip).
 const companies = orgs.filter((o) => o.category !== 'institution');
 const groups = carouselGroups(
@@ -328,7 +328,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
         <div class="mt-8">
           {groups.map((g, i) => (
             <ul
-              class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-4 md:mx-0 md:px-0"
+              class="eco-list -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0"
               data-eco-list={g.key}
               hidden={i > 0}
               tabindex="0"
@@ -384,10 +384,26 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
               })}
             </ul>
           ))}
-          <div class="mt-4 hidden justify-end gap-2 md:flex">
+          <div class="mt-4 flex justify-end gap-2">
             <button
               type="button"
               class="flex size-10 items-center justify-center rounded-full border border-paper/40 text-paper transition-colors hover:bg-paper hover:text-navy"
+              data-eco-play
+              hidden
+            >
+              <span data-eco-icon="pause">
+                <Icon name="pause" class="size-5" />
+              </span>
+              <span data-eco-icon="play" hidden>
+                <Icon name="play" class="size-5" />
+              </span>
+              <span class="sr-only" data-eco-play-label>
+                Pause the scrolling
+              </span>
+            </button>
+            <button
+              type="button"
+              class="hidden size-10 items-center justify-center rounded-full border border-paper/40 text-paper transition-colors hover:bg-paper hover:text-navy md:flex"
               data-eco-scroll="-1"
             >
               <Icon name="chevron-left" class="size-5" />
@@ -395,7 +411,7 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
             </button>
             <button
               type="button"
-              class="flex size-10 items-center justify-center rounded-full border border-paper/40 text-paper transition-colors hover:bg-paper hover:text-navy"
+              class="hidden size-10 items-center justify-center rounded-full border border-paper/40 text-paper transition-colors hover:bg-paper hover:text-navy md:flex"
               data-eco-scroll="1"
             >
               <Icon name="chevron-right" class="size-5" />
@@ -630,9 +646,24 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
   // arrows scroll the visible list. The partners strip arrows scroll the logos.
   const scrollList = (list: HTMLElement | null | undefined, dir: number) =>
     list?.scrollBy({ left: dir * list.clientWidth * 0.8, behavior: 'smooth' });
+  // The visible list also drifts slowly on its own, in a loop (its cards are repeated once,
+  // hidden from screen readers and keyboards). It stops while the pointer or focus is on it,
+  // for a few seconds after a swipe or an arrow, off screen, and with the pause button; it
+  // doesn't start when the visitor asks for reduced motion.
+  const SPEED = 28; // pixels per second
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (const root of document.querySelectorAll<HTMLElement>('[data-eco]')) {
     const chips = root.querySelectorAll<HTMLButtonElement>('[data-chip]');
     const lists = root.querySelectorAll<HTMLElement>('[data-eco-list]');
+    const visible = () => [...lists].find((l) => !l.hidden);
+    const play = root.querySelector<HTMLButtonElement>('[data-eco-play]');
+    let stopped = reduceMotion;
+    let hovered = false;
+    let focused = false;
+    let onScreen = false;
+    let holdUntil = 0;
+    const hold = () => (holdUntil = performance.now() + 4000);
+
     for (const chip of chips) {
       chip.addEventListener('click', () => {
         for (const c of chips) c.setAttribute('aria-pressed', String(c === chip));
@@ -640,12 +671,73 @@ const closingTitle = settings.homeClosingTitle || DEFAULT_CLOSING_TITLE;
       });
     }
     for (const b of root.querySelectorAll<HTMLButtonElement>('[data-eco-scroll]'))
-      b.addEventListener('click', () =>
-        scrollList(
-          [...lists].find((l) => !l.hidden),
-          Number(b.dataset.ecoScroll),
-        ),
-      );
+      b.addEventListener('click', () => {
+        hold();
+        scrollList(visible(), Number(b.dataset.ecoScroll));
+      });
+
+    // Repeat each list's cards so the drift can loop without a jump back to the start.
+    for (const list of lists) {
+      list.classList.remove('snap-x', 'snap-mandatory');
+      for (const li of [...list.children]) {
+        const copy = li.cloneNode(true) as HTMLElement;
+        copy.setAttribute('aria-hidden', 'true');
+        copy.inert = true;
+        copy.dataset.ecoCopy = '';
+        list.appendChild(copy);
+      }
+      list.addEventListener('pointerenter', () => (hovered = true));
+      list.addEventListener('pointerleave', () => (hovered = false));
+      list.addEventListener('pointerdown', hold);
+      list.addEventListener('wheel', hold, { passive: true });
+      list.addEventListener('touchstart', hold, { passive: true });
+      list.addEventListener('focusin', () => (focused = true));
+      list.addEventListener('focusout', (e) => {
+        focused = list.contains(e.relatedTarget as Node | null);
+      });
+    }
+    new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting)).observe(root);
+
+    const setStopped = (value: boolean) => {
+      stopped = value;
+      play?.querySelector('[data-eco-icon="pause"]')?.toggleAttribute('hidden', stopped);
+      play?.querySelector('[data-eco-icon="play"]')?.toggleAttribute('hidden', !stopped);
+      const label = play?.querySelector('[data-eco-play-label]');
+      if (label) label.textContent = stopped ? 'Play the scrolling' : 'Pause the scrolling';
+    };
+    if (play) {
+      play.hidden = false;
+      setStopped(stopped);
+      play.addEventListener('click', () => setStopped(!stopped));
+    }
+
+    let pos = 0;
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(now - last, 100) / 1000;
+      last = now;
+      const list = visible();
+      const copy = list?.querySelector<HTMLElement>('[data-eco-copy]');
+      const first = list?.firstElementChild as HTMLElement | null | undefined;
+      if (list && copy && first) {
+        // A swipe or an arrow moved the list: carry on from there.
+        if (Math.abs(list.scrollLeft - pos) > 2) pos = list.scrollLeft;
+        const loop = copy.offsetLeft - first.offsetLeft;
+        const running =
+          !stopped && !hovered && !focused && onScreen && !document.hidden && now > holdUntil;
+        if (running && loop > 0) {
+          pos += SPEED * dt;
+          if (pos >= loop) pos -= loop;
+          list.scrollLeft = pos;
+        } else if (loop > 0 && list.scrollLeft >= loop) {
+          // Scrolled by hand into the repeated cards: jump back to the same card.
+          pos = list.scrollLeft - loop;
+          list.scrollLeft = pos;
+        }
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
   for (const root of document.querySelectorAll<HTMLElement>('[data-partners]')) {
     const list = root.querySelector<HTMLElement>('[data-partners-list]');
