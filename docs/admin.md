@@ -397,7 +397,9 @@ enrolment at check-in.
   introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**
   lists by itself every published post with "Tech Pulse" in its title: to add an edition, publish
   a post titled like "Thailand Tech Pulse Q4 2026: …" (the quarter shows as a badge) and attach
-  the report PDF to it. The **Thai page** text is written in Thai; the part before the first
+  the report PDF to it. While Settings > Membership is ticked, that PDF is members only: visitors
+  give their email, members download, newcomers join (free) first. Other files attached to the
+  post stay public. The **Thai page** text is written in Thai; the part before the first
   `## ` heading is the introduction and each `## ` heading starts a numbered section. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
@@ -453,7 +455,7 @@ and when:
   published or declined, membership approved or declined.
 - **Membership** (the free individual membership): the sign-up confirmation, the welcome email,
   the link to the member page (asked for, or sent by an admin), the link sent when a member
-  signs up again, the confirmation for a newcomer registering for an event, the "Claim your
+  signs up again, the confirmation for a newcomer registering for an event, the confirmation for a newcomer downloading Tech Pulse, the "Claim your
   membership" invitation, the yearly reminder and the "membership paused" email.
 - **Community**: the newsletter confirmation (Email the community is written each time).
   **Privacy**: the "your data" link.

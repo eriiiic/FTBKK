@@ -148,11 +148,14 @@ export function memberRegistration(m: Member, note = '') {
  * their note), in which case confirming the email also registers them. New, unconfirmed and
  * lapsed people get a confirmation link; an active or suspended member gets their member page
  * link instead. The page shows the same answer either way, so it doesn't reveal who is a member.
+ * With `download` (a Tech Pulse edition asked for on /tech-pulse), the confirmation link carries
+ * it, and the member page they land on offers the download.
  */
 export async function requestMembership(
   data: MemberSignup,
   now = new Date(),
   join: { event: { id: number; title: string }; note: string } | null = null,
+  download: { slug: string; title: string } | null = null,
 ) {
   const db = getDb();
   // Typed one of a contact's other emails: the membership goes under their main email, and the
@@ -179,14 +182,17 @@ export async function requestMembership(
   const token = await issueToken('member_confirm', data.email, { refId: saved!.id, now });
   const w = join
     ? await renderTemplate('member.confirm-event', { name: data.name, event: join.event.title })
-    : await renderTemplate('member.confirm', { name: data.name });
+    : download
+      ? await renderTemplate('member.confirm-download', { name: data.name, report: download.title })
+      : await renderTemplate('member.confirm', { name: data.name });
+  const then = download ? `&download=${encodeURIComponent(download.slug)}` : '';
   await sendEmail({
     to: sendTo,
     subject: w.subject,
     paragraphs: w.paragraphs,
     action: {
       label: w.buttonLabel,
-      url: siteUrl(`/member/confirm?token=${encodeURIComponent(token)}`),
+      url: siteUrl(`/member/confirm?token=${encodeURIComponent(token)}${then}`),
     },
     footer: 'The link works for 7 days.',
   });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { editionOf, isTechPulse, reportFile } from '../src/lib/tech-pulse';
+import {
+  downloadPath,
+  editionOf,
+  isTechPulse,
+  reportFile,
+  reportKey,
+  reportTitle,
+} from '../src/lib/tech-pulse';
 import { DEFAULT_THAI_PAGE, thaiSections } from '../src/lib/thai-page';
 
 describe('Tech Pulse editions', () => {
@@ -21,6 +28,22 @@ describe('Tech Pulse editions', () => {
       reportFile({ attachments: [], bodyMd: 'Get it [here (2 MB)](/media/files/tp-q2.pdf).' }),
     ).toBe('/media/files/tp-q2.pdf');
     expect(reportFile({ attachments: [], bodyMd: 'No file yet.' })).toBeNull();
+  });
+
+  it('knows the R2 key of a report stored on the site, for the members-only download', () => {
+    const attachments = [{ name: 'tp.pdf', key: 'files/tp q3.pdf' }];
+    expect(reportKey({ attachments, bodyMd: '' })).toBe('files/tp q3.pdf');
+    expect(reportKey({ attachments: [], bodyMd: '[PDF](/media/files/tp%20q2.pdf)' })).toBe(
+      'files/tp q2.pdf',
+    );
+    expect(reportKey({ attachments: [], bodyMd: '[PDF](https://x.com/tp.pdf)' })).toBeNull();
+    expect(downloadPath('thailand-tech-pulse-q3')).toBe(
+      '/tech-pulse/download/thailand-tech-pulse-q3',
+    );
+    expect(reportTitle('Thailand Tech Pulse Q3 2026: A New Phase')).toBe(
+      'Thailand Tech Pulse Q3 2026',
+    );
+    expect(reportTitle('Tech Pulse special')).toBe('Tech Pulse special');
   });
 });
 

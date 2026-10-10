@@ -25,3 +25,23 @@ export function reportFile(post: { attachments: Attachment[]; bodyMd: string }) 
   const link = post.bodyMd.match(/\]\(\s*(\/media\/[^)\s]+\.pdf|https:\/\/[^)\s]+\.pdf)\s*\)/i);
   return link ? link[1]! : null;
 }
+
+/** The R2 key of the report, when it is stored on the site (not a link to another site). */
+export function reportKey(post: { attachments: Attachment[]; bodyMd: string }) {
+  const url = reportFile(post);
+  if (!url?.startsWith('/media/')) return null;
+  try {
+    return url.slice('/media/'.length).split('/').map(decodeURIComponent).join('/');
+  } catch {
+    return null;
+  }
+}
+
+/** The members-only download link of an edition (lib/tech-pulse-downloads.ts). */
+export const downloadPath = (slug: string) => `/tech-pulse/download/${encodeURIComponent(slug)}`;
+
+/** "Thailand Tech Pulse Q3 2026" for emails and buttons, else the post title. */
+export const reportTitle = (title: string) => {
+  const edition = editionOf(title);
+  return edition ? `Thailand Tech Pulse ${edition}` : title;
+};

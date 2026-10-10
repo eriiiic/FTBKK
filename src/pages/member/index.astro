@@ -9,6 +9,8 @@ import Turnstile from '../../components/Turnstile.astro';
 import MemberProfileFields from '../../components/MemberProfileFields.astro';
 import { getSettings } from '../../lib/settings';
 import { eventBySlug } from '../../lib/queries';
+import { downloadPath, reportTitle } from '../../lib/tech-pulse';
+import { editionBySlug, rememberMember, rememberedMember } from '../../lib/tech-pulse-downloads';
 import { formatDate, formatEventDate } from '../../lib/format';
 import { clientIp, email, fieldErrors, formToObject } from '../../lib/forms';
 import { verifyTurnstile } from '../../lib/turnstile';
@@ -104,6 +106,12 @@ const regEvent =
   member && regStatus
     ? await eventBySlug((Astro.url.searchParams.get('event') ?? '').slice(0, 200))
     : null;
+// Joined to download Thailand Tech Pulse (from /member/confirm): the download, with this browser
+// remembered as the member's so the button works.
+const downloadSlug = (Astro.url.searchParams.get('download') ?? '').slice(0, 200);
+const download = active && downloadSlug ? await editionBySlug(downloadSlug) : null;
+if (download && member && !(await rememberedMember(Astro.cookies)))
+  await rememberMember(Astro.cookies, member, Astro.url.protocol === 'https:');
 ---
 
 <BaseLayout title="My membership" noindex cache={false}>
@@ -184,6 +192,14 @@ const regEvent =
                   before you confirmed, sorry. See you at the next one!
                 </>
               )}
+            </Alert>
+          )}
+          {download && (
+            <Alert tone="success">
+              <p>Here is your copy of {reportTitle(download.post.title)}.</p>
+              <p class="mt-3">
+                <Button href={downloadPath(download.post.slug)}>Download the PDF</Button>
+              </p>
             </Alert>
           )}
           {Astro.url.searchParams.has('renewed') && active && (
