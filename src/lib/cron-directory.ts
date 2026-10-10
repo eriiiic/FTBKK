@@ -18,7 +18,7 @@ import {
   shouldDelete,
   shouldExpire,
 } from './lifecycle';
-import { audit, moderatorEmails, sendExpiredNotice, sendRenewalReminder, siteUrl } from './orgs';
+import { audit, adminNotifyEmails, sendExpiredNotice, sendRenewalReminder, siteUrl } from './orgs';
 import { sendEmail } from './email';
 import { renderTemplate } from './email-templates';
 import { TZ, formatDate } from './format';
@@ -167,7 +167,7 @@ export async function sendModeratorDigest(now: Date) {
       ),
   });
   await sendEmail({
-    to: await moderatorEmails(),
+    to: await adminNotifyEmails(),
     subject: w.subject,
     paragraphs: w.paragraphs,
     details: [

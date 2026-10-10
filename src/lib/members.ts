@@ -21,7 +21,7 @@ import {
   loadTemplateText,
   renderTemplate,
 } from './email-templates';
-import { audit, siteUrl } from './orgs';
+import { adminNotifyEmails, audit, siteUrl } from './orgs';
 import { confirmNewsletter } from './newsletter';
 import { getSettings } from './settings';
 import { upcomingEvents } from './queries';
@@ -254,7 +254,33 @@ export async function confirmMembership(token: string, now = new Date()) {
       registration = { event, outcome };
     }
   }
+  // First membership only: renewals and lapsed members coming back don't notify the team.
+  if (!m.memberSince)
+    await notifyNewMember(updated!, registration?.event.title ?? null).catch((e) =>
+      console.error('[email] new member notification', e),
+    );
   return { member: updated!, link, registration };
+}
+
+/** Tells the admin notification addresses (Settings) that someone just became a member. */
+export async function notifyNewMember(m: Member, event: string | null) {
+  const w = await renderTemplate('admin.new-member', { name: m.name, email: m.email });
+  const details: [string, string][] = [
+    ['Company', m.company ?? '-'],
+    ['Job title', m.jobTitle ?? '-'],
+    ['Describes them', PROFILE_TYPES[m.profileType as ProfileType] ?? m.profileType],
+    ['How they heard', m.howHeard ?? '-'],
+  ];
+  if (m.linkedin) details.push(['LinkedIn', m.linkedin]);
+  if (event) details.push(['Registered for', event]);
+  return sendEmail({
+    to: await adminNotifyEmails(),
+    replyTo: m.email,
+    subject: w.subject,
+    paragraphs: w.paragraphs,
+    details,
+    action: { label: w.buttonLabel, url: siteUrl('/admin/members') },
+  });
 }
 
 async function sendWelcome(m: Member, link: string) {

@@ -1,13 +1,13 @@
 ---
 import { z } from 'zod';
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { usingTestSender } from '../../lib/email';
+import { sendEmail, usingTestSender } from '../../lib/email';
 import FormField from '../../components/FormField.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
 import { getSettings, saveSettings, type Settings } from '../../lib/settings';
 import { fieldErrors, formToObject } from '../../lib/forms';
-import { audit } from '../../lib/orgs';
+import { adminNotifyEmails, audit, siteUrl } from '../../lib/orgs';
 import PhotoSlot from '../../components/admin/PhotoSlot.astro';
 import { readPhotoSlot } from '../../lib/photo-slots';
 import { CONNECT, DEFAULT_EVENT_COVERS, TALK } from '../../lib/event-covers';
@@ -37,7 +37,7 @@ const Schema = z.object({
   moderatorEmails: z
     .string()
     .transform((s) => lines(s.replace(/[,;]/g, '\n')).map((e) => e.toLowerCase()))
-    .pipe(z.array(z.email('One moderator email is not valid.')).max(10)),
+    .pipe(z.array(z.email('One of these emails is not valid.')).max(10)),
   instagram: url,
   whatsapp: url,
   facebook: url,
@@ -60,8 +60,24 @@ let values: Record<string, unknown> = {
 let covers = current.eventCovers;
 const asPhoto = (key: string | null) => (key ? { key } : null);
 
-if (Astro.request.method === 'POST') {
-  const form = await Astro.request.formData();
+// "Send a test" next to Admin notifications: one email to the saved addresses, and Resend's
+// answer on screen, so the team can check the whole chain without waiting for a real message.
+const notifyTo = await adminNotifyEmails(current);
+let testResult: { ok: boolean; error?: string } | null = null;
+
+const form = Astro.request.method === 'POST' ? await Astro.request.formData() : null;
+if (form?.get('intent') === 'test-notify') {
+  testResult = await sendEmail({
+    to: notifyTo,
+    subject: '[Test] Admin notifications from the website',
+    paragraphs: [
+      'This is a test sent from Admin > Settings. If you can read it, contact form messages, new members, directory requests and the Monday directory summary reach this address too.',
+      `Sent by ${actor}.`,
+    ],
+    action: { label: 'Open the admin', url: siteUrl('/admin') },
+  }).catch((e: unknown) => ({ ok: false, error: String(e) }));
+  await audit(actor, 'test-notify', 'settings', null, null, { to: notifyTo, ok: testResult.ok });
+} else if (form) {
   values = formToObject(form);
   const parsed = Schema.safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
@@ -92,6 +108,17 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
 ---
 
 <AdminLayout title="Settings">
+  {testResult?.ok && (
+    <Alert tone="success" class="mb-6">
+      Test sent to {notifyTo.join(', ')}. Resend accepted it; if it isn't in the inbox within a few
+      minutes, look in spam, then in Resend under Emails for that address.
+    </Alert>
+  )}
+  {testResult && !testResult.ok && (
+    <Alert tone="danger" class="mb-6">
+      The test could not be sent to {notifyTo.join(', ')}. Resend said: {testResult.error}
+    </Alert>
+  )}
   {Object.keys(errors).length > 0 && (
     <Alert tone="danger" class="mb-6">
       Please fix the highlighted fields.
@@ -131,12 +158,20 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       />
       <FormField
         name="moderatorEmails"
-        label="Directory moderators"
+        label="Admin notifications"
         rows={3}
         value={str('moderatorEmails')}
         error={errors.moderatorEmails}
-        hint="One email per line. They get new listing requests, claims and the Monday digest. Empty = the contact email."
+        hint="One email per line. They get every email meant for the team: contact form messages, new members, directory requests and claims, and the Monday directory summary. Empty = the contact email."
       />
+      <div class="flex flex-wrap items-center gap-3 text-sm">
+        <Button type="submit" variant="secondary" size="sm" form="test-notify">
+          Send a test
+        </Button>
+        <span class="text-muted">
+          Goes now to {notifyTo.join(', ')} (the saved addresses; save first after a change).
+        </span>
+      </div>
     </section>
 
     <section class="admin-panel grid gap-4">
@@ -218,5 +253,8 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
     <div class="sticky bottom-0 z-10 -mx-4 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur md:mx-0 md:rounded-card md:border md:bg-paper/95">
       <Button type="submit">Save settings</Button>
     </div>
+  </form>
+  <form id="test-notify" method="post" hidden>
+    <input type="hidden" name="intent" value="test-notify" />
   </form>
 </AdminLayout>

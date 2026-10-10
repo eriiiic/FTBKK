@@ -7,7 +7,7 @@ import Button from '../../components/Button.astro';
 import { getDb } from '../../db';
 import { organisations } from '../../db/schema';
 import { consumeToken } from '../../lib/tokens';
-import { audit, moderatorEmails, orgById, siteUrl } from '../../lib/orgs';
+import { audit, adminNotifyEmails, orgById, siteUrl } from '../../lib/orgs';
 import { sendEmail } from '../../lib/email';
 import { renderTemplate } from '../../lib/email-templates';
 
@@ -35,7 +35,7 @@ if (Astro.request.method === 'POST') {
     );
     const w = await renderTemplate('admin.listing-to-review', { org: org.name, email: row.email });
     await sendEmail({
-      to: await moderatorEmails(),
+      to: await adminNotifyEmails(),
       subject: w.subject,
       paragraphs: w.paragraphs,
       details: [
