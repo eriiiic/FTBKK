@@ -68,6 +68,9 @@ export const PostSchema = z.object({
   publishedAt: optionalLocalDate,
   status: z.enum(['draft', 'published']),
   categoryIds: z.array(z.coerce.number().int()).default([]),
+  seoTitle: optionalText(200),
+  seoDescription: optionalText(400),
+  seoKeywords: optionalText(500),
 });
 
 /** Author rows from the post form (parallel name / role / link fields); empty rows are dropped. */
