@@ -148,6 +148,12 @@ uses any more.
   check the person in. Tap again to undo. Door volunteers can bookmark
   `/checkin` on their phone: it opens a list of today's and upcoming events (after the admin
   login), and tapping one opens its check-in mode. They must be allowed in Cloudflare Access.
+- **Scan QR** opens the phone's camera. The first time, the phone asks "Allow camera?": tap
+  **Allow**. If someone tapped **Don't allow**, or the camera is off for that browser in the
+  phone's Settings, the site can't ask again: the check-in screen then shows the steps for that
+  browser (for example iPhone **Settings > Apps > Brave > Camera**, or **aA > Website Settings >
+  Camera** in Safari). Follow them, then tap **Try again** (or **Reload page**). Meanwhile, **Take
+  a photo** reads the QR code from a photo, or type the code printed under the QR in the search box.
 - **First time and Regular badges** on the check-in screen help volunteers greet people. "First
   time" (blue) means this email was never checked in at an earlier published event, and the
   banner above the list says how many newcomers are expected ("Say hello to the 3 newcomers").

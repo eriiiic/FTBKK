@@ -213,6 +213,163 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       </form>
     </dialog>
 
+    <!-- Shown when the live camera can't start. A website can't make the phone ask again once the
+    camera was refused, so this says how to turn it back on, with a photo fallback. -->
+    <dialog
+      data-camera-help
+      aria-labelledby="camera-help-title"
+      class="m-auto max-h-[calc(100dvh-1.5rem)] w-[min(32rem,calc(100%-1.5rem))] rounded-card bg-paper p-0 text-ink shadow-card backdrop:bg-ink/60"
+    >
+      <div class="grid gap-3 p-5">
+        <h2 id="camera-help-title" class="text-lg" data-camera-title>
+          Turn on the camera
+        </h2>
+        <p data-camera-reason class="text-sm"></p>
+        <div data-camera-steps class="grid gap-2 text-sm">
+          <details data-browser="safari" class="rounded-xl border border-line p-3">
+            <summary class="cursor-pointer font-semibold">Safari on iPhone or iPad</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                Tap <b>aA</b> (or the page icon) on the left of the address bar.
+              </li>
+              <li>
+                Tap <b>Website Settings</b>, then set <b>Camera</b> to <b>Allow</b> or <b>Ask</b>.
+              </li>
+              <li>
+                Not there, or still blocked? Open the iPhone <b>Settings</b> app, then <b>Apps</b>{' '}
+                &gt; <b>Safari</b> &gt; <b>Camera</b> and choose <b>Ask</b> or <b>Allow</b>.
+              </li>
+              <li>
+                Come back here and tap <b>Reload page</b>, then <b>Scan QR</b>.
+              </li>
+            </ol>
+          </details>
+          <details data-browser="chrome-ios" class="rounded-xl border border-line p-3">
+            <summary class="cursor-pointer font-semibold">Chrome on iPhone or iPad</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                Open the iPhone <b>Settings</b> app, then <b>Apps</b> &gt; <b>Chrome</b> and turn{' '}
+                <b>Camera</b> on.
+              </li>
+              <li>
+                Come back here and tap <b>Reload page</b>, then <b>Scan QR</b>.
+              </li>
+              <li>
+                When Chrome asks to use the camera, tap <b>Allow</b>.
+              </li>
+            </ol>
+          </details>
+          <details data-browser="brave-ios" class="rounded-xl border border-line p-3">
+            <summary class="cursor-pointer font-semibold">Brave on iPhone or iPad</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                Open the iPhone <b>Settings</b> app, then <b>Apps</b> &gt; <b>Brave</b> and turn{' '}
+                <b>Camera</b> on.
+              </li>
+              <li>
+                Come back here and tap <b>Reload page</b>, then <b>Scan QR</b>.
+              </li>
+              <li>
+                When Brave asks to use the camera, tap <b>Allow</b>.
+              </li>
+              <li>
+                Still nothing? Close Brave completely (swipe it away) and open it again: iPhone only
+                applies the change to a fresh start.
+              </li>
+            </ol>
+          </details>
+          <details data-browser="other-ios" class="rounded-xl border border-line p-3">
+            <summary class="cursor-pointer font-semibold">Another browser on iPhone</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                Open the iPhone <b>Settings</b> app, then <b>Apps</b>, tap your browser (Firefox,
+                Edge…) and turn <b>Camera</b> on.
+              </li>
+              <li>
+                Come back here and tap <b>Reload page</b>, then <b>Scan QR</b>.
+              </li>
+            </ol>
+          </details>
+          <details data-browser="chrome-android" class="rounded-xl border border-line p-3">
+            <summary class="cursor-pointer font-semibold">Chrome on Android</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>Tap the icon on the left of the address bar.</li>
+              <li>
+                Tap <b>Permissions</b> (or <b>Site settings</b>) and set <b>Camera</b> to{' '}
+                <b>Allow</b>, or tap <b>Reset permissions</b>.
+              </li>
+              <li>
+                Still blocked? Open the phone's <b>Settings</b>, then <b>Apps</b> &gt; <b>Chrome</b>{' '}
+                &gt; <b>Permissions</b> &gt; <b>Camera</b> &gt; <b>Allow</b>.
+              </li>
+              <li>
+                Come back here and tap <b>Reload page</b>, then <b>Scan QR</b>.
+              </li>
+            </ol>
+          </details>
+          <details data-browser="other-android" class="rounded-xl border border-line p-3">
+            <summary class="cursor-pointer font-semibold">Another browser on Android</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                Tap the icon on the left of the address bar and allow the camera for this site.
+              </li>
+              <li>
+                Still blocked? Open the phone's <b>Settings</b>, then <b>Apps</b>, tap your browser
+                (Samsung Internet, Brave, Firefox…) &gt; <b>Permissions</b> &gt; <b>Camera</b> &gt;{' '}
+                <b>Allow</b>.
+              </li>
+              <li>
+                Come back here and tap <b>Reload page</b>, then <b>Scan QR</b>.
+              </li>
+            </ol>
+          </details>
+        </div>
+        <p class="text-sm text-muted">
+          Meanwhile, <b>Take a photo</b> of the QR code works with the phone's camera app, or type
+          the code printed under the QR in the search box.
+        </p>
+        <input
+          data-photo
+          type="file"
+          accept="image/*"
+          capture="environment"
+          class="sr-only"
+          tabindex="-1"
+          aria-hidden="true"
+        />
+        <div class="mt-1 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-camera-retry
+            class="rounded-xl bg-brand px-4 py-3 font-semibold text-paper"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            data-photo-open
+            class="rounded-xl bg-navy px-4 py-3 font-semibold text-paper"
+          >
+            Take a photo
+          </button>
+          <button
+            type="button"
+            data-camera-reload
+            class="rounded-xl border border-line px-4 py-3 font-semibold"
+          >
+            Reload page
+          </button>
+          <button
+            type="button"
+            data-camera-help-close
+            class="rounded-xl border border-line px-4 py-3 font-semibold"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </dialog>
+
     <div
       data-toast
       hidden
@@ -246,7 +403,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       {newcomersHint(newcomers)}: they have a “First time” badge.
     </p>
 
-    <ul class="grid gap-2 p-3" data-list data-event={event.id}>
+    <ul class="grid grid-cols-1 gap-2 p-3" data-list data-event={event.id}>
       {rows.map((r) => (
         <li>
           <button
@@ -610,9 +767,33 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
       const scanner = document.querySelector('[data-scanner]') as unknown as HTMLElement;
       const video = document.querySelector('[data-video]') as unknown as HTMLVideoElement;
       const scanStatus = document.querySelector('[data-scan-status]') as unknown as HTMLElement;
+      const help = document.querySelector('[data-camera-help]') as unknown as HTMLDialogElement;
+      const helpTitle = document.querySelector('[data-camera-title]') as unknown as HTMLElement;
+      const helpReason = document.querySelector('[data-camera-reason]') as unknown as HTMLElement;
+      const helpSteps = document.querySelector('[data-camera-steps]') as unknown as HTMLElement;
+      const photo = document.querySelector('[data-photo]') as unknown as HTMLInputElement;
       let stream: MediaStream | null = null;
       let running = false;
       let last = { text: '', at: 0 };
+
+      type Detector = {
+        detect: (v: HTMLVideoElement | ImageBitmap) => Promise<{ rawValue: string }[]>;
+      };
+      const Native = (
+        window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }
+      ).BarcodeDetector;
+      let native: Detector | null | undefined;
+      /** BarcodeDetector where the browser has it (Chrome on Android), else jsQR (iPhone). */
+      const decoder = async () => {
+        if (native === undefined) {
+          try {
+            native = Native ? new Native({ formats: ['qr_code'] }) : null;
+          } catch {
+            native = null; // listed but without QR support
+          }
+        }
+        return native ? null : (await import('jsqr')).default;
+      };
 
       const onCode = async (text: string) => {
         const now = Date.now();
@@ -631,28 +812,72 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
         search.focus();
       };
 
-      document.querySelector('[data-scan-close]')?.addEventListener('click', stop);
-      document.querySelector('[data-scan]')?.addEventListener('click', async () => {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' },
-            audio: false,
-          });
-        } catch {
-          return say('Camera not available. Allow camera access, or type the code.', 'bad');
+      // Which browser's steps to open first. Brave on iPhone looks like Safari, so both are close.
+      const ua = navigator.userAgent;
+      const ios =
+        /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+      const brave = 'brave' in navigator;
+      const browser = ios
+        ? /CriOS/.test(ua)
+          ? 'chrome-ios'
+          : /FxiOS|EdgiOS|OPiOS/.test(ua)
+            ? 'other-ios'
+            : brave
+              ? 'brave-ios'
+              : 'safari'
+        : /Android/.test(ua)
+          ? /SamsungBrowser|Firefox|OPR|EdgA/.test(ua) || brave
+            ? 'other-android'
+            : 'chrome-android'
+          : '';
+
+      type Problem = 'denied' | 'unsupported' | 'missing' | 'busy' | 'failed';
+      const reasons: Record<Problem, [string, string]> = {
+        denied: [
+          'Camera blocked',
+          'The camera is blocked for this site, so the phone won’t ask again: a website can’t bring the question back once it was refused. Turn it on with the steps for your browser below, then tap Try again.',
+        ],
+        unsupported: [
+          'Live camera not available here',
+          'This browser doesn’t let websites use the live camera. Use Take a photo below, or open this page in Safari (iPhone) or Chrome (Android).',
+        ],
+        missing: ['No camera found', 'This device has no camera the browser can use.'],
+        busy: [
+          'Camera in use',
+          'Another app or tab is using the camera. Close it (video call, camera app), then tap Try again.',
+        ],
+        failed: [
+          'The camera didn’t start',
+          'Tap Try again. If it keeps failing, the camera may be off for this browser: follow the steps for your browser below.',
+        ],
+      };
+      const showHelp = (problem: Problem) => {
+        const [title, reason] = reasons[problem];
+        helpTitle.textContent = title;
+        helpReason.textContent = reason;
+        const steps = problem === 'denied' || problem === 'failed';
+        helpSteps.hidden = !steps;
+        for (const d of helpSteps.querySelectorAll<HTMLDetailsElement>('details')) {
+          d.open = d.dataset.browser === browser;
+          // On a phone, only show that phone's browsers.
+          d.hidden =
+            (ios && !d.dataset.browser!.match(/ios|safari/)) ||
+            (/Android/.test(ua) && !d.dataset.browser!.includes('android'));
         }
+        if (!help.open) help.showModal();
+      };
+
+      const scan = async (s: MediaStream) => {
+        stream = s;
         scanner.hidden = false;
-        video.srcObject = stream;
-        await video.play();
+        video.srcObject = s;
+        try {
+          await video.play();
+        } catch {
+          /* autoplay refused: muted + playsinline normally avoid this; frames still arrive */
+        }
         running = true;
-        type Detector = { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
-        const Native = (
-          window as unknown as {
-            BarcodeDetector?: new (o: { formats: string[] }) => Detector;
-          }
-        ).BarcodeDetector;
-        const native = Native ? new Native({ formats: ['qr_code'] }) : null;
-        const jsQR = native ? null : (await import('jsqr')).default;
+        const jsQR = await decoder();
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         scanStatus.textContent = "Point the camera at the ticket's QR code.";
@@ -677,6 +902,84 @@ Astro.response.headers.set('Cache-Control', 'private, no-store');
           setTimeout(tick, 150);
         };
         void tick();
+      };
+
+      /**
+       * Asks for the camera. getUserMedia is the first thing called after the tap (no await
+       * before it), because iPhone browsers only show their "Allow camera?" question for a call
+       * that comes straight from a tap.
+       */
+      const startCamera = async () => {
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)
+          return showHelp('unsupported');
+        const ask = (video: MediaTrackConstraints | true) =>
+          navigator.mediaDevices.getUserMedia({ video, audio: false });
+        const problem = (e: unknown): Problem => {
+          const name = e instanceof Error ? e.name : '';
+          if (name === 'NotAllowedError' || name === 'SecurityError') return 'denied';
+          if (name === 'NotReadableError' || name === 'TrackStartError') return 'busy';
+          if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'missing';
+          return 'failed';
+        };
+        let s: MediaStream;
+        try {
+          s = await ask({ facingMode: { ideal: 'environment' } });
+        } catch (e) {
+          const first = problem(e);
+          if (first === 'denied' || first === 'busy') return showHelp(first);
+          // No back camera, or a setting the device can't meet: take any camera.
+          try {
+            s = await ask(true);
+          } catch (e2) {
+            return showHelp(problem(e2));
+          }
+        }
+        await scan(s);
+      };
+
+      document.querySelector('[data-scan-close]')?.addEventListener('click', stop);
+      document.querySelector('[data-scan]')?.addEventListener('click', () => void startCamera());
+      document.querySelector('[data-camera-retry]')?.addEventListener('click', () => {
+        help.close();
+        void startCamera();
+      });
+      document
+        .querySelector('[data-camera-reload]')
+        ?.addEventListener('click', () => location.reload());
+      document
+        .querySelector('[data-camera-help-close]')
+        ?.addEventListener('click', () => help.close());
+      help.addEventListener('close', () => search.focus());
+
+      // Fallback: a photo from the phone's own camera app, read the same way.
+      document.querySelector('[data-photo-open]')?.addEventListener('click', () => photo.click());
+      photo.addEventListener('change', async () => {
+        const file = photo.files?.[0];
+        photo.value = '';
+        if (!file) return;
+        help.close();
+        try {
+          const img = await createImageBitmap(file);
+          const jsQR = await decoder();
+          let text = '';
+          if (native) {
+            text = (await native.detect(img))[0]?.rawValue ?? '';
+          } else if (jsQR) {
+            const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(img, 0, 0, w, h);
+            text = jsQR(ctx.getImageData(0, 0, w, h).data, w, h)?.data ?? '';
+          }
+          if (text) await onCode(text);
+          else say('No QR code in the photo. Try closer, or type the code.', 'bad');
+        } catch {
+          say('Couldn’t read the photo. Type the code instead.', 'bad');
+        }
       });
     </script>
   </body>
