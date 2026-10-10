@@ -16,7 +16,7 @@ export const KIND_NAMES: Record<CoverKind, string> = {
   select: SELECT,
 };
 
-/** Built-in covers, used until Settings > Default event images has its own. Select has none. */
+/** Built-in covers, used until Settings > Default event covers has its own. Select has none. */
 export const DEFAULT_EVENT_COVERS: Record<CoverKind, string | null> = {
   connect: '/brand/events/connect.jpg',
   talk: '/brand/events/talk.jpg',

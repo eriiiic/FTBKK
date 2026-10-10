@@ -1,0 +1,63 @@
+---
+import { and, desc, eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb } from '../../db';
+import { auditLog, organisations } from '../../db/schema';
+import { formatDate } from '../../lib/format';
+
+// Settings > Change history: the last 200 changes made in the admin, by anyone.
+const log = await getDb()
+  .select({ a: auditLog, name: organisations.name, orgId: organisations.id })
+  .from(auditLog)
+  .leftJoin(
+    organisations,
+    and(eq(auditLog.entity, 'organisation'), eq(auditLog.entityId, organisations.id)),
+  )
+  .orderBy(desc(auditLog.id))
+  .limit(200);
+const short = (v: unknown) => {
+  const s = v === null || v === undefined ? '' : JSON.stringify(v);
+  return s.length > 140 ? `${s.slice(0, 139)}…` : s;
+};
+---
+
+<AdminLayout title="Change history">
+  <p class="mb-6 max-w-3xl text-sm text-muted">
+    Who changed what in the admin, and when: the last 200 changes, newest first.
+  </p>
+  <div class="admin-panel overflow-x-auto">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Who</th>
+          <th>What</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {log.map(({ a, name, orgId }) => (
+          <tr>
+            <td class="whitespace-nowrap">
+              {formatDate(a.at, { hour: '2-digit', minute: '2-digit' })}
+            </td>
+            <td class="break-all">{a.actor}</td>
+            <td>
+              {a.action} {a.entity}{' '}
+              {orgId ? (
+                <a href={`/admin/ecosystem/${orgId}`}>{name}</a>
+              ) : a.entityId ? (
+                `#${a.entityId}`
+              ) : (
+                ''
+              )}
+            </td>
+            <td class="font-mono text-xs break-all text-muted">
+              {short(a.before)} {a.after ? `→ ${short(a.after)}` : ''}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</AdminLayout>

@@ -1,0 +1,20 @@
+---
+// The two Reports screens, one tab each, so the board finds both figures in one place.
+const tabs = [
+  { href: '/admin/reports/events', label: 'Events and attendance' },
+  { href: '/admin/reports/members', label: 'Membership' },
+];
+const path = Astro.url.pathname;
+---
+
+<nav aria-label="Reports" class="mb-6 flex flex-wrap gap-2">
+  {tabs.map((t) => (
+    <a
+      href={t.href}
+      aria-current={t.href === path ? 'page' : undefined}
+      class="rounded-full border border-line bg-paper px-4 py-1.5 text-sm no-underline aria-[current=page]:border-navy aria-[current=page]:bg-navy aria-[current=page]:text-paper"
+    >
+      {t.label}
+    </a>
+  ))}
+</nav>

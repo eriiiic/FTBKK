@@ -137,7 +137,7 @@ export function linkedinText(text: string) {
   return text.replace(/[\\|{}@[\]()<>#*_~]/g, (c) => `\\${c}`);
 }
 
-// ---------- the schedule form (Admin > Social media) ----------
+// ---------- the schedule form (Admin > Social media posts) ----------
 
 const bangkokInput = z
   .string()

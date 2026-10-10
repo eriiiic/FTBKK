@@ -1,4 +1,4 @@
-/** Old Wix URLs -> new URLs (301). Order matters: first match wins. */
+/** Old Wix URLs (and moved admin screens) -> new URLs (301). Order matters: first match wins. */
 const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^\/post\/([^/]+)\/?$/, (m) => `/blog/${m[1]}`],
   [/^\/blog\/categories\/([^/]+)\/?$/, (m) => `/blog/category/${m[1]}`],
@@ -10,6 +10,9 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^\/fund\/?$/, () => '/about'],
   [/^\/(contact|contact-us|contact-\d+)\/?$/, () => '/about#contact'],
   [/^\/blog\/hashtags\/.*$/, () => '/blog'],
+  // Admin screens moved when the menu was regrouped (Reports group, Oct 2026).
+  [/^\/admin\/events\/stats\/?$/, () => '/admin/reports/events'],
+  [/^\/admin\/reports\/?$/, () => '/admin/reports/members'],
 ];
 
 export function redirectFor(pathname: string): string | null {

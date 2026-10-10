@@ -25,7 +25,7 @@ Public pages:
   > Bpifrance into partner listings); and a red closing band with Contact us and Join. Each photo has its own
   > slot in Website pages > Home, with built-in defaults (`lib/home.ts`).
 - **Event covers**: French Tech Connect, French Tech Talk and French Tech Select events without a
-  cover show a default image, set in Settings (built-in images for Connect and Talk until then,
+  cover show a default image, set in Settings > Default event covers (built-in images for Connect and Talk until then,
   none for Select; `lib/event-covers.ts`).
 - **Private and unlisted events**: a private event takes registrations only from people who open
   its invitation link (`/events/<slug>?invite=<token>`, made in the admin; "New link" revokes the
@@ -95,8 +95,8 @@ Public pages:
   a lapsed member renews in one click from that email or their member page.
 - **Member admin and reports**: Members > All members filters on status, profile,
   sector, joined dates, events attended, no-show rate and newsletter, and exports the filtered
-  list as CSV (`/admin/members.csv`, `src/lib/member-list.ts`). Community > Reports
-  (`/admin/reports`, `src/lib/member-reports.ts`) shows members by month, profile type and sector,
+  list as CSV (`/admin/members.csv`, `src/lib/member-list.ts`). Reports > Membership
+  (`/admin/reports/members`, `src/lib/member-reports.ts`) shows members by month, profile type and sector,
   and the share of event attendees who are members (today and on the day).
   Members can cancel an upcoming registration or leave a waitlist from their member page
   (`cancelRegistration` in `src/lib/registrations.ts`, shared with the email cancel link).
@@ -164,7 +164,7 @@ Public pages:
   bio for the event and LinkedIn; picked from People and reused across events), **hosts, sponsors and partners** with their logo (linked to
   their ecosystem listing or website, shown on the event page, "Hosted by" next to the venue, and
   named in the confirmation and reminder emails), and a **feedback email** the day after (one-click 1 to 5 rating, then
-  an optional comment; results on the admin's event stats). Past events can show a **recap**: a
+  an optional comment; results in the admin's Reports). Past events can show a **recap**: a
   photo gallery (with a lightbox), slides to download, the video (YouTube and Vimeo play on the
   page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a
   "Recap" badge in the events list.
@@ -172,7 +172,7 @@ Public pages:
   post has editable SEO fields (title, meta description, keywords, social image, hide from search
   engines), pre-filled with automatic values from the post (`src/lib/seo.ts`); only overrides are
   stored.
-- **Share images and social media** (Admin > Social media): every event and blog post gets a
+- **Share images and social media** (Admin > Emails and social media > Social media posts): every event and blog post gets a
   1200x630 share image (official logo, red label, title, date and venue or byline, its photo),
   used as `og:image` so LinkedIn, Facebook and WhatsApp previews look right. The admin's browser
   draws it on a canvas whenever the event or post is opened in the admin and its title, date,
@@ -212,10 +212,15 @@ Public pages:
   Organization) and the home page adds the WebSite name Google shows in results.
 
 Private admin at `/admin` (behind Cloudflare Access). Its menu is grouped: **Events** (all
-events, registrations, check-in, stats), **Community** (members, contacts, messages, reports, board and speakers),
-**Ecosystem** (to review, all listings, partners, renewals), **Blog** (posts, PDFs and files), **Website
-pages** (one screen per public page: Home, About, Join, Tech Pulse, Thai page, code of conduct
-and privacy), **Emails** (email the community, automatic emails) and Settings; the groups fold and unfold, the current one open. Anyone who can sign in to the admin can do everything; there are no roles. See
+events, registrations, check-in), **Community** (members, contacts, messages, board and
+speakers), **Ecosystem** (to review, all listings, partners, renewals), **Blog** (posts, PDFs and
+files), **Website pages** (one screen per public page: Home, About, Join, Tech Pulse, Thai page,
+code of conduct and privacy), **Emails and social media** (email the community, social media
+posts, automatic emails), **Reports** (events and attendance, membership: `/admin/reports/*`) and
+**Settings** (general, membership, default event covers, social links, change history: one
+`/admin/settings?section=` screen each, plus `/admin/history`). Old admin addresses redirect
+(`src/lib/redirects.ts`). The groups fold and unfold, the current one open. Anyone who can sign in
+to the admin can do everything; there are no roles. See
 [docs/admin.md](docs/admin.md).
 
 **Automatic emails** (`/admin/emails`) lists the emails the site sends on its own, grouped (Events,
@@ -235,7 +240,7 @@ a newcomer registering for an event, the claim invitation, the yearly reminder a
 email), the newsletter
 confirmation, the "your data" link, and the notifications to the team (contact form message, new
 member, new listing, claim, listing change and membership application to review, weekly directory
-summary). Every team notification goes to the addresses in Settings > Admin notifications (the
+summary). Every team notification goes to the addresses in Settings > General > Admin notifications (the
 contact email when empty); **Send a test** there sends one right away and shows Resend's answer.
 A contact form message whose email fails gets a note saying so in Messages.
 Lists built by the site (the renewals of the directory summary) are placeholders (`{renewals}`)
@@ -251,6 +256,13 @@ that screen they can search by name, email or phone, scan the QR ticket, and add
 who didn't register. People coming for the first time get a "First time" badge (with "Say hello
 to the N newcomers" above the list) and people who came to 3 or more earlier events a "Regular"
 badge, so volunteers know whom to welcome.
+
+**Scan QR** asks the phone for the camera when tapped. If the camera was refused before (in the
+browser or in the phone's settings), a website can't make the phone ask again, so the check-in
+screen explains why the camera didn't start and shows the steps to turn it back on for the
+volunteer's browser (Safari, Chrome, Brave or another browser on iPhone; Chrome or another
+browser on Android), with **Try again** and **Reload page** buttons. **Take a photo** reads the
+QR code from a photo taken with the phone's camera app, and typing the ticket code always works.
 
 Organisers can **email an event's registrants** from the admin (venue change, slides after the
 talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not

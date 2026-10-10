@@ -1,12 +1,12 @@
 ---
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import { getDb } from '../../../db';
-import { auditLog, organisations } from '../../../db/schema';
+import { organisations } from '../../../db/schema';
 import ReviewCard from '../../../components/admin/ReviewCard.astro';
 import { MODERATION_TARGET_DAYS, daysUntil } from '../../../lib/lifecycle';
 import {
@@ -33,8 +33,9 @@ const tabs = [
   { key: 'all', label: 'All listings' },
   { key: 'partners', label: 'Partners' },
   { key: 'renewals', label: 'Renewals' },
-  { key: 'log', label: 'History' },
 ] as const;
+// The history tab moved to Settings > Change history.
+if (Astro.url.searchParams.get('tab') === 'log') return Astro.redirect('/admin/history', 301);
 const tab = tabs.find((t) => t.key === Astro.url.searchParams.get('tab'))?.key ?? 'queue';
 let error = '';
 const partnerGroupList = await getPartnerGroups();
@@ -146,19 +147,6 @@ const renewals =
         .orderBy(sql`${organisations.renewalDueAt} IS NULL`, asc(organisations.renewalDueAt))
     : [];
 
-const log =
-  tab === 'log'
-    ? await db
-        .select({ a: auditLog, name: organisations.name, orgId: organisations.id })
-        .from(auditLog)
-        .leftJoin(
-          organisations,
-          and(eq(auditLog.entity, 'organisation'), eq(auditLog.entityId, organisations.id)),
-        )
-        .orderBy(desc(auditLog.id))
-        .limit(200)
-    : [];
-
 const statusTone = (s: string) =>
   s === 'published'
     ? 'success'
@@ -167,10 +155,6 @@ const statusTone = (s: string) =>
       : s === 'rejected' || s === 'expired'
         ? 'danger'
         : 'neutral';
-const short = (v: unknown) => {
-  const s = v === null || v === undefined ? '' : JSON.stringify(v);
-  return s.length > 140 ? `${s.slice(0, 139)}…` : s;
-};
 ---
 
 <AdminLayout title="Ecosystem">
@@ -596,44 +580,6 @@ const short = (v: unknown) => {
               </tr>
             );
           })}
-        </tbody>
-      </table>
-    </div>
-  )}
-
-  {tab === 'log' && (
-    <div class="admin-panel overflow-x-auto">
-      <table class="admin-table">
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>Who</th>
-            <th>What</th>
-            <th>Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          {log.map(({ a, name, orgId }) => (
-            <tr>
-              <td class="whitespace-nowrap">
-                {formatDate(a.at, { hour: '2-digit', minute: '2-digit' })}
-              </td>
-              <td class="break-all">{a.actor}</td>
-              <td>
-                {a.action} {a.entity}{' '}
-                {orgId ? (
-                  <a href={`/admin/ecosystem/${orgId}`}>{name}</a>
-                ) : a.entityId ? (
-                  `#${a.entityId}`
-                ) : (
-                  ''
-                )}
-              </td>
-              <td class="font-mono text-xs break-all text-muted">
-                {short(a.before)} {a.after ? `→ ${short(a.after)}` : ''}
-              </td>
-            </tr>
-          ))}
         </tbody>
       </table>
     </div>

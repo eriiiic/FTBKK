@@ -165,7 +165,7 @@ const badges = (values.badges as string[] | undefined) ?? [];
       <span>Created {formatDate(org.createdAt)}</span>
       {org.confirmedAt && <span>Last confirmed {formatDate(org.confirmedAt)}</span>}
       {org.rejectionReason && <span>Rejected: {org.rejectionReason}</span>}
-      <a href="/admin/ecosystem?tab=log">History</a>
+      <a href="/admin/history">Change history</a>
     </div>
   )}
   {notice && (

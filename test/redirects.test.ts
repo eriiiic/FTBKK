@@ -13,10 +13,21 @@ describe('Wix redirects', () => {
     ['/members', '/ecosystem'],
     ['/fund', '/about'],
     ['/blog/categories/founder-guides', '/blog/category/founder-guides'],
+    ['/admin/events/stats', '/admin/reports/events'],
+    ['/admin/reports', '/admin/reports/members'],
   ])('%s -> %s', (from, to) => expect(redirectFor(from)).toBe(to));
 
   it('leaves new URLs alone', () => {
-    for (const p of ['/', '/blog', '/blog/x', '/events', '/ecosystem/accor', '/about']) {
+    for (const p of [
+      '/',
+      '/blog',
+      '/blog/x',
+      '/events',
+      '/ecosystem/accor',
+      '/about',
+      '/admin/reports/events',
+      '/admin/events/12',
+    ]) {
       expect(redirectFor(p)).toBeNull();
     }
   });

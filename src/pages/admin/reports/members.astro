@@ -1,12 +1,13 @@
 ---
-import AdminLayout from '../../layouts/AdminLayout.astro';
-import LineChart from '../../components/admin/LineChart.astro';
-import { getDb } from '../../db';
-import { events, members, registrations } from '../../db/schema';
-import { memberReports } from '../../lib/member-reports';
-import { formatDate } from '../../lib/format';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import LineChart from '../../../components/admin/LineChart.astro';
+import ReportTabs from '../../../components/admin/ReportTabs.astro';
+import { getDb } from '../../../db';
+import { events, members, registrations } from '../../../db/schema';
+import { memberReports } from '../../../lib/member-reports';
+import { formatDate } from '../../../lib/format';
 
-// Community > Reports, for the board: membership growth, who the members are, and the share of
+// Reports > Membership, for the board: membership growth, who the members are, and the share of
 // event attendees who are members.
 const db = getDb();
 const [memberRows, eventRows, regRows] = await Promise.all([
@@ -66,12 +67,13 @@ const breakdowns = [
 ];
 ---
 
-<AdminLayout title="Reports">
+<AdminLayout title="Reports: membership">
+  <ReportTabs />
   <p class="mb-6 max-w-3xl text-sm text-muted">
     For the board: how membership grows, who the active members are, and how many people at our
     events are members. Figures are live. Event figures count check-ins, or registrations at events
-    where check-in wasn't used. More in <a href="/admin/events/stats">Event stats</a> and{' '}
-    <a href="/admin/members?tab=all">Members</a>.
+    where check-in wasn't used. More in <a href="/admin/reports/events">Events and attendance</a>{' '}
+    and <a href="/admin/members?tab=all">Members</a>.
   </p>
 
   <section aria-label="Key numbers" class="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">

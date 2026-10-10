@@ -24,6 +24,7 @@ interface NavLink {
   href: string;
   label: string;
 }
+// Content and day-to-day work first, figures next, site-wide switches last.
 const groups: { label: string; links: NavLink[] }[] = [
   { label: '', links: [{ href: '/admin', label: 'Dashboard' }] },
   {
@@ -32,7 +33,6 @@ const groups: { label: string; links: NavLink[] }[] = [
       { href: '/admin/events', label: 'All events' },
       { href: '/admin/registrations', label: 'Registrations' },
       { href: '/admin/checkin', label: 'Check-in' },
-      { href: '/admin/events/stats', label: 'Stats' },
     ],
   },
   {
@@ -41,7 +41,6 @@ const groups: { label: string; links: NavLink[] }[] = [
       { href: '/admin/members', label: 'Members' },
       { href: '/admin/contacts', label: 'Contacts' },
       { href: '/admin/submissions', label: 'Messages' },
-      { href: '/admin/reports', label: 'Reports' },
       { href: '/admin/people', label: 'Board and speakers' },
     ],
   },
@@ -50,6 +49,7 @@ const groups: { label: string; links: NavLink[] }[] = [
     links: [
       { href: '/admin/ecosystem', label: 'To review' },
       { href: '/admin/ecosystem?tab=all', label: 'All listings' },
+      { href: '/admin/ecosystem?tab=partners', label: 'Partners' },
       { href: '/admin/ecosystem?tab=renewals', label: 'Renewals' },
     ],
   },
@@ -68,25 +68,42 @@ const groups: { label: string; links: NavLink[] }[] = [
       { href: '/admin/site-texts?page=join', label: 'Join' },
       { href: '/admin/site-texts?page=tech-pulse', label: 'Tech Pulse' },
       { href: '/admin/site-texts?page=thai', label: 'Thai page' },
-      { href: '/admin/site-texts?page=legal', label: 'Code of conduct, privacy' },
+      { href: '/admin/site-texts?page=legal', label: 'Code of conduct and privacy' },
     ],
   },
   {
-    label: 'Emails',
+    label: 'Emails and social media',
     links: [
       { href: '/admin/community-email', label: 'Email the community' },
+      { href: '/admin/social', label: 'Social media posts' },
       { href: '/admin/emails', label: 'Automatic emails' },
     ],
   },
-  { label: '', links: [{ href: '/admin/social', label: 'Social media' }] },
-  { label: '', links: [{ href: '/admin/settings', label: 'Settings' }] },
+  {
+    label: 'Reports',
+    links: [
+      { href: '/admin/reports/events', label: 'Events and attendance' },
+      { href: '/admin/reports/members', label: 'Membership' },
+    ],
+  },
+  {
+    label: 'Settings',
+    links: [
+      { href: '/admin/settings', label: 'General' },
+      { href: '/admin/settings?section=membership', label: 'Membership' },
+      { href: '/admin/settings?section=event-covers', label: 'Default event covers' },
+      { href: '/admin/settings?section=social-links', label: 'Social links' },
+      { href: '/admin/history', label: 'Change history' },
+    ],
+  },
 ];
 const path = Astro.url.pathname;
-// The longest matching link wins, so /admin/events/stats doesn't also light up All events. Links
+// The longest matching link wins, so /admin/events/12 lights up All events only. Links
 // to the same screen differ by one query parameter, which must match too (missing = its default).
 const SUBPAGES: Record<string, { param: string; fallback: string }> = {
   '/admin/ecosystem': { param: 'tab', fallback: 'queue' },
   '/admin/site-texts': { param: 'page', fallback: 'home' },
+  '/admin/settings': { param: 'section', fallback: 'general' },
 };
 const links = groups.flatMap((g) => g.links);
 const matches = (href: string) => {

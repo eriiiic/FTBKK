@@ -12,7 +12,18 @@ import PhotoSlot from '../../components/admin/PhotoSlot.astro';
 import { readPhotoSlot } from '../../lib/photo-slots';
 import { COVER_KINDS, DEFAULT_EVENT_COVERS, KIND_NAMES } from '../../lib/event-covers';
 
-// Site-wide settings. The texts shown on public pages are in Website pages (/admin/site-texts).
+// Site-wide settings, one screen per section (?section=, listed under Settings in the admin menu).
+// Each screen saves only its own fields. The texts shown on public pages are in Website pages
+// (/admin/site-texts).
+const SECTIONS = {
+  general: 'General settings',
+  membership: 'Membership settings',
+  'event-covers': 'Default event covers',
+  'social-links': 'Social links',
+} as const;
+type Section = keyof typeof SECTIONS;
+const sectionParam = Astro.url.searchParams.get('section') ?? 'general';
+const section: Section = sectionParam in SECTIONS ? (sectionParam as Section) : 'general';
 const actor = Astro.locals.adminEmail ?? 'admin';
 const current = await getSettings();
 
@@ -30,24 +41,31 @@ const socials = [
   ['youtube', 'YouTube'],
 ] as const;
 
-const Schema = z.object({
-  siteTitle: z.string().min(2).max(100),
-  siteDescription: z.string().max(300),
-  contactEmail: z.email('Enter a valid email.'),
-  moderatorEmails: z
-    .string()
-    .transform((s) => lines(s.replace(/[,;]/g, '\n')).map((e) => e.toLowerCase()))
-    .pipe(z.array(z.email('One of these emails is not valid.')).max(10)),
-  instagram: url,
-  whatsapp: url,
-  facebook: url,
-  linkedin: url,
-  youtube: url,
-  membershipOpen: z.boolean().optional().default(false),
-  memberSignupOpen: z.boolean().optional().default(false),
-  memberPriority: z.boolean().optional().default(false),
-  analyticsToken: z.string().max(100),
-});
+const Schemas = {
+  general: z.object({
+    siteTitle: z.string().min(2).max(100),
+    siteDescription: z.string().max(300),
+    contactEmail: z.email('Enter a valid email.'),
+    moderatorEmails: z
+      .string()
+      .transform((s) => lines(s.replace(/[,;]/g, '\n')).map((e) => e.toLowerCase()))
+      .pipe(z.array(z.email('One of these emails is not valid.')).max(10)),
+    analyticsToken: z.string().max(100),
+  }),
+  membership: z.object({
+    membershipOpen: z.boolean().optional().default(false),
+    memberSignupOpen: z.boolean().optional().default(false),
+    memberPriority: z.boolean().optional().default(false),
+  }),
+  'event-covers': z.object({}),
+  'social-links': z.object({
+    instagram: url,
+    whatsapp: url,
+    facebook: url,
+    linkedin: url,
+    youtube: url,
+  }),
+} satisfies Record<Section, z.ZodType>;
 
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = {
@@ -79,35 +97,49 @@ if (form?.get('intent') === 'test-notify') {
   await audit(actor, 'test-notify', 'settings', null, null, { to: notifyTo, ok: testResult.ok });
 } else if (form) {
   values = formToObject(form);
-  const parsed = Schema.safeParse(values);
+  const parsed = Schemas[section].safeParse(values);
   if (!parsed.success) errors = fieldErrors(parsed.error);
-  const nextCovers = { ...covers };
-  for (const kind of COVER_KINDS) {
-    const name = `cover-${kind}`;
-    const r = await readPhotoSlot(form, name, asPhoto(covers[kind]), {
-      prefix: 'events/defaults',
-      upload: parsed.success,
-    });
-    if (r.error) errors[name] = r.error;
-    nextCovers[kind] = r.photo?.key ?? null;
+  let next: Partial<Settings> = {};
+  if (parsed.success) {
+    next =
+      section === 'social-links'
+        ? { socials: parsed.data as Settings['socials'] }
+        : (parsed.data as Partial<Settings>);
   }
-  covers = nextCovers;
+  if (section === 'event-covers') {
+    const nextCovers = { ...covers };
+    for (const kind of COVER_KINDS) {
+      const name = `cover-${kind}`;
+      const r = await readPhotoSlot(form, name, asPhoto(covers[kind]), {
+        prefix: 'events/defaults',
+        upload: parsed.success,
+      });
+      if (r.error) errors[name] = r.error;
+      nextCovers[kind] = r.photo?.key ?? null;
+    }
+    covers = nextCovers;
+    next = { eventCovers: covers };
+  }
   if (parsed.success && !Object.keys(errors).length) {
-    const { instagram, whatsapp, facebook, linkedin, youtube, ...rest } = parsed.data;
-    const next: Partial<Settings> = {
-      ...rest,
-      socials: { instagram, whatsapp, facebook, linkedin, youtube },
-      eventCovers: covers,
-    };
     await saveSettings(next);
     await audit(actor, 'update', 'settings', null, null, Object.keys(next));
-    return Astro.redirect('/admin/settings?saved=1');
+    return Astro.redirect(`/admin/settings?section=${section}&saved=1`);
   }
 }
+const INTROS: Record<Section, string> = {
+  general:
+    'The site name, the contact email, who gets the team emails, and analytics. The texts of the public pages are under Website pages.',
+  membership:
+    'Switches for individual membership, company membership and member priority on events.',
+  'event-covers':
+    'The image shown for events that have no cover of their own. Pick the type on each event.',
+  'social-links':
+    'Links to our pages, shown in the site footer. To post an event or a blog post on social media, use Emails and social media > Social media posts.',
+};
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 ---
 
-<AdminLayout title="Settings">
+<AdminLayout title={SECTIONS[section]}>
   {testResult?.ok && (
     <Alert tone="success" class="mb-6">
       Test sent to {notifyTo.join(', ')}. Resend accepted it; if it isn't in the inbox within a few
@@ -124,129 +156,143 @@ const str = (k: string) => (values[k] === null || values[k] === undefined ? '' :
       Please fix the highlighted fields.
     </Alert>
   )}
-  <p class="mb-6 max-w-3xl text-sm text-muted">
-    The texts of the home, About, Join and other public pages are under
-    <a href="/admin/site-texts">Website pages</a> in the menu.
-  </p>
+  <p class="mb-6 max-w-3xl text-sm text-muted">{INTROS[section]}</p>
   <form method="post" enctype="multipart/form-data" data-warn-unsaved class="grid max-w-3xl gap-6">
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Site</h2>
-      <FormField
-        name="siteTitle"
-        label="Site name"
-        required
-        maxlength={100}
-        value={str('siteTitle')}
-        error={errors.siteTitle}
-      />
-      <FormField
-        name="siteDescription"
-        label="Description for search engines"
-        rows={2}
-        maxlength={300}
-        value={str('siteDescription')}
-        error={errors.siteDescription}
-      />
-      <FormField
-        name="contactEmail"
-        label="Contact email"
-        type="email"
-        required
-        value={str('contactEmail')}
-        error={errors.contactEmail}
-        hint="Shown in the footer. Contact form messages are sent here."
-      />
-      <FormField
-        name="moderatorEmails"
-        label="Admin notifications"
-        rows={3}
-        value={str('moderatorEmails')}
-        error={errors.moderatorEmails}
-        hint="One email per line. They get every email meant for the team: contact form messages, new members, directory requests and claims, and the Monday directory summary. Empty = the contact email."
-      />
-      <div class="flex flex-wrap items-center gap-3 text-sm">
-        <Button type="submit" variant="secondary" size="sm" form="test-notify">
-          Send a test
-        </Button>
-        <span class="text-muted">
-          Goes now to {notifyTo.join(', ')} (the saved addresses; save first after a change).
-        </span>
-      </div>
-    </section>
+    {section === 'general' && (
+      <>
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Site</h2>
+          <FormField
+            name="siteTitle"
+            label="Site name"
+            required
+            maxlength={100}
+            value={str('siteTitle')}
+            error={errors.siteTitle}
+          />
+          <FormField
+            name="siteDescription"
+            label="Description for search engines"
+            rows={2}
+            maxlength={300}
+            value={str('siteDescription')}
+            error={errors.siteDescription}
+          />
+          <FormField
+            name="contactEmail"
+            label="Contact email"
+            type="email"
+            required
+            value={str('contactEmail')}
+            error={errors.contactEmail}
+            hint="Shown in the footer. Contact form messages are sent here."
+          />
+        </section>
 
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Default event images</h2>
-      <p class="text-sm text-muted">
-        Events of type {KIND_NAMES.connect}, {KIND_NAMES.talk} or {KIND_NAMES.select} that have no
-        cover of their own show this image on the site (events list, event page, home page and link
-        previews). Pick the type on each event.
-      </p>
-      {COVER_KINDS.map((kind) => (
-        <PhotoSlot
-          name={`cover-${kind}`}
-          label={KIND_NAMES[kind]}
-          photo={asPhoto(covers[kind])}
-          defaultSrc={DEFAULT_EVENT_COVERS[kind]}
-          withAlt={false}
-          error={errors[`cover-${kind}`]}
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Admin notifications</h2>
+          <FormField
+            name="moderatorEmails"
+            label="Send team emails to"
+            rows={3}
+            value={str('moderatorEmails')}
+            error={errors.moderatorEmails}
+            hint="One email per line. They get every email meant for the team: contact form messages, new members, directory requests and claims, and the Monday directory summary. Empty = the contact email."
+          />
+          <div class="flex flex-wrap items-center gap-3 text-sm">
+            <Button type="submit" variant="secondary" size="sm" form="test-notify">
+              Send a test
+            </Button>
+            <span class="text-muted">
+              Goes now to {notifyTo.join(', ')} (the saved addresses; save first after a change).
+            </span>
+          </div>
+        </section>
+
+        <section class="admin-panel grid gap-4">
+          <h2 class="text-lg">Analytics</h2>
+          <FormField
+            name="analyticsToken"
+            label="Cloudflare Web Analytics token"
+            maxlength={100}
+            value={str('analyticsToken')}
+            error={errors.analyticsToken}
+            hint="From Cloudflare dashboard > Analytics & Logs > Web Analytics. Empty = off."
+          />
+        </section>
+      </>
+    )}
+
+    {section === 'event-covers' && (
+      <section class="admin-panel grid gap-4">
+        <p class="text-sm text-muted">
+          Events of type {KIND_NAMES.connect}, {KIND_NAMES.talk} or {KIND_NAMES.select} that have no
+          cover of their own show this image on the site (events list, event page, home page and
+          link previews).
+        </p>
+        {COVER_KINDS.map((kind) => (
+          <PhotoSlot
+            name={`cover-${kind}`}
+            label={KIND_NAMES[kind]}
+            photo={asPhoto(covers[kind])}
+            defaultSrc={DEFAULT_EVENT_COVERS[kind]}
+            withAlt={false}
+            error={errors[`cover-${kind}`]}
+          />
+        ))}
+      </section>
+    )}
+
+    {section === 'social-links' && (
+      <section class="admin-panel grid gap-4">
+        {socials.map(([k, label]) => (
+          <FormField
+            name={k}
+            label={label}
+            value={str(k)}
+            error={errors[k]}
+            placeholder="https://"
+          />
+        ))}
+      </section>
+    )}
+
+    {section === 'membership' && (
+      <section class="admin-panel grid gap-4">
+        {usingTestSender() && (
+          <Alert tone="warning">
+            Emails only reach the Resend account owner: the sender is still Resend's test address
+            (onboarding@resend.dev). Verify the domain in Resend and set EMAIL_FROM to it (see
+            docs/deploy.md) before opening membership, or sign-up and registration emails won't
+            arrive.
+          </Alert>
+        )}
+        <FormField
+          name="memberSignupOpen"
+          label="Open free individual membership (events become members only)"
+          type="checkbox"
+          checked={!!values.memberSignupOpen}
+          hint="Shows the membership form on /join. Every event then asks for membership: members register with just their email, newcomers join for free in the same step. Also turns on the yearly reminders, Invite to join in Contacts and member enrolment at check-in. Keep it off until emails reach everyone (Resend domain verified)."
         />
-      ))}
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Social links</h2>
-      {socials.map(([k, label]) => (
-        <FormField name={k} label={label} value={str(k)} error={errors[k]} placeholder="https://" />
-      ))}
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Membership</h2>
-      {usingTestSender() && (
-        <Alert tone="warning">
-          Emails only reach the Resend account owner: the sender is still Resend's test address
-          (onboarding@resend.dev). Verify the domain in Resend and set EMAIL_FROM to it (see
-          docs/deploy.md) before opening membership, or sign-up and registration emails won't
-          arrive.
-        </Alert>
-      )}
-      <FormField
-        name="memberSignupOpen"
-        label="Open free individual membership (events become members only)"
-        type="checkbox"
-        checked={!!values.memberSignupOpen}
-        hint="Shows the membership form on /join. Every event then asks for membership: members register with just their email, newcomers join for free in the same step. Also turns on the yearly reminders, Invite to join in Contacts and member enrolment at check-in. Keep it off until emails reach everyone (Resend domain verified)."
-      />
-      <FormField
-        name="membershipOpen"
-        label="Accept company membership applications"
-        type="checkbox"
-        checked={!!values.membershipOpen}
-        hint="Owners of listed organisations can apply from their update page for the Member badge in the directory. Approve each one in Ecosystem > To review."
-      />
-      <FormField
-        name="memberPriority"
-        label="Member priority on events"
-        type="checkbox"
-        checked={!!values.memberPriority}
-        hint="Adds early registration days and reserved seats for members (active individual members and owners of member companies) to each event's settings."
-      />
-    </section>
-
-    <section class="admin-panel grid gap-4">
-      <h2 class="text-lg">Analytics</h2>
-      <FormField
-        name="analyticsToken"
-        label="Cloudflare Web Analytics token"
-        maxlength={100}
-        value={str('analyticsToken')}
-        error={errors.analyticsToken}
-        hint="From Cloudflare dashboard > Analytics & Logs > Web Analytics. Empty = off."
-      />
-    </section>
+        <FormField
+          name="membershipOpen"
+          label="Accept company membership applications"
+          type="checkbox"
+          checked={!!values.membershipOpen}
+          hint="Owners of listed organisations can apply from their update page for the Member badge in the directory. Approve each one in Ecosystem > To review."
+        />
+        <FormField
+          name="memberPriority"
+          label="Member priority on events"
+          type="checkbox"
+          checked={!!values.memberPriority}
+          hint="Adds early registration days and reserved seats for members (active individual members and owners of member companies) to each event's settings."
+        />
+      </section>
+    )}
 
     <div class="sticky bottom-0 z-10 -mx-4 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur md:mx-0 md:rounded-card md:border md:bg-paper/95">
-      <Button type="submit">Save settings</Button>
+      <Button type="submit">Save</Button>
     </div>
   </form>
   <form id="test-notify" method="post" hidden>
