@@ -26,6 +26,13 @@ owners or approval steps.
   when you open or save the post; the Posts list has a button to do it for every post at once.
 - A **publication date** in the future schedules the post. Empty means now.
 - Categories: tick existing ones or type a new one.
+- **Search and social previews** (the card with **Web address**): SEO title, meta description,
+  keywords (tags, separated by commas) and the social image, filled in automatically from the
+  title, the summary (or the start of the text), the categories and the share image. Change a field
+  to override it; it then shows _Edited_ and **Use the automatic value** puts it back. Fields left
+  on _Automatic_ keep following the post when you change its title, summary or categories. **Hide
+  from search engines** adds noindex and leaves the post out of the sitemap; people with the link
+  still see it.
 - Old posts can be deleted at the bottom of the page.
 
 ## Files
@@ -407,7 +414,9 @@ enrolment at check-in.
   introduction, the Thai page, the code of conduct and the privacy notice. The **Tech Pulse page**
   lists by itself every published post with "Tech Pulse" in its title: to add an edition, publish
   a post titled like "Thailand Tech Pulse Q4 2026: …" (the quarter shows as a badge) and attach
-  the report PDF to it. The **Thai page** text is written in Thai; the part before the first
+  the report PDF to it. While Settings > Membership is ticked, that PDF is members only: visitors
+  give their email, members download, newcomers join (free) first. Other files attached to the
+  post stay public. The **Thai page** text is written in Thai; the part before the first
   `## ` heading is the introduction and each `## ` heading starts a numbered section. Long texts ("Who we are", "Official French Tech Community", the
   mission) keep the line breaks you type: leave an empty line between paragraphs. They accept
   Markdown (`**bold**`, `[link](https://…)`, `- list`, `## heading`). "You can join us" cards
@@ -463,7 +472,7 @@ and when:
   published or declined, membership approved or declined.
 - **Membership** (the free individual membership): the sign-up confirmation, the welcome email,
   the link to the member page (asked for, or sent by an admin), the link sent when a member
-  signs up again, the confirmation for a newcomer registering for an event, the "Claim your
+  signs up again, the confirmation for a newcomer registering for an event, the confirmation for a newcomer downloading Tech Pulse, the "Claim your
   membership" invitation, the yearly reminder and the "membership paused" email.
 - **Community**: the newsletter confirmation (Email the community is written each time).
   **Privacy**: the "your data" link.

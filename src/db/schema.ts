@@ -223,6 +223,14 @@ export const posts = sqliteTable('posts', {
   attachments: json<Attachment[]>('attachments').notNull().default([]),
   /** The 1200x630 social share image (R2 key, lib/share.ts); its name carries a fingerprint. */
   shareImageKey: text('share_image_key'),
+  /** SEO overrides (lib/seo.ts); null means the automatic value from the title, summary, categories. */
+  seoTitle: text('seo_title'),
+  seoDescription: text('seo_description'),
+  seoKeywords: text('seo_keywords'),
+  /** Social preview image chosen by hand (R2 key); null uses the share image or the cover. */
+  seoImageKey: text('seo_image_key'),
+  /** Kept out of search engines and the sitemap. */
+  noindex: integer('noindex', { mode: 'boolean' }).notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

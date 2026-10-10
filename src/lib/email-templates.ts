@@ -167,6 +167,7 @@ export type TemplateKey =
   | 'member.link'
   | 'member.already-member'
   | 'member.confirm-event'
+  | 'member.confirm-download'
   | 'member.claim'
   | 'member.claim-event'
   | 'member.renewal'
@@ -613,6 +614,27 @@ export const EMAIL_TEMPLATES: Record<TemplateKey, EmailTemplateDef> = {
     placeholders: [P.name, P.event],
     added:
       'The confirmation link (the button) and a footer: "The link works for 7 days." The event confirmation with the ticket follows once they click.',
+    preview: { buttonUrl: `${SITE}/member/confirm`, footer: 'The link works for 7 days.' },
+  },
+  'member.confirm-download': {
+    label: 'Download Tech Pulse as a new member: confirm',
+    group: 'Membership',
+    audience: 'Someone who is not a member yet and wants to download Thailand Tech Pulse',
+    trigger:
+      'When membership is open and an unknown email asks for a Tech Pulse PDF (they fill the free membership form)',
+    subject: 'Confirm your email to download {report}',
+    body: "Hi {name}, one click to confirm your email: you become a member of La French Tech Bangkok (it's free) and you can download {report}.\n\nDidn't sign up? Ignore this email and nothing happens.",
+    buttonLabel: 'Confirm and download',
+    placeholders: [
+      P.name,
+      {
+        key: 'report',
+        description: 'The report they asked for, e.g. "Thailand Tech Pulse Q3 2026"',
+        sample: 'Thailand Tech Pulse Q3 2026',
+      },
+    ],
+    added:
+      'The confirmation link (the button) and a footer: "The link works for 7 days." Once they click, their member page has the download button.',
     preview: { buttonUrl: `${SITE}/member/confirm`, footer: 'The link works for 7 days.' },
   },
   'member.claim': {

@@ -36,7 +36,13 @@ Public pages:
   edition leads with a Download button, then every edition with its quarter, a link to the summary
   post and the PDF. Editions are the published blog posts with "Tech Pulse" in their title; the
   PDF is the post's first PDF attachment (or the first PDF linked in its text). The introduction
-  is edited in Site texts.
+  is edited in Site texts. While membership is open (Settings > Membership), the PDFs are for
+  members, with the same steps as event registration: the Download buttons ask for an email; a
+  member downloads at once (and the browser is remembered for a year, so next time the buttons
+  download straight away); someone new fills the free membership form, and the confirmation email
+  opens their member page with the download. Links to the report file itself (`/media/…` in the
+  post, old bookmarks) go through the same check, so it can't be fetched directly. While
+  membership is closed, the PDFs are free for everyone.
 - **Founder's Guide** at `/founders-guide` (Resources menu, footer, sitemap): for founders
   starting or growing a startup in Thailand. A "Where are you?" picker (testing an idea, remote
   work, setting up a company, hiring and raising) shows the visa, structure and next steps; then
@@ -155,7 +161,10 @@ Public pages:
   photo gallery (with a lightbox), slides to download, the video (YouTube and Vimeo play on the
   page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a
   "Recap" badge in the events list.
-- **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
+- **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`. Each
+  post has editable SEO fields (title, meta description, keywords, social image, hide from search
+  engines), pre-filled with automatic values from the post (`src/lib/seo.ts`); only overrides are
+  stored.
 - **Share images and social media** (Admin > Social media): every event and blog post gets a
   1200x630 share image (official logo, red label, title, date and venue or byline, its photo),
   used as `og:image` so LinkedIn, Facebook and WhatsApp previews look right. The admin's browser
