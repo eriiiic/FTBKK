@@ -14,8 +14,10 @@ Public pages:
   Support entrepreneurs, Accelerate collaborations, Shine internationally); a band of up to four key
   numbers typed in Site texts (the mockup's 300+, 120+, 50+ and 3 until then); the next four
   events (or the latest recaps when none is scheduled); the ecosystem directory as a navy carousel
-  with category chips, showing 15 organisations picked at random for All and for each category,
-  so it isn't always the same names; the latest three posts; a community block with three
+  with category chips, showing 20 organisations picked at random for All and for each category,
+  so it isn't always the same names, drifting slowly sideways in a loop (it stops under the
+  pointer or keyboard focus, after a swipe or an arrow, off screen and with its pause button, and
+  stays still for visitors who ask for reduced motion); the latest three posts; a community block with three
   photos; "They support La French Tech Bangkok" (the partners ticked "Show on Home" in Ecosystem
   > Partners, with a link to all partners; migration 0031 turned the earlier list of Business
   > France, the Franco-Thai Chamber of Commerce, the Embassy of France, La French Tech and
@@ -128,8 +130,10 @@ Public pages:
   (institutional, corporate, investors and VCs, coworkings and venues, hospitality, experts, schools
   and universities, community and media by default; the admin can add, rename, reorder and remove
   groups, saved in `settings.partnerGroups`, defaults in `lib/directory.ts`), whatever its
-  directory category. `/ecosystem` opens with a **Partners** section (`#partners`): a logo wall per
-  group, then a "Become a partner" call that opens the contact form on the Partnership topic. Partner
+  directory category. `/ecosystem` opens with a compact header and **All organisations** right
+  under it, so listings show above the fold (on phones only the search shows, the other filters
+  fold behind a "Filters" button). The **Partners** section (`#partners`, linked from the header's
+  "Our partners" button) follows the directory: a logo wall per group, then a "Become a partner" call that opens the contact form on the Partnership topic. Partner
   listings carry a Partner badge and the directory has a Partner filter. Partners ticked "Show on
   Home" feed "They support La French Tech Bangkok" on Home, in their order: the directory is the
   only place partners are managed (Admin > Ecosystem > Partners, or the listing's page).
