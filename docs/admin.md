@@ -144,6 +144,30 @@ uses any more.
   for them and their guests.
 - **Registrations** (or the count on the Events page): counts, search, check in, register someone
   from the waitlist (this can go over capacity), cancel, and **Export CSV** for Excel.
+- **Add people** (button in Registrations, or **Add registrants** on the event's page) registers
+  people yourself, three ways:
+  - **Pick members**: tick active members who aren't registered yet (type to find them; **Tick all
+    shown** ticks every member the search shows).
+  - **Type someone in**: name and email, plus company, job title, phone, guests and a note if you
+    like.
+  - **Import a CSV file**: one person per row; the first row names the columns, in any order. The
+    columns are `name` and `email` (required), then `company`, `role`, `phone`, `guests` (0 to 5),
+    `note` and `attended` (`yes` marks them as checked in, handy for an event already held).
+    "first name" and "last name" columns work instead of `name`, other columns are ignored, and
+    commas, semicolons or tabs all work. **Download the CSV template** gives a file to fill in.
+    Rows with a problem are listed with their line number and the others are still added.
+
+  People you add are always registered, even when the event is full, closed, members-only or
+  private. They count toward capacity, and the page warns when the event goes over it. Anyone
+  already registered or checked in is skipped (so importing the same file twice is safe); someone
+  on the waitlist is moved to registered; a cancelled registration comes back. The email is matched
+  with the contact's other emails, so the registration lands on the right contact card, and a
+  new email simply becomes a new contact. **Mark as checked in** registers them as attended.
+  **Send the confirmation email** (off by default) sends each new registrant the usual email with
+  their ticket, at most 40 per import; nobody checked in gets one. Without it, they still get the
+  reminder with their ticket the day before. The summary at the top says who was added, skipped
+  or not added.
+
 - **Check-in mode** is made for a phone at the door: type a few letters of the name and tap to
   check the person in. Tap again to undo. Door volunteers can bookmark
   `/checkin` on their phone: it opens a list of today's and upcoming events (after the admin

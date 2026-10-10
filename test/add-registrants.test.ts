@@ -88,7 +88,7 @@ describe('RegistrantSchema', () => {
     const r = RegistrantSchema.safeParse({ name: ' ', email: '' });
     expect(r.success).toBe(false);
     expect(r.error?.issues.map((i) => i.message)).toEqual([
-      'Name is missing.',
+      'Name is missing or too short.',
       'Email is missing.',
     ]);
   });
