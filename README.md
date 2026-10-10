@@ -252,6 +252,13 @@ who didn't register. People coming for the first time get a "First time" badge (
 to the N newcomers" above the list) and people who came to 3 or more earlier events a "Regular"
 badge, so volunteers know whom to welcome.
 
+**Scan QR** asks the phone for the camera when tapped. If the camera was refused before (in the
+browser or in the phone's settings), a website can't make the phone ask again, so the check-in
+screen explains why the camera didn't start and shows the steps to turn it back on for the
+volunteer's browser (Safari, Chrome, Brave or another browser on iPhone; Chrome or another
+browser on Android), with **Try again** and **Reload page** buttons. **Take a photo** reads the
+QR code from a photo taken with the phone's camera app, and typing the ticket code always works.
+
 Organisers can **email an event's registrants** from the admin (venue change, slides after the
 talk, last-minute reminder): pick the audience (registered, checked in, waitlist or everyone not
 cancelled, with counts), write a subject and message with an optional button, send a test to
