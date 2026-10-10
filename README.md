@@ -147,7 +147,10 @@ Public pages:
   photo gallery (with a lightbox), slides to download, the video (YouTube and Vimeo play on the
   page, cookie-free) and a card linking to the blog write-up. Past events with a recap get a
   "Recap" badge in the events list.
-- **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`.
+- **Blog**: posts with categories, authors, images and PDF downloads. RSS at `/rss.xml`. Each
+  post has editable SEO fields (title, meta description, keywords, social image, hide from search
+  engines), pre-filled with automatic values from the post (`src/lib/seo.ts`); only overrides are
+  stored.
 - **Share images and social media** (Admin > Social media): every event and blog post gets a
   1200x630 share image (official logo, red label, title, date and venue or byline, its photo),
   used as `og:image` so LinkedIn, Facebook and WhatsApp previews look right. The admin's browser

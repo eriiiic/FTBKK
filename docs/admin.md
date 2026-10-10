@@ -26,6 +26,13 @@ owners or approval steps.
   when you open or save the post; the Posts list has a button to do it for every post at once.
 - A **publication date** in the future schedules the post. Empty means now.
 - Categories: tick existing ones or type a new one.
+- **Search and social previews** (the card with **Web address**): SEO title, meta description,
+  keywords (tags, separated by commas) and the social image, filled in automatically from the
+  title, the summary (or the start of the text), the categories and the share image. Change a field
+  to override it; it then shows _Edited_ and **Use the automatic value** puts it back. Fields left
+  on _Automatic_ keep following the post when you change its title, summary or categories. **Hide
+  from search engines** adds noindex and leaves the post out of the sitemap; people with the link
+  still see it.
 - Old posts can be deleted at the bottom of the page.
 
 ## Files

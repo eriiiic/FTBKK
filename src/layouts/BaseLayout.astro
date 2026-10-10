@@ -14,6 +14,8 @@ interface Props {
   shareImage?: boolean;
   canonical?: string;
   noindex?: boolean;
+  /** Keywords (blog posts): meta keywords and article:tag. */
+  keywords?: string[];
   jsonLd?: Record<string, unknown> | Record<string, unknown>[];
   /** Public pages are edge-cached for 60s; pass false for personal pages (manage, cancel). */
   cache?: boolean;
@@ -33,6 +35,7 @@ const {
   shareImage = false,
   canonical = siteUrl(Astro.url.pathname),
   noindex = false,
+  keywords = [],
   jsonLd,
   cache = true,
   lang = 'en',
@@ -86,6 +89,7 @@ const ld = [orgLd, ...websiteLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : 
     {description && <meta name="description" content={description} />}
     <link rel="canonical" href={canonical} />
     {noindex && <meta name="robots" content="noindex" />}
+    {keywords.length > 0 && <meta name="keywords" content={keywords.join(', ')} />}
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="icon" href="/brand/icon-192.png" type="image/png" sizes="192x192" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -106,6 +110,7 @@ const ld = [orgLd, ...websiteLd, ...(jsonLd ? (Array.isArray(jsonLd) ? jsonLd : 
     {shareImage && <meta property="og:image:height" content={String(SHARE_HEIGHT)} />}
     {published && <meta property="article:published_time" content={published.toISOString()} />}
     {modified && <meta property="article:modified_time" content={modified.toISOString()} />}
+    {ogType === 'article' && keywords.map((k) => <meta property="article:tag" content={k} />)}
     <meta name="twitter:card" content="summary_large_image" />
     <script type="application/ld+json" set:html={JSON.stringify(ld)} />
     {settings.analyticsToken && (

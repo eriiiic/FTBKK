@@ -14,8 +14,9 @@ import {
   relatedPosts,
 } from '../../lib/queries';
 import { formatDate, initials, mediaUrl, readingMinutes } from '../../lib/format';
-import { expandDownloads, plainText, renderMarkdown } from '../../lib/markdown';
+import { expandDownloads, renderMarkdown } from '../../lib/markdown';
 import { resolveAuthors } from '../../lib/byline';
+import { postSeo } from '../../lib/seo';
 
 const post = await postBySlug(Astro.params.slug!);
 if (!post) return Astro.rewrite('/404');
@@ -37,7 +38,13 @@ const related = await relatedPosts(
 const cover = mediaUrl(post.coverKey);
 // Social previews use the share image while it matches the post (lib/share.ts), else the cover.
 const shareImage = shareImageFor(post.shareImageKey, await shareFingerprint(postShareSpec(post)));
-const description = post.excerpt ?? plainText(body);
+// SEO fields set in the post editor, else the automatic values (lib/seo.ts).
+const seo = postSeo(
+  { ...post, bodyMd: resolved.body },
+  cats.map((c) => c.name),
+);
+const description = seo.description;
+const socialImage = post.seoImageKey ? mediaUrl(post.seoImageKey) : (shareImage ?? cover);
 const url = siteUrl(`/blog/${post.slug}`);
 const share = [
   {
@@ -59,9 +66,10 @@ const share = [
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'BlogPosting',
-  headline: post.title,
+  headline: seo.title,
   description,
-  image: cover ? siteUrl(cover) : undefined,
+  keywords: seo.keywords.length ? seo.keywords.join(', ') : undefined,
+  image: socialImage ? siteUrl(socialImage) : undefined,
   datePublished: post.publishedAt?.toISOString(),
   dateModified: post.updatedAt.toISOString(),
   author: authors.length
@@ -81,10 +89,12 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  title={post.title}
+  title={seo.title}
   description={description}
-  image={shareImage ?? cover}
-  shareImage={Boolean(shareImage)}
+  image={socialImage}
+  shareImage={!post.seoImageKey && Boolean(shareImage)}
+  keywords={seo.keywords}
+  noindex={post.noindex}
   jsonLd={jsonLd}
   ogType="article"
   published={post.publishedAt}
