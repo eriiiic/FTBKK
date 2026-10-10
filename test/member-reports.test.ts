@@ -14,7 +14,6 @@ describe('memberReports', () => {
     email: 'a@x.io',
     status: 'active',
     profileType: 'founder',
-    nationality: 'french',
     interests: [],
     confirmedAt: new Date('2026-10-01T05:00:00Z'),
     createdAt: new Date('2025-01-01T00:00:00Z'),
@@ -26,7 +25,7 @@ describe('memberReports', () => {
       interests: ['AI', 'Fintech'],
       confirmedAt: new Date('2026-08-20T05:00:00Z'),
     }),
-    m({ email: 'b@x.io', profileType: 'investor', nationality: null, interests: ['AI'] }),
+    m({ email: 'b@x.io', profileType: 'investor', interests: ['AI'] }),
     m({ email: 'c@x.io', status: 'pending', confirmedAt: null }),
     m({ email: 'd@x.io', status: 'lapsed', confirmedAt: new Date('2025-01-10T05:00:00Z') }),
   ];
@@ -62,7 +61,7 @@ describe('memberReports', () => {
     expect(r.byMonth[0]).toMatchObject({ key: '2025-11', added: 0, total: 1 });
   });
 
-  it('breaks active members down by profile, sector and nationality', () => {
+  it('breaks active members down by profile and sector', () => {
     expect(r.totals).toMatchObject({ active: 2, pending: 1, lapsed: 1, new30: 1 });
     expect(r.byProfile).toEqual([
       ['Founder or co-founder', 1],
@@ -71,10 +70,6 @@ describe('memberReports', () => {
     expect(r.bySector).toEqual([
       ['AI', 2],
       ['Fintech', 1],
-    ]);
-    expect(r.byNationality).toEqual([
-      ['French or francophone', 1],
-      ['Not given', 1],
     ]);
   });
 
@@ -107,7 +102,6 @@ describe('member list filters', () => {
       company: null,
       status: 'active',
       profileType: 'founder',
-      nationality: 'french',
       interests: ['AI'],
       confirmedAt: new Date('2026-09-10T05:00:00Z'),
       createdAt: new Date('2026-09-10T04:00:00Z'),
