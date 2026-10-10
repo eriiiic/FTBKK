@@ -86,10 +86,12 @@ const connected = connectedNetworks();
 const missing = items.filter((i) => !i.imageUrl).length;
 ---
 
-<AdminLayout title="Social media">
+<AdminLayout title="Social media posts">
   <p class="mb-6 max-w-2xl text-sm text-muted">
     Every event and blog post has a share image, made by itself. Open one below to share it now or
-    schedule its announcement and, for an event, a reminder the day before.
+    schedule its announcement and, for an event, a reminder the day before. The links to our pages
+    shown in the site footer are in{' '}
+    <a href="/admin/settings?section=social-links">Settings &gt; Social links</a>.
   </p>
   {message && (
     <Alert tone={message.tone} class="mb-6">

@@ -1,4 +1,4 @@
-// Scheduled social media posts (Admin > Social media). The hourly cron publishes what is due:
+// Scheduled social media posts (Admin > Social media posts). The hourly cron publishes what is due:
 // on LinkedIn and Facebook through their APIs once the page is connected (Worker secrets, see
 // docs/deploy.md), and by email otherwise. WhatsApp has no API for groups, so a WhatsApp post is
 // always an email to the admin who scheduled it, with the text and a one-tap WhatsApp link.
@@ -288,7 +288,7 @@ async function sendPostByHandEmail(
     action: networks.includes('whatsapp')
       ? { label: w.buttonLabel, url: whatsappLink(row.text) }
       : undefined,
-    links: [{ label: 'Social media in the admin', url: siteUrl('/admin/social') }],
+    links: [{ label: 'Social media posts in the admin', url: siteUrl('/admin/social') }],
   });
 }
 
