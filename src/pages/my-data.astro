@@ -6,13 +6,8 @@ import Alert from '../components/Alert.astro';
 import Button from '../components/Button.astro';
 import { getSettings } from '../lib/settings';
 import { formatDate } from '../lib/format';
-import {
-  CONTACT_TAGS,
-  contactKey,
-  deleteContacts,
-  loadContact,
-  unsubscribeNewsletter,
-} from '../lib/contacts';
+import { groupNames, loadLabels, tagNames } from '../lib/contact-labels';
+import { contactKey, deleteContacts, loadContact, unsubscribeNewsletter } from '../lib/contacts';
 import {
   DataRequestSchema,
   DataTokenSchema,
@@ -141,8 +136,13 @@ if (membership)
       ? 'Signed up, email not confirmed'
       : `${membership.status === 'active' ? 'Active member' : membership.status === 'suspended' ? 'Suspended' : 'Lapsed'}${membership.memberSince ? ` since ${formatDate(membership.memberSince)}` : ''}, with the profile you gave us`,
   ]);
-if (contact?.tags.length)
-  rows.push(['Tags the team added', contact.tags.map((t) => CONTACT_TAGS[t]).join(', ')]);
+const labels = contact?.tags.length || contact?.groups.length ? await loadLabels() : null;
+if (contact && labels) {
+  const tags = tagNames(contact.tags, labels);
+  const groups = groupNames(contact.groups, labels);
+  if (tags.length) rows.push(['Tags the team added', tags.join(', ')]);
+  if (groups.length) rows.push(['Groups the team put you in', groups.join(', ')]);
+}
 const STATUS = {
   registered: 'Registered',
   waitlist: 'On the waitlist',

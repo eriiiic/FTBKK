@@ -184,8 +184,10 @@ export const contacts = sqliteTable('contacts', {
   role: text('role'),
   linkedin: text('linkedin'),
   notes: text('notes'),
-  /** Tag keys from CONTACT_TAGS in lib/contacts.ts (speaker, sponsor, volunteer, board, press). */
+  /** Keys of their tags (contact_tags). */
   tags: json<string[]>('tags').notNull().default([]),
+  /** Ids of the groups they are in (contact_groups). */
+  groups: json<number[]>('groups').notNull().default([]),
   /** Newsletter choice they told the team in person; null = go by their latest registration. */
   newsletter: text('newsletter', { enum: ['yes', 'no'] }),
   /** When they told us (see newsletter). */
@@ -196,6 +198,22 @@ export const contacts = sqliteTable('contacts', {
   updatedAt: updatedAt(),
 });
 export type ContactRow = typeof contacts.$inferSelect;
+
+/** Tags the team creates and puts on contacts (lib/contact-labels.ts); `key` is what contacts store. */
+export const contactTags = sqliteTable('contact_tags', {
+  key: text('key').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: createdAt(),
+});
+
+/** Named lists of contacts (lib/contact-labels.ts); contacts store the ids of their groups. */
+export const contactGroups = sqliteTable('contact_groups', {
+  id: id(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 // ---------- blog ----------
 
@@ -637,11 +655,14 @@ export const communityEmails = sqliteTable('community_emails', {
   id: id(),
   /**
    * members = active members; newsletter = newsletter subscribers; all = every contact;
-   * csv = a list imported from a CSV file; contacts = a Contacts selection.
+   * csv = a list imported from a CSV file; contacts = a Contacts selection; segment = the people
+   * in some groups or with some tags.
    */
   audience: text('audience', {
-    enum: ['members', 'newsletter', 'all', 'csv', 'contacts'],
+    enum: ['members', 'newsletter', 'all', 'csv', 'contacts', 'segment'],
   }).notNull(),
+  /** For segment: the groups and tags picked, by name ("Board, Investors"). */
+  audienceDetail: text('audience_detail'),
   subject: text('subject').notNull(),
   body: text('body').notNull(),
   actionLabel: text('action_label'),

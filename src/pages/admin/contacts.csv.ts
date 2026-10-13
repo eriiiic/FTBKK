@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { CONTACT_TAGS, filterContacts, loadContacts, type Contact } from '../../lib/contacts';
+import { filterContacts, loadContacts, type Contact } from '../../lib/contacts';
+import { groupNames, loadLabels, tagNames, type Labels } from '../../lib/contact-labels';
 import { toDateInput } from '../../lib/admin';
 
 // Admin only (guarded in middleware). The Contacts list as a CSV, with the page's filters.
@@ -18,7 +19,9 @@ export const GET: APIRoute = async ({ url }) =>
       show: url.searchParams.get('show') ?? 'all',
       event: Number(url.searchParams.get('event')) || 0,
       tag: url.searchParams.get('tag') ?? '',
+      group: Number(url.searchParams.get('group')) || 0,
     }),
+    await loadLabels(),
   );
 
 export const POST: APIRoute = async ({ request }) => {
@@ -28,10 +31,13 @@ export const POST: APIRoute = async ({ request }) => {
     .safeParse((await request.formData()).getAll('c'));
   if (!keys.success) return new Response('Invalid selection.', { status: 400 });
   const wanted = new Set(keys.data);
-  return csvResponse((await loadContacts()).filter((c) => wanted.has(c.key)));
+  return csvResponse(
+    (await loadContacts()).filter((c) => wanted.has(c.key)),
+    await loadLabels(),
+  );
 };
 
-function csvResponse(contacts: Contact[]) {
+function csvResponse(contacts: Contact[], labels: Labels) {
   const header = [
     'Name',
     'Email',
@@ -40,6 +46,7 @@ function csvResponse(contacts: Contact[]) {
     'Company',
     'Role',
     'Tags',
+    'Groups',
     'Newsletter',
     'Newsletter consent date',
     'Attended',
@@ -65,7 +72,8 @@ function csvResponse(contacts: Contact[]) {
       c.phone,
       c.company,
       c.role,
-      c.tags.map((t) => CONTACT_TAGS[t]).join('; '),
+      tagNames(c.tags, labels).join('; '),
+      groupNames(c.groups, labels).join('; '),
       c.newsletter.agreed ? 'yes' : 'no',
       c.newsletter.agreed ? toDateInput(c.newsletter.at) : '',
       c.attended,

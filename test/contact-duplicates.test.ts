@@ -20,6 +20,7 @@ const person = (p: Partial<Contact> & { key: string }): Contact => ({
   linkedin: null,
   notes: null,
   tags: [],
+  groups: [],
   newsletter: { agreed: false, at: null, source: null },
   newsletterCard: null,
   registrations: 1,

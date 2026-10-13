@@ -23,26 +23,28 @@ import { formatDate } from './format';
 // without an email by their name. A saved contact card (contacts table) overrides the details
 // taken from registrations and adds notes; it can also be someone who never registered.
 
-/** Tags the team puts on contacts by hand. The order here is the order they are shown in. */
-export const CONTACT_TAGS = {
-  speaker: 'Speaker',
-  sponsor: 'Sponsor',
-  volunteer: 'Volunteer',
-  board: 'Board',
-  press: 'Press',
-} as const;
-export type ContactTag = keyof typeof CONTACT_TAGS;
-const TAG_KEYS = Object.keys(CONTACT_TAGS) as ContactTag[];
-export const isContactTag = (t: unknown): t is ContactTag =>
-  typeof t === 'string' && Object.hasOwn(CONTACT_TAGS, t);
+// Tags and groups are created by the team (Contacts > Tags and groups, lib/contact-labels.ts); a
+// contact card stores the keys of its tags and the ids of its groups.
 
-/** Known tags only, without duplicates, in CONTACT_TAGS order (whatever is stored in D1). */
-export const normalizeTags = (tags: readonly unknown[] | null | undefined): ContactTag[] =>
-  TAG_KEYS.filter((k) => (tags ?? []).includes(k));
+/** Tag keys as stored on a card: strings only, once each, in the order given. */
+export const normalizeTags = (tags: readonly unknown[] | null | undefined): string[] => [
+  ...new Set((tags ?? []).filter((t): t is string => typeof t === 'string' && t.length > 0)),
+];
+
+/** Group ids as stored on a card: positive whole numbers only, once each. */
+export const normalizeGroups = (ids: readonly unknown[] | null | undefined): number[] => [
+  ...new Set(
+    (ids ?? []).filter((t): t is number => typeof t === 'number' && Number.isInteger(t) && t > 0),
+  ),
+];
 
 /** The tags after adding or removing one. */
-export const withTag = (tags: readonly unknown[], tag: ContactTag, add: boolean) =>
+export const withTag = (tags: readonly string[], tag: string, add: boolean) =>
   normalizeTags(add ? [...tags, tag] : tags.filter((t) => t !== tag));
+
+/** The groups after adding or removing one. */
+export const withGroup = (groups: readonly number[], group: number, add: boolean) =>
+  normalizeGroups(add ? [...groups, group] : groups.filter((g) => g !== group));
 
 export interface ContactRegistration {
   name: string;
@@ -88,6 +90,7 @@ export interface SavedContact {
   linkedin: string | null;
   notes: string | null;
   tags?: string[] | null;
+  groups?: number[] | null;
   newsletter?: 'yes' | 'no' | null;
   newsletterAt?: Date | null;
   memberInvitedAt?: Date | null;
@@ -135,7 +138,10 @@ export interface Contact {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
-  tags: ContactTag[];
+  /** Keys of their tags (see lib/contact-labels.ts for the names). */
+  tags: string[];
+  /** Ids of the groups they are in. */
+  groups: number[];
   newsletter: NewsletterConsent;
   /** What the team recorded on the contact card, for the edit form. */
   newsletterCard: { choice: 'yes' | 'no'; at: Date } | null;
@@ -262,6 +268,7 @@ export function buildContacts(
         linkedin: card?.linkedin ?? null,
         notes: card?.notes ?? null,
         tags: normalizeTags(card?.tags),
+        groups: normalizeGroups(card?.groups),
         newsletter: newsletterConsent(rs, card),
         newsletterCard:
           card?.newsletter && card.newsletterAt
@@ -387,7 +394,8 @@ export function filterContacts(
     show = 'all',
     event = 0,
     tag = '',
-  }: { q?: string; show?: string; event?: number; tag?: string },
+    group = 0,
+  }: { q?: string; show?: string; event?: number; tag?: string; group?: number },
 ) {
   const query = q.trim().toLowerCase();
   return list.filter((c) => {
@@ -408,7 +416,8 @@ export function filterContacts(
         .includes(query)
     )
       return false;
-    if (isContactTag(tag) && !c.tags.includes(tag)) return false;
+    if (tag && !c.tags.includes(tag)) return false;
+    if (group && !c.groups.includes(group)) return false;
     if (event && !c.history.some((r) => r.event.id === event && r.status !== 'cancelled'))
       return false;
     if (show === 'attended') return c.attended > 0;
@@ -433,7 +442,8 @@ export interface ContactInput {
   role: string | null;
   linkedin: string | null;
   notes: string | null;
-  tags: ContactTag[];
+  tags: string[];
+  groups: number[];
   /** Set by the team when someone tells them in person; null = go by their registrations. */
   newsletter: 'yes' | 'no' | null;
   newsletterAt: Date | null;
@@ -487,11 +497,13 @@ export const ContactSchema = z.object({
     .max(4000)
     .optional()
     .transform((s) => (s?.trim() ? s.replace(/\r\n/g, '\n').trim() : null)),
-  tags: z
-    .array(z.enum(TAG_KEYS as [ContactTag, ...ContactTag[]]))
-    .max(20)
+  // Checked against the tags and groups that exist by the page (see knownLabelsOnly).
+  tags: z.array(z.string().max(80)).max(100).default([]).transform(normalizeTags),
+  groups: z
+    .array(z.coerce.number().int().positive())
+    .max(200)
     .default([])
-    .transform(normalizeTags),
+    .transform(normalizeGroups),
   newsletter: z
     .enum(['', 'yes', 'no'])
     .optional()
@@ -663,10 +675,16 @@ export async function saveContact(key: string, input: ContactInput): Promise<Res
   }
   if (
     !email &&
-    (input.notes || input.linkedin || input.tags.length || input.newsletter) &&
+    (input.notes ||
+      input.linkedin ||
+      input.tags.length ||
+      input.groups.length ||
+      input.newsletter) &&
     key.startsWith('name:')
   ) {
-    return { error: 'Add an email to save notes, tags, newsletter or LinkedIn for a walk-in.' };
+    return {
+      error: 'Add an email to save notes, tags, groups, newsletter or LinkedIn for a walk-in.',
+    };
   }
   const now = new Date();
 
@@ -738,20 +756,25 @@ export async function createContact(input: ContactInput): Promise<Result> {
   return { key: savedKey({ id: row!.id, email: input.email }) };
 }
 
+/** A tag (by key) or a group (by id) to put on contacts or take off them. */
+export type ContactLabel = { kind: 'tag'; key: string } | { kind: 'group'; id: number };
+
 /**
- * Adds or removes a tag on several contacts, logging each change. Someone without a saved card
- * gets one (with the details from their latest registration), as when editing them. Walk-ins
- * without an email can't hold a card: they are skipped and counted.
+ * Adds or removes a tag, or adds people to a group or takes them out, on several contacts,
+ * logging each change. Someone without a saved card gets one (with the details from their latest
+ * registration), as when editing them. Walk-ins without an email can't hold a card: they are
+ * skipped and counted.
  */
 export async function tagContacts(
   keys: string[],
-  tag: ContactTag,
+  label: ContactLabel,
   add: boolean,
   actor: string,
   now = new Date(),
 ) {
   const db = getDb();
   const wanted = new Set(keys);
+  const field = label.kind === 'tag' ? 'tags' : 'groups';
   let changed = 0;
   let skipped = 0;
   for (const c of await loadContacts(now)) {
@@ -760,24 +783,36 @@ export async function tagContacts(
       skipped++;
       continue;
     }
-    const tags = withTag(c.tags, tag, add);
-    if (tags.length === c.tags.length) continue; // already there, or already gone
+    const before = label.kind === 'tag' ? c.tags : c.groups;
+    const after =
+      label.kind === 'tag' ? withTag(c.tags, label.key, add) : withGroup(c.groups, label.id, add);
+    if (after.length === before.length) continue; // already there, or already gone
+    const set = { [field]: after } as { tags: string[] } | { groups: number[] };
     if (c.savedId) {
-      await db.update(contacts).set({ tags, updatedAt: now }).where(eq(contacts.id, c.savedId));
+      await db
+        .update(contacts)
+        .set({ ...set, updatedAt: now })
+        .where(eq(contacts.id, c.savedId));
     } else {
       const { name, email, phone, company, role } = c;
       await db
         .insert(contacts)
-        .values({ name, email, phone, company, role, tags })
-        .onConflictDoUpdate({ target: contacts.email, set: { tags, updatedAt: now } });
+        .values({ name, email, phone, company, role, ...set })
+        .onConflictDoUpdate({ target: contacts.email, set: { ...set, updatedAt: now } });
     }
     await audit(
       actor,
-      add ? 'contact_tag_add' : 'contact_tag_remove',
+      label.kind === 'tag'
+        ? add
+          ? 'contact_tag_add'
+          : 'contact_tag_remove'
+        : add
+          ? 'contact_group_add'
+          : 'contact_group_remove',
       'contact',
       null,
-      { key: c.key, tags: c.tags },
-      { key: c.key, tags },
+      { key: c.key, [field]: before },
+      { key: c.key, [field]: after },
     );
     changed++;
   }
@@ -922,7 +957,7 @@ export const mergeEmails = (list: Pick<Contact, 'email' | 'otherEmails'>[]) => [
  * or the first email among the others when keep is a walk-in without one; the other emails stay
  * on the card as other emails (those in `choice.otherEmails`, or all of them), so registrations
  * made later with any of them count as this person. Details come from `choice` when picked (any
- * value one of them has), else keep's, with gaps filled from the others; tags are combined and
+ * value one of them has), else keep's, with gaps filled from the others; tags and groups are combined and
  * notes put together. When two of them registered for the same event, the registration that
  * counts most stays (came > registered > waitlist > cancelled) and a seat freed on an upcoming
  * event goes to the waitlist. Returns the merged contact's key.
@@ -1013,7 +1048,8 @@ export async function mergeContacts(
     .map((c) => c.notes?.trim())
     .filter(Boolean)
     .join('\n\n');
-  const tags = [...new Set(list.flatMap((c) => c.tags))];
+  const tags = normalizeTags(list.flatMap((c) => c.tags));
+  const groups = normalizeGroups(list.flatMap((c) => c.groups));
   const told = list
     .flatMap((c) => (c.newsletterCard ? [c.newsletterCard] : []))
     .sort((a, b) => b.at.getTime() - a.at.getTime())[0];
@@ -1029,6 +1065,7 @@ export async function mergeContacts(
     linkedin: first('linkedin'),
     notes: notes || null,
     tags,
+    groups,
     newsletter: told?.choice ?? null,
     newsletterAt: told?.at ?? null,
   };

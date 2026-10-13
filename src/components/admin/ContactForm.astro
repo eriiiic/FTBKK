@@ -1,7 +1,7 @@
 ---
 import FormField from '../FormField.astro';
 import Button from '../Button.astro';
-import { CONTACT_TAGS } from '../../lib/contacts';
+import type { Labels } from '../../lib/contact-labels';
 
 interface Props {
   values: Record<string, unknown>;
@@ -13,8 +13,18 @@ interface Props {
   newsletterNow?: string;
   /** Their individual membership status, when they have one. */
   memberStatus?: 'pending' | 'active' | 'suspended' | 'lapsed' | null;
+  /** The tags and groups the team created (Contacts > Tags and groups). */
+  labels: Labels;
 }
-const { values, errors, submit, walkIn = false, newsletterNow, memberStatus = null } = Astro.props;
+const {
+  values,
+  errors,
+  submit,
+  walkIn = false,
+  newsletterNow,
+  memberStatus = null,
+  labels,
+} = Astro.props;
 const memberLocked = memberStatus === 'suspended' || memberStatus === 'lapsed';
 // After a post with errors, the box shows what was sent; otherwise their membership.
 const memberChecked = values.action === 'save' ? values.member === true : memberStatus === 'active';
@@ -25,6 +35,9 @@ const newsletterOptions = [
   ['no', 'Not subscribed (they told us)'],
 ];
 const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
+const groups = (Array.isArray(values.groups) ? (values.groups as unknown[]) : []).map(Number);
+const chip =
+  'inline-block rounded-full border border-line px-3 py-1 text-sm peer-checked:border-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-accent';
 ---
 
 <form method="post" class="grid gap-4" data-warn-unsaved>
@@ -84,25 +97,48 @@ const tags = Array.isArray(values.tags) ? (values.tags as string[]) : [];
   <fieldset>
     <legend class="text-sm font-semibold">Tags</legend>
     <div class="mt-2 flex flex-wrap gap-2">
-      {Object.entries(CONTACT_TAGS).map(([k, label]) => (
+      {labels.tags.map((t) => (
         <label class="cursor-pointer">
           <input
             type="checkbox"
             name="tags"
-            value={k}
-            checked={tags.includes(k)}
+            value={t.key}
+            checked={tags.includes(t.key)}
             class="peer sr-only"
           />
-          <span class="inline-block rounded-full border border-line px-3 py-1 text-sm peer-checked:border-navy peer-checked:bg-navy peer-checked:text-paper peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
-            {label}
-          </span>
+          <span class={chip}>{t.name}</span>
         </label>
       ))}
     </div>
-    <p class="mt-1 text-sm text-muted">
-      {walkIn ? 'Needs an email for a walk-in.' : 'Only the admin team sees these.'}
-    </p>
     {errors.tags && <p class="mt-1 text-sm text-danger">{errors.tags}</p>}
+  </fieldset>
+  <fieldset>
+    <legend class="text-sm font-semibold">Groups</legend>
+    {labels.groups.length ? (
+      <div class="mt-2 flex flex-wrap gap-2">
+        {labels.groups.map((g) => (
+          <label class="cursor-pointer" title={g.description ?? undefined}>
+            <input
+              type="checkbox"
+              name="groups"
+              value={g.id}
+              checked={groups.includes(g.id)}
+              class="peer sr-only"
+            />
+            <span class={chip}>{g.name}</span>
+          </label>
+        ))}
+      </div>
+    ) : (
+      <p class="mt-1 text-sm text-muted">No groups yet.</p>
+    )}
+    <p class="mt-1 text-sm text-muted">
+      {walkIn
+        ? 'Tags and groups need an email for a walk-in. '
+        : 'Only the admin team sees these. '}
+      <a href="/admin/contacts/labels">Create or rename tags and groups</a>
+    </p>
+    {errors.groups && <p class="mt-1 text-sm text-danger">{errors.groups}</p>}
   </fieldset>
   <div class="grid gap-4 sm:grid-cols-2">
     <div>

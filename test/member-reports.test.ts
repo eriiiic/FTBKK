@@ -139,6 +139,9 @@ describe('member list filters', () => {
       confirmedAt: new Date('2026-09-10T05:00:00Z'),
       createdAt: new Date('2026-09-10T04:00:00Z'),
       stats: { attended: 0, noShows: 0, noShowRate: null, newsletter: false },
+      contactKey: 'a@x.io',
+      tags: [],
+      groups: [],
       ...p,
     }) as MemberListItem;
   const list = [
@@ -154,6 +157,8 @@ describe('member list filters', () => {
       id: 3,
       name: 'Chloé',
       stats: { attended: 1, noShows: 0, noShowRate: 0, newsletter: false },
+      tags: ['investor'],
+      groups: [4],
     }),
   ];
   const ids = (q: string) =>
@@ -172,6 +177,13 @@ describe('member list filters', () => {
     expect(ids('newsletter=yes')).toEqual([2]);
     expect(ids('newsletter=no')).toEqual([1, 3]);
     expect(ids('q=chlo')).toEqual([3]);
+  });
+
+  it('filters on a tag or a group', () => {
+    expect(ids('tag=investor')).toEqual([3]);
+    expect(ids('group=4')).toEqual([3]);
+    expect(ids('group=5')).toEqual([]);
+    expect(ids('group=abc')).toEqual([1, 2, 3]);
   });
 
   it('ignores values that are not offered', () => {

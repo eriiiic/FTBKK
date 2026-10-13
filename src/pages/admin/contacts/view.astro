@@ -5,7 +5,6 @@ import Button from '../../../components/Button.astro';
 import Alert from '../../../components/Alert.astro';
 import ContactForm from '../../../components/admin/ContactForm.astro';
 import {
-  CONTACT_TAGS,
   ContactSchema,
   cardFor,
   contactExists,
@@ -21,6 +20,7 @@ import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
 import { formatDate, formatEventDate } from '../../../lib/format';
 import { MEMBER_STATUSES, moveMembership, setMembershipByTeam } from '../../../lib/members';
+import { groupNames, knownLabelsOnly, loadLabels, tagNames } from '../../../lib/contact-labels';
 
 // Opened with one of someone's other emails: show that contact.
 const key = await resolveEmailKey((Astro.url.searchParams.get('c') ?? '').slice(0, 320));
@@ -30,6 +30,7 @@ const view = (k: string, flash = 'saved=done') =>
   `/admin/contacts/view?c=${encodeURIComponent(k)}&${flash}`;
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> | null = null;
+const labels = await loadLabels();
 
 if (Astro.request.method === 'POST') {
   // The contact may have been deleted in another tab: don't bring it back.
@@ -40,12 +41,12 @@ if (Astro.request.method === 'POST') {
     await deleteContacts([key], actor, now);
     return Astro.redirect('/admin/contacts?saved=deleted');
   }
-  values = formToObject(form, ['tags']);
+  values = formToObject(form, ['tags', 'groups']);
   const parsed = ContactSchema.safeParse(values);
   const before = parsed.success ? (await loadContacts(now)).find((x) => x.key === key) : null;
   const input = parsed.success
     ? contactInput(
-        parsed.data,
+        knownLabelsOnly(parsed.data, labels),
         (await cardFor(key)) ?? null,
         now,
         latestRegistrationAnswer(before?.history ?? []),
@@ -121,7 +122,8 @@ const details = [
       ? `${MEMBER_STATUSES[c.member.status]}${c.member.memberSince ? `, member since ${formatDate(c.member.memberSince)}` : ''}`
       : 'Not a member',
   ],
-  ['Tags', c.tags.length ? 'tags' : null],
+  ['Tags', tagNames(c.tags, labels).join(', ') || null],
+  ['Groups', groupNames(c.groups, labels).join(', ') || null],
 ].filter(([, v]) => v) as [string, string][];
 function newsletterText(n: typeof c.newsletter) {
   if (!n.at) return 'Never asked';
@@ -169,9 +171,19 @@ const stats = [
                   <a href={`/admin/members?tab=all&q=${encodeURIComponent(c.member.email)}`}>{v}</a>
                 ) : k === 'Tags' ? (
                   <span class="flex flex-wrap gap-1">
-                    {c.tags.map((t) => (
-                      <Badge tone="brand">{CONTACT_TAGS[t]}</Badge>
+                    {tagNames(c.tags, labels).map((t) => (
+                      <Badge tone="brand">{t}</Badge>
                     ))}
+                  </span>
+                ) : k === 'Groups' ? (
+                  <span class="flex flex-wrap gap-1">
+                    {c.groups
+                      .filter((g) => labels.groupName.has(g))
+                      .map((g) => (
+                        <a href={`/admin/contacts?group=${g}`}>
+                          <Badge tone="neutral">{labels.groupName.get(g)}</Badge>
+                        </a>
+                      ))}
                   </span>
                 ) : (
                   v
@@ -213,6 +225,7 @@ const stats = [
             errors={errors}
             submit="Save contact"
             walkIn={walkIn}
+            labels={labels}
           />
         </div>
       </details>

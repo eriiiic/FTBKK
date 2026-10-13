@@ -4,7 +4,8 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Alert from '../../../components/Alert.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
-import { CONTACT_TAGS, loadContacts } from '../../../lib/contacts';
+import { loadContacts } from '../../../lib/contacts';
+import { loadLabels, tagNames } from '../../../lib/contact-labels';
 import { DUPLICATE_REASONS, findDuplicates, pairKey } from '../../../lib/contact-duplicates';
 import { MEMBER_STATUSES } from '../../../lib/members';
 import { getSettings, saveSettings } from '../../../lib/settings';
@@ -28,7 +29,7 @@ if (Astro.request.method === 'POST') {
   return Astro.redirect('/admin/contacts/duplicates?saved=done', 303);
 }
 
-const [all, settings] = await Promise.all([loadContacts(), getSettings()]);
+const [all, settings, labels] = await Promise.all([loadContacts(), getSettings(), loadLabels()]);
 const groups = findDuplicates(all, new Set(settings.notDuplicates));
 ---
 
@@ -92,9 +93,9 @@ const groups = findDuplicates(all, new Set(settings.notDuplicates));
                             : MEMBER_STATUSES[c.member.status]}
                         </Badge>
                       )}
-                      {c.tags.map((t) => (
+                      {tagNames(c.tags, labels).map((t) => (
                         <Badge tone="brand" class="ml-1">
-                          {CONTACT_TAGS[t]}
+                          {t}
                         </Badge>
                       ))}
                     </span>

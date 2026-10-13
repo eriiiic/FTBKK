@@ -21,7 +21,13 @@ export interface MemberStats {
   newsletter: boolean;
 }
 
-export type MemberListItem = MemberRow & { stats: MemberStats };
+export type MemberListItem = MemberRow & {
+  stats: MemberStats;
+  /** Their contact (by email), for tags and groups; null when they have none yet. */
+  contactKey: string | null;
+  tags: string[];
+  groups: number[];
+};
 
 const day = z
   .string()
@@ -62,6 +68,17 @@ export const MemberListFilters = z.object({
   attended: oneOf(Object.keys(ATTENDED_FILTERS)),
   noshow: oneOf(Object.keys(NO_SHOW_FILTERS)),
   newsletter: oneOf(['yes', 'no']),
+  /** A tag key or a group id (checked against the existing ones by the page). */
+  tag: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').slice(0, 80))
+    .catch(''),
+  group: z
+    .string()
+    .optional()
+    .transform((v) => (v && /^\d{1,9}$/.test(v) ? v : ''))
+    .catch(''),
 });
 export type MemberListFilters = z.infer<typeof MemberListFilters>;
 
@@ -106,6 +123,8 @@ export function filterMembers(list: MemberListItem[], f: MemberListFilters): Mem
     if (f.noshow && f.noshow !== 'none' && (rate === null || rate * 100 < Number(f.noshow)))
       return false;
     if (f.newsletter && m.stats.newsletter !== (f.newsletter === 'yes')) return false;
+    if (f.tag && !m.tags.includes(f.tag)) return false;
+    if (f.group && !m.groups.includes(Number(f.group))) return false;
     if (q && ![m.name, m.email, m.company ?? ''].some((s) => s.toLowerCase().includes(q)))
       return false;
     return true;
@@ -118,6 +137,18 @@ export async function loadMemberList(): Promise<MemberListItem[]> {
     getDb().select().from(members).orderBy(desc(members.createdAt)),
     loadContacts(),
   ]);
-  const byEmail = new Map(contacts.map((c) => [c.key, c]));
-  return rows.map((m) => ({ ...m, stats: memberStats(byEmail.get(m.email)) }));
+  // A member's email can be one of their contact's other emails.
+  const byEmail = new Map(
+    contacts.flatMap((c) => [c.key, ...c.otherEmails].map((e) => [e, c] as const)),
+  );
+  return rows.map((m) => {
+    const c = byEmail.get(m.email);
+    return {
+      ...m,
+      stats: memberStats(c),
+      contactKey: c?.key ?? null,
+      tags: c?.tags ?? [],
+      groups: c?.groups ?? [],
+    };
+  });
 }

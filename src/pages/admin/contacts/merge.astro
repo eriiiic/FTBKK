@@ -5,7 +5,6 @@ import Alert from '../../../components/Alert.astro';
 import Badge from '../../../components/Badge.astro';
 import Button from '../../../components/Button.astro';
 import {
-  CONTACT_TAGS,
   MERGE_FIELDS,
   loadContacts,
   mergeContacts,
@@ -14,12 +13,14 @@ import {
 } from '../../../lib/contacts';
 import { MEMBER_STATUSES } from '../../../lib/members';
 import { formatDate } from '../../../lib/format';
+import { loadLabels, tagNames } from '../../../lib/contact-labels';
 
 // Merge duplicate contacts (picked with the checkboxes on Contacts): pick the main email and,
 // field by field, which details to keep; the other emails stay as other emails. Everything else
 // comes along. See mergeContacts in lib/contacts.ts.
 const Keys = z.array(z.string().min(1).max(320)).min(2).max(10);
 const actor = Astro.locals.adminEmail ?? 'admin';
+const tagLabels = await loadLabels();
 let error = '';
 let keys: string[] = Astro.url.searchParams.getAll('c');
 
@@ -132,9 +133,9 @@ const options = MERGE_FIELDS.map((f) => ({
                     {c.member.status === 'active' ? 'Member' : MEMBER_STATUSES[c.member.status]}
                   </Badge>
                 )}
-                {c.tags.map((t) => (
+                {tagNames(c.tags, tagLabels).map((t) => (
                   <Badge tone="brand" class="ml-1">
-                    {CONTACT_TAGS[t]}
+                    {t}
                   </Badge>
                 ))}
               </span>
