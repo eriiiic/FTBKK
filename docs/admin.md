@@ -404,10 +404,35 @@ enrolment at check-in.
 - **Cancelling from the member page**: members see a **Can't come? Cancel** (or **Leave the
   waitlist**) link under each upcoming registration on their page; it works like the cancel link
   in the event emails, and the freed seat goes to the waitlist.
-- **Email the community** (Community menu): one email to every active member, to the newsletter
-  subscribers, or to the contacts you ticked in Contacts (**Email…**). `{name}` becomes the
-  person's first name. **Send me a test** first; the same email can't go to the same audience
-  twice within 10 minutes unless you tick "Send it again". Sent emails are listed on the right.
+- **Email the community** (Emails and social media menu): one email to one of these audiences:
+  - **Members**: every active member.
+  - **Newsletter subscribers**: contacts who agreed to the newsletter.
+  - **All contacts**: everyone in Contacts with an email, one email per address. People who said
+    no to emails (newsletter "no" on their card, or unsubscribed from their data page) are left
+    out; people who deleted their data are no longer in Contacts. The page says how many of them
+    never agreed to the newsletter: under the PDPA, write to them only about what they would
+    expect from us (events like the ones they came to, their membership), not marketing.
+  - **Imported list**: choose a CSV file and the list loads at once (or click **Load the list**).
+    The first line names the columns: `email` (required) and `name`, or `first name` and
+    `last name` (optional). Other columns are ignored; up to 2,000 people; a file whose first line
+    is already an address also works. Repeats and rows without a valid email are left out, as are
+    people who said no to emails, and the page shows the count and the list before you send. Use
+    **Download a template** for the format.
+  - **Selected contacts**: the contacts you ticked in Contacts (**Email…**).
+
+  The message is written in Markdown: `**bold**`, `*italic*`, `## heading`, `- list`, and a single
+  line break stays a line break. `{name}` becomes the person's first name ("there" when the list
+  has no name). Above the box: **Insert link** (select words first to turn them into the link),
+  **Insert image** (uploads to the site, like the blog editor), **Attach PDF**, and **Insert posts
+  or events**, which lists upcoming and recent events and the latest blog posts: tick one or more
+  and each becomes a line like `{{event: connect-53}}`, shown in the email as a card with its
+  picture, date, short text and link. Only published posts and public events can be cards; a
+  line naming nothing is flagged in the preview and blocks sending. The **Preview** on the right
+  shows the exact email, updated as you type. **Send me a test** first; the same email can't go
+  to the same audience twice within 10 minutes unless you tick "Send it again". When the audience
+  is bigger than what the email service can still send today (Resend's free plan: 100 a day, set
+  by `EMAIL_DAILY_LIMIT`), a warning says so; emails past the limit are refused and listed after
+  sending, so send the rest the next day. Sent emails are listed under the form.
 
 ## Reports
 

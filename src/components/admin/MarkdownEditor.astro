@@ -11,6 +11,11 @@ interface Props {
   breaks?: boolean;
   /** Show the image and PDF upload buttons. */
   uploads?: boolean;
+  /** Show the Write / Preview tabs (off when the page has its own live preview). */
+  previewTab?: boolean;
+  /** Said after something is inserted. */
+  insertedNote?: string;
+  maxlength?: number;
 }
 const {
   name,
@@ -21,21 +26,36 @@ const {
   hint = 'Markdown: **bold**, *italic*, ## heading, - list, [link](https://…). Images upload to the site.',
   breaks = false,
   uploads = true,
+  previewTab = true,
+  insertedNote = 'Inserted. Save to publish the change.',
+  maxlength,
 } = Astro.props;
 const id = `md-${name}`;
 ---
 
-<div data-md-editor data-md-breaks={breaks ? '' : undefined} class="grid gap-2">
+<div
+  data-md-editor
+  data-md-breaks={breaks ? '' : undefined}
+  data-md-inserted={insertedNote}
+  class="grid gap-2"
+>
   <div class="flex flex-wrap items-center justify-between gap-2">
     <label for={id} class="text-sm font-semibold text-ink">
       {label}
     </label>
     <div class="flex flex-wrap gap-2 text-sm" role="toolbar" aria-label="Editor">
-      <button type="button" data-md-tab="write" aria-pressed="true" class="md-btn">
-        Write
-      </button>
-      <button type="button" data-md-tab="preview" aria-pressed="false" class="md-btn">
-        Preview
+      {previewTab && (
+        <>
+          <button type="button" data-md-tab="write" aria-pressed="true" class="md-btn">
+            Write
+          </button>
+          <button type="button" data-md-tab="preview" aria-pressed="false" class="md-btn">
+            Preview
+          </button>
+        </>
+      )}
+      <button type="button" data-md-link class="md-btn">
+        Insert link
       </button>
       {uploads && (
         <>
@@ -54,12 +74,14 @@ const id = `md-${name}`;
           </label>
         </>
       )}
+      <slot name="toolbar" />
     </div>
   </div>
   <textarea
     id={id}
     name={name}
     rows={rows}
+    maxlength={maxlength}
     aria-describedby={`${id}-hint`}
     class="block min-h-40 w-full resize-y rounded-lg border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:border-accent"
     set:text={value ?? ''}
@@ -73,6 +95,40 @@ const id = `md-${name}`;
     {hint}
   </p>
   {error && <p class="text-sm text-danger">{error}</p>}
+  <dialog data-md-link-dialog class="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl p-0">
+    <!-- Not a <form>: the editor sits inside the page's form. form="" keeps these fields out of it. -->
+    <div class="grid gap-3 p-5">
+      <p class="font-semibold text-ink">Insert a link</p>
+      <label class="grid gap-1 text-sm">
+        <span class="font-semibold">Text to show</span>
+        <input
+          name="text"
+          form={`${id}-link`}
+          maxlength="200"
+          class="rounded-lg border border-line px-3 py-2 focus:border-accent"
+          placeholder="Register here"
+        />
+      </label>
+      <label class="grid gap-1 text-sm">
+        <span class="font-semibold">Link</span>
+        <input
+          name="url"
+          form={`${id}-link`}
+          maxlength="500"
+          class="rounded-lg border border-line px-3 py-2 focus:border-accent"
+          placeholder="https://…"
+        />
+      </label>
+      <div class="flex gap-2">
+        <button type="button" data-md-close="ok" class="md-btn md-primary">
+          Insert
+        </button>
+        <button type="button" data-md-close="" class="md-btn">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </dialog>
 </div>
 
 <style>
@@ -86,6 +142,14 @@ const id = `md-${name}`;
     background: var(--color-navy);
     color: var(--color-paper);
     border-color: var(--color-navy);
+  }
+  .md-primary {
+    background: var(--color-navy);
+    color: var(--color-paper);
+    border-color: var(--color-navy);
+  }
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.4);
   }
   .md-btn:focus-within {
     outline: 2px solid var(--color-accent);
@@ -147,11 +211,52 @@ const id = `md-${name}`;
       const caret = before.length + lead.length + snippet.length;
       ta.focus();
       ta.setSelectionRange(caret, caret);
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
     };
     root.addEventListener('md-insert', (e) => {
       insert(String((e as CustomEvent<string>).detail));
-      status.textContent = 'Inserted. Save to publish the change.';
+      status.textContent = root.dataset.mdInserted ?? 'Inserted.';
       setTimeout(() => (status.textContent = hint), 6000);
+    });
+
+    // Insert link: the selected words become the link text (or the text typed in the dialog).
+    const dialog = root.querySelector<HTMLDialogElement>('[data-md-link-dialog]');
+    let range: [number, number] = [0, 0];
+    const linkText = dialog?.querySelector<HTMLInputElement>('input[name=text]');
+    const linkUrl = dialog?.querySelector<HTMLInputElement>('input[name=url]');
+    dialog
+      ?.querySelectorAll<HTMLButtonElement>('[data-md-close]')
+      .forEach((b) => b.addEventListener('click', () => dialog.close(b.dataset.mdClose)));
+    // Enter in the dialog inserts the link instead of submitting the page's form.
+    dialog?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+      e.preventDefault();
+      dialog.close('ok');
+    });
+    root.querySelector('[data-md-link]')?.addEventListener('click', () => {
+      if (!dialog || !linkText || !linkUrl) return;
+      range = [ta.selectionStart ?? ta.value.length, ta.selectionEnd ?? ta.value.length];
+      linkUrl.value = '';
+      linkText.value = ta.value.slice(range[0], range[1]).trim();
+      dialog.returnValue = '';
+      dialog.showModal();
+    });
+    dialog?.addEventListener('close', () => {
+      const raw = linkUrl?.value.trim() ?? '';
+      if (dialog.returnValue !== 'ok' || !raw) return ta.focus();
+      // "www.site.com" or "name@site.com" typed without https:// or mailto: still work.
+      const url = /^(https?:|mailto:|tel:|\/)/i.test(raw)
+        ? raw
+        : raw.includes('@') && !raw.includes('/')
+          ? `mailto:${raw}`
+          : `https://${raw}`;
+      const text = (linkText?.value ?? '').replace(/[[\]]/g, '').trim();
+      const link = `[${text || url}](${url.replace(/\)/g, '%29')})`;
+      ta.value = ta.value.slice(0, range[0]) + link + ta.value.slice(range[1]);
+      const caret = range[0] + link.length;
+      ta.focus();
+      ta.setSelectionRange(caret, caret);
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
     root.querySelectorAll<HTMLInputElement>('[data-md-upload]').forEach((input) =>

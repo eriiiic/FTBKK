@@ -124,8 +124,14 @@ Public pages:
   link proves the email, so the membership is active at once. Members and people invited in the
   last 30 days are skipped; the invitation date shows on the list.
 - **Email the community** (`/admin/community-email`): one message to the active members, the
-  newsletter subscribers, or the contacts ticked in Contacts (**Email…**), with a test send,
-  a duplicate guard and the list of what was sent (`community_emails`).
+  newsletter subscribers, all contacts (minus those who said no to emails, with a PDPA note and
+  the count without consent), a list imported from a CSV file (email required, name optional,
+  deduplicated and previewed before sending) or the contacts ticked in Contacts (**Email…**).
+  The message is Markdown with a live preview of the real email, link and image buttons, and a
+  picker that inserts published events and blog posts as cards (`{{event: slug}}`,
+  `{{post: slug}}`, rendered with tables for email clients by `src/lib/email-markdown.ts`). Test
+  send, duplicate guard, a warning when the audience exceeds the provider's daily cap
+  (`EMAIL_DAILY_LIMIT`, 100 on Resend Free) and the list of what was sent (`community_emails`).
 - **Member page** at `/member?token=…` (a reusable `member` link, 30 days, sent in every member
   email; no passwords): membership dates, the WhatsApp button, their events (coming up and past),
   their profile to edit, and **Leave**, which deletes the member row (event history stays until
