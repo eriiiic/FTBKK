@@ -100,6 +100,9 @@ Until this is done, no email is sent (confirmations, reminders and listing links
    `noreply@mail.delattre.me` (Eric's domain, verified in Resend with its records in Cloudflare).
    Any verified domain works: change `EMAIL_FROM` in `wrangler.jsonc` and deploy. A value set only
    in the Cloudflare dashboard is overwritten by the next deploy.
+6. `EMAIL_DAILY_LIMIT` in `wrangler.jsonc` is the provider's daily cap (100 on Resend Free).
+   Email the community warns when an audience is bigger than what is left today. Set it to the
+   new plan's cap after an upgrade, or to `""` when there is none (Amazon SES in production).
 
 ## 7. Connect LinkedIn and Facebook (optional)
 

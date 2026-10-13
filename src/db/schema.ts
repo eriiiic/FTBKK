@@ -635,8 +635,13 @@ export const members = sqliteTable(
 /** "Email the community" (Community > Email the community): one row per email sent. */
 export const communityEmails = sqliteTable('community_emails', {
   id: id(),
-  /** members = active members; newsletter = newsletter subscribers; contacts = a Contacts selection. */
-  audience: text('audience', { enum: ['members', 'newsletter', 'contacts'] }).notNull(),
+  /**
+   * members = active members; newsletter = newsletter subscribers; all = every contact;
+   * csv = a list imported from a CSV file; contacts = a Contacts selection.
+   */
+  audience: text('audience', {
+    enum: ['members', 'newsletter', 'all', 'csv', 'contacts'],
+  }).notNull(),
   subject: text('subject').notNull(),
   body: text('body').notNull(),
   actionLabel: text('action_label'),

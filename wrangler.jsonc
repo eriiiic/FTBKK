@@ -39,6 +39,9 @@
     // Sender, on mail.delattre.me (verified in Resend) until french-tech-bangkok.com's DNS moves to
     // us. Then switch to "La French Tech Bangkok <hello@french-tech-bangkok.com>".
     "EMAIL_FROM": "La French Tech Bangkok <noreply@mail.delattre.me>",
+    // Emails the provider sends per day (Resend's free plan: 100). Email the community warns when
+    // an audience is bigger than what is left today. Empty or 0 = no warning (Amazon SES).
+    "EMAIL_DAILY_LIMIT": "100",
     // Social media (Admin > Social media). Empty = not connected: scheduled posts arrive by email
     // to post by hand. The page tokens are the secrets LINKEDIN_ACCESS_TOKEN and
     // FACEBOOK_PAGE_TOKEN (docs/deploy.md, "Connect LinkedIn and Facebook").

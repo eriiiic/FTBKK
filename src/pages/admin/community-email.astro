@@ -2,6 +2,7 @@
 import { and, desc, eq, gt, lt } from 'drizzle-orm';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import FormField from '../../components/FormField.astro';
+import MarkdownEditor from '../../components/admin/MarkdownEditor.astro';
 import Button from '../../components/Button.astro';
 import Alert from '../../components/Alert.astro';
 import Badge from '../../components/Badge.astro';
@@ -10,19 +11,29 @@ import { communityEmails } from '../../db/schema';
 import {
   COMMUNITY_AUDIENCES,
   COMMUNITY_AUDIENCE_KEYS,
+  CSV_MAX_RECIPIENTS,
   CommunityEmailSchema,
-  communityEmail,
+  cardChoices,
+  communityMessage,
   communityRecipients,
+  dailyAllowance,
+  decodeRecipientList,
+  loadCards,
+  parseRecipientsCsv,
   type CommunityAudience,
+  type CsvList,
+  type Recipient,
 } from '../../lib/community-emails';
 import { sendEmail, sendEmailBatch } from '../../lib/email';
+import { decodeGuestFile } from '../../lib/csv';
 import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
 import { getSettings } from '../../lib/settings';
 import { formatDate, formatTime } from '../../lib/format';
 
-// Email the community: one message to the active members, the newsletter subscribers, or the
-// contacts ticked in Contacts (their "Email…" button opens this page with the selection).
+// Email the community: one Markdown message to the active members, the newsletter subscribers,
+// every contact, a list imported from a CSV file, or the contacts ticked in Contacts (their
+// "Email…" button opens this page with the selection).
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
 let keys: string[] = [];
@@ -31,6 +42,8 @@ let error = '';
 let notice = '';
 let unreached: string[] = [];
 let values: Record<string, unknown> = { audience: 'members' };
+let list: Recipient[] = [];
+let csv: (CsvList & { file: string }) | null = null;
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -43,26 +56,40 @@ if (Astro.request.method === 'POST') {
   if (action === 'compose') values = { audience: 'contacts' };
   else {
     values = formToObject(form, ['c']);
+    list = decodeRecipientList(form.get('list'));
+    // A newly chosen file replaces the list loaded before.
+    const file = form.get('csvFile');
+    if (file instanceof File && file.size > 0) {
+      if (file.size > 2 * 1024 * 1024) error = 'The file is too big (2 MB at most).';
+      else {
+        const read = parseRecipientsCsv(decodeGuestFile(new Uint8Array(await file.arrayBuffer())));
+        csv = { ...read, file: file.name };
+        list = read.recipients;
+        values.audience = 'csv';
+        if (read.error) error = read.error;
+      }
+    }
     const parsed = CommunityEmailSchema.safeParse(values);
-    if (!parsed.success) errors = fieldErrors(parsed.error);
+    if (action === 'load' || error) {
+      // Only the list was loaded: show the counts, nothing is sent.
+    } else if (!parsed.success) errors = fieldErrors(parsed.error);
     else if (action === 'test') {
       const settings = await getSettings();
-      const msg = communityEmail(
-        { name: 'there', email: actor },
-        parsed.data.audience,
-        parsed.data,
-        {
-          replyTo: settings.contactEmail,
-        },
-      );
-      const res = Astro.locals.adminEmail
-        ? await sendEmail({ ...msg, subject: `[Test] ${msg.subject}` })
+      const msg = communityMessage(parsed.data.audience, parsed.data, {
+        replyTo: settings.contactEmail,
+        cards: await loadCards(parsed.data.body),
+      });
+      const email = msg.to({ name: 'there', email: actor });
+      const sent = Astro.locals.adminEmail
+        ? await sendEmail({ ...email, subject: `[Test] ${email.subject}` })
         : { ok: false, error: 'No admin email (are you signed in through Cloudflare Access?)' };
-      if (res.ok) notice = `Test sent to ${actor}. Check your inbox, then send it for real.`;
-      else error = `The test could not be sent: ${res.error ?? 'unknown error'}.`;
+      if (sent.ok) notice = `Test sent to ${actor}. Check your inbox, then send it for real.`;
+      else error = `The test could not be sent: ${sent.error ?? 'unknown error'}.`;
     } else if (action === 'send') {
       const d = parsed.data;
-      const to = (await communityRecipients(keys))[d.audience];
+      const to = (await communityRecipients(keys, list)).lists[d.audience];
+      const cards = await loadCards(d.body);
+      const msg = communityMessage(d.audience, d, { cards });
       // A double click or a second tab must not email everyone twice (as on an event's Email page).
       const recent = (before?: number) =>
         db
@@ -79,7 +106,13 @@ if (Astro.request.method === 'POST') {
           .limit(1);
       const dupeError =
         'This email went to the same audience less than 10 minutes ago (or is being sent right now). Tick "Send it again" if you really mean to.';
-      if (!to.length) error = 'Nobody to send to: this audience has no one with an email address.';
+      if (msg.missing.length)
+        error = `Remove or fix these lines first: no published event or post has that address (${msg.missing.map((k) => `{{${k.replace(':', ': ')}}}`).join(', ')}).`;
+      else if (!to.length)
+        error =
+          d.audience === 'csv'
+            ? 'Nobody to send to: choose a CSV file with an "email" column first.'
+            : 'Nobody to send to: this audience has no one with an email address.';
       else if (!values.resend && (await recent()).length) error = dupeError;
       else {
         const [row] = await db
@@ -99,9 +132,8 @@ if (Astro.request.method === 'POST') {
           error = dupeError;
         } else {
           const settings = await getSettings();
-          const res = await sendEmailBatch(
-            to.map((r) => communityEmail(r, d.audience, d, { replyTo: settings.contactEmail })),
-          );
+          const send = communityMessage(d.audience, d, { cards, replyTo: settings.contactEmail });
+          const res = await sendEmailBatch(to.map((r) => send.to(r)));
           if (res.sent > 0) {
             await db
               .update(communityEmails)
@@ -116,7 +148,7 @@ if (Astro.request.method === 'POST') {
           if (res.ok) return Astro.redirect(`/admin/community-email?sent=${res.sent}`, 303);
           unreached = to.slice(res.sent).map((r) => r.email);
           error = res.sent
-            ? `Sending stopped after ${res.sent} of ${to.length} emails. Sending again would email the first ${res.sent} people twice: once the email service works again, write to the ${unreached.length} people listed below instead.`
+            ? `Sending stopped after ${res.sent} of ${to.length} emails (often the provider's daily limit). Sending again would email the first ${res.sent} people twice: once the email service works again, write to the ${unreached.length} people listed below instead.`
             : 'The email service refused the message. Nothing was sent.';
         }
       }
@@ -124,15 +156,20 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const recipients = await communityRecipients(keys);
+const recipients = await communityRecipients(keys, list);
 const counts = Object.fromEntries(
-  COMMUNITY_AUDIENCE_KEYS.map((a) => [a, recipients[a].length]),
+  COMMUNITY_AUDIENCE_KEYS.map((a) => [a, recipients.lists[a].length]),
 ) as Record<CommunityAudience, number>;
-const history = await db
-  .select()
-  .from(communityEmails)
-  .orderBy(desc(communityEmails.createdAt), desc(communityEmails.id))
-  .limit(50);
+const [history, choices, allowance] = await Promise.all([
+  db
+    .select()
+    .from(communityEmails)
+    .orderBy(desc(communityEmails.createdAt), desc(communityEmails.id))
+    .limit(50),
+  cardChoices(),
+  dailyAllowance(),
+]);
+const left = Math.max(0, allowance.limit - allowance.sentToday);
 const sent = Number(Astro.url.searchParams.get('sent'));
 const str = (k: string) => (values[k] === null || values[k] === undefined ? '' : String(values[k]));
 const audience = (COMMUNITY_AUDIENCE_KEYS as string[]).includes(str('audience'))
@@ -140,13 +177,20 @@ const audience = (COMMUNITY_AUDIENCE_KEYS as string[]).includes(str('audience'))
   : 'members';
 const shownAudiences = COMMUNITY_AUDIENCE_KEYS.filter((a) => a !== 'contacts' || keys.length);
 const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+const csvList = recipients.lists.csv;
+const template = `data:text/csv;charset=utf-8,${encodeURIComponent('email,name\r\nmarie@example.com,Marie Dupont\r\nsomchai@example.com,Somchai Rak\r\n')}`;
+const groups = [
+  { title: 'Upcoming events', items: choices.filter((c) => c.kind === 'event' && c.upcoming) },
+  { title: 'Recent events', items: choices.filter((c) => c.kind === 'event' && !c.upcoming) },
+  { title: 'Blog posts', items: choices.filter((c) => c.kind === 'post') },
+].filter((g) => g.items.length);
 ---
 
 <AdminLayout title="Email the community">
   <p class="mb-6 max-w-3xl text-sm text-muted">
-    One email to the active members or the newsletter subscribers. To write to some contacts only,
-    tick them in <a href="/admin/contacts">Contacts</a> and click <strong>Email…</strong>. For one
-    event's registrants, use the Email page of that event.
+    One email to the active members, the newsletter subscribers, every contact or a list you import.
+    To write to some contacts only, tick them in <a href="/admin/contacts">Contacts</a> and click{' '}
+    <strong>Email…</strong>. For one event's registrants, use the Email page of that event.
   </p>
   {sent > 0 && (
     <Alert tone="success" class="mb-6">
@@ -175,17 +219,19 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
     </Alert>
   )}
 
-  <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
+  <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]">
     <form
       method="post"
       action="/admin/community-email"
-      class="admin-panel grid content-start gap-5"
+      enctype="multipart/form-data"
+      class="admin-panel grid min-w-0 content-start gap-5 self-start"
       data-email-form
       data-warn-unsaved
     >
       {keys.map((k) => (
         <input type="hidden" name="c" value={k} />
       ))}
+      <input type="hidden" name="list" value={JSON.stringify(csvList)} />
       <fieldset>
         <legend class="text-sm font-semibold text-ink">Send to</legend>
         <div class="mt-2 grid gap-2 sm:grid-cols-2">
@@ -201,7 +247,9 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
               />
               <span class="text-sm">
                 <span class="font-semibold">{COMMUNITY_AUDIENCES[a].label}</span>
-                <span class="ml-1 text-muted">({counts[a]})</span>
+                {(a !== 'csv' || csvList.length > 0) && (
+                  <span class="ml-1 text-muted">({counts[a]})</span>
+                )}
                 <span class="block text-muted">{COMMUNITY_AUDIENCES[a].hint}</span>
               </span>
             </label>
@@ -209,6 +257,100 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
         </div>
         {errors.audience && <p class="mt-1 text-sm text-danger">{errors.audience}</p>}
       </fieldset>
+
+      <div data-for="all" hidden={audience !== 'all'} class="rounded-lg bg-surface p-4 text-sm">
+        <p class="font-semibold text-ink">
+          {recipients.allWithoutConsent} of these {counts.all} contacts never agreed to the
+          newsletter.
+        </p>
+        <p class="mt-1 text-muted">
+          Thailand's PDPA lets us write to them about what they would expect from us (events like
+          the ones they came to, their membership or listing), not marketing or partner promotions.
+          For news and offers, choose <strong>Newsletter subscribers</strong>. Left out: the{' '}
+          {plural(recipients.allOptedOut)} who said no to emails, and contacts without an email.
+          People who deleted their data are no longer in Contacts.
+        </p>
+      </div>
+
+      <div data-for="csv" hidden={audience !== 'csv'} class="grid gap-3 rounded-lg bg-surface p-4">
+        <label class="grid gap-1 text-sm">
+          <span class="font-semibold text-ink">CSV file</span>
+          <input
+            type="file"
+            name="csvFile"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+            data-csv-file
+            class="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-navy file:px-4 file:py-1.5 file:text-paper"
+          />
+        </label>
+        <p class="text-sm text-muted">
+          The first line names the columns: <strong>email</strong> (required) and{' '}
+          <strong>name</strong>, or <strong>first name</strong> and <strong>last name</strong>{' '}
+          (optional; without a name, {'{name}'} becomes "there"). Other columns are ignored. Up to{' '}
+          {CSV_MAX_RECIPIENTS} people. Each address gets one email, and people who said no to emails
+          are left out.{' '}
+          <a href={template} download="mailing-list-template.csv">
+            Download a template
+          </a>
+        </p>
+        <div>
+          <Button type="submit" name="action" value="load" variant="secondary" data-load>
+            Load the list
+          </Button>
+        </div>
+        {csvList.length > 0 && (
+          <div class="text-sm" aria-live="polite">
+            <p class="font-semibold text-ink">
+              {plural(csvList.length)} will get the email{csv ? ` (from ${csv.file})` : ''}.
+            </p>
+            {csv?.invalid || csv?.duplicates || recipients.csvOptedOut ? (
+              <p class="text-muted">
+                Left out:{' '}
+                {[
+                  csv?.invalid
+                    ? `${csv.invalid} ${csv.invalid === 1 ? 'row' : 'rows'} without a valid email`
+                    : '',
+                  csv?.duplicates
+                    ? `${csv.duplicates} repeated ${csv.duplicates === 1 ? 'address' : 'addresses'}`
+                    : '',
+                  recipients.csvOptedOut
+                    ? `${plural(recipients.csvOptedOut)} who said no to emails`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+                .
+              </p>
+            ) : null}
+            <details class="mt-1">
+              <summary class="cursor-pointer text-muted">See the list</summary>
+              <ul class="mt-1 max-h-48 overflow-auto text-muted">
+                {csvList.slice(0, 200).map((r) => (
+                  <li class="break-all">
+                    {r.name ? `${r.name} · ` : ''}
+                    {r.email}
+                  </li>
+                ))}
+                {csvList.length > 200 && <li>… and {csvList.length - 200} more</li>}
+              </ul>
+            </details>
+          </div>
+        )}
+      </div>
+
+      {allowance.limit > 0 && (
+        <div data-limit={left} hidden={counts[audience] <= left}>
+          <Alert tone="warning">
+            <span data-limit-text>
+              This audience is {plural(counts[audience])}, but the email service sends at most{' '}
+              {allowance.limit} emails a day ({left} left today, other site emails count too).
+              Emails past the limit are refused and listed after sending: send the rest tomorrow, or
+              choose a smaller audience.
+            </span>
+          </Alert>
+        </div>
+      )}
+
       <FormField
         name="subject"
         label="Subject"
@@ -218,17 +360,22 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
         error={errors.subject}
         placeholder="Our next events"
       />
-      <FormField
+      <MarkdownEditor
         name="body"
         label="Message"
-        required
-        rows={10}
-        maxlength={10000}
+        rows={14}
+        maxlength={20000}
         value={str('body')}
         error={errors.body}
-        hint="Plain text. Leave a blank line between paragraphs. {name} becomes the person's first name."
-        placeholder={'Hi {name},\n\n…'}
-      />
+        breaks
+        previewTab={false}
+        insertedNote="Inserted. The preview shows how it looks."
+        hint="Markdown: **bold**, *italic*, ## heading, - list. {name} becomes the person's first name. A line like {{event: …}} or {{post: …}} becomes a card."
+      >
+        <button type="button" slot="toolbar" class="md-picker-btn" data-open-picker>
+          Insert posts or events
+        </button>
+      </MarkdownEditor>
       <div class="grid gap-4 sm:grid-cols-[14rem_1fr]">
         <FormField
           name="actionLabel"
@@ -269,54 +416,252 @@ const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
       </p>
     </form>
 
-    <section class="admin-panel content-start" aria-labelledby="history">
-      <h2 id="history" class="text-lg">
-        Sent
+    <section
+      class="admin-panel grid min-w-0 content-start gap-3 xl:sticky xl:top-4 xl:self-start"
+      aria-labelledby="preview-title"
+    >
+      <h2 id="preview-title" class="text-lg">
+        Preview
       </h2>
-      {history.length ? (
-        <ul class="mt-3 grid gap-3">
-          {history.map((h) => (
-            <li class="rounded-lg bg-surface p-3">
-              <details>
-                <summary class="cursor-pointer font-semibold">{h.subject}</summary>
-                <div class="mt-2 text-sm whitespace-pre-line">{h.body}</div>
-                {h.actionUrl && (
-                  <p class="mt-2 text-sm break-all">
-                    {h.actionLabel}: <a href={h.actionUrl}>{h.actionUrl}</a>
-                  </p>
-                )}
-              </details>
-              <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-                <Badge tone="neutral">{COMMUNITY_AUDIENCES[h.audience].label}</Badge>
-                {plural(h.recipients)} · {formatDate(h.createdAt)} {formatTime(h.createdAt)} ·{' '}
-                {h.sentBy}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p class="mt-3 text-sm text-muted">Nothing sent yet from this page.</p>
-      )}
+      <p class="text-sm text-muted" data-preview-status aria-live="polite">
+        Updates as you type, for a member called Camille.
+      </p>
+      <p class="text-sm">
+        <span class="text-muted">Subject:</span>{' '}
+        <strong data-preview-subject>{str('subject') || '…'}</strong>
+      </p>
+      <iframe
+        title="Email preview"
+        data-preview
+        sandbox="allow-same-origin"
+        class="h-[36rem] w-full rounded-lg border border-line bg-surface"
+      ></iframe>
     </section>
   </div>
+
+  <dialog
+    data-picker
+    aria-labelledby="picker-title"
+    class="m-auto w-[min(40rem,calc(100vw-2rem))] rounded-xl p-0"
+  >
+    <div class="grid max-h-[80vh] grid-rows-[auto_auto_1fr_auto] gap-3 p-5">
+      <h2 id="picker-title" class="text-lg">
+        Insert posts or events
+      </h2>
+      <input
+        type="search"
+        placeholder="Search"
+        aria-label="Search posts and events"
+        data-picker-search
+        class="rounded-lg border border-line px-3 py-2 focus:border-accent"
+      />
+      <div class="min-h-0 overflow-auto">
+        {groups.length ? (
+          groups.map((g) => (
+            <fieldset class="mb-4" data-picker-group>
+              <legend class="mb-1 text-sm font-semibold text-ink">{g.title}</legend>
+              {g.items.map((c) => (
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-surface"
+                  data-picker-item
+                >
+                  <input type="checkbox" value={c.token} class="mt-1 size-4 accent-brand" />
+                  <span class="text-sm">
+                    <span class="font-semibold">{c.title}</span>
+                    <span class="block text-muted">{c.meta}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ))
+        ) : (
+          <p class="text-sm text-muted">No published events or posts yet.</p>
+        )}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <Button type="button" data-picker-insert>
+          Insert
+        </Button>
+        <Button type="button" variant="secondary" data-picker-cancel>
+          Cancel
+        </Button>
+        <span class="text-sm text-muted">Each one becomes a card with its picture and link.</span>
+      </div>
+    </div>
+  </dialog>
+
+  <section class="admin-panel mt-6" aria-labelledby="history">
+    <h2 id="history" class="text-lg">
+      Sent
+    </h2>
+    {history.length ? (
+      <ul class="mt-3 grid gap-3 lg:grid-cols-2">
+        {history.map((h) => (
+          <li class="rounded-lg bg-surface p-3">
+            <details>
+              <summary class="cursor-pointer font-semibold">{h.subject}</summary>
+              <div class="mt-2 text-sm break-words whitespace-pre-line">{h.body}</div>
+              {h.actionUrl && (
+                <p class="mt-2 text-sm break-all">
+                  {h.actionLabel}: <a href={h.actionUrl}>{h.actionUrl}</a>
+                </p>
+              )}
+            </details>
+            <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <Badge tone="neutral">{COMMUNITY_AUDIENCES[h.audience].label}</Badge>
+              {plural(h.recipients)} · {formatDate(h.createdAt)} {formatTime(h.createdAt)} ·{' '}
+              {h.sentBy}
+            </p>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="mt-3 text-sm text-muted">Nothing sent yet from this page.</p>
+    )}
+  </section>
 </AdminLayout>
 
+<style>
+  .md-picker-btn {
+    border-radius: var(--radius-button);
+    border: 1px solid var(--color-navy);
+    background: var(--color-paper);
+    color: var(--color-navy);
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+  }
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.4);
+  }
+</style>
+
 <script>
-  // Keep the confirm prompt's count in step with the chosen audience.
-  const form = document.querySelector<HTMLFormElement>('[data-email-form]');
-  const send = form?.querySelector<HTMLButtonElement>('[data-send]');
-  form?.addEventListener('change', () => {
+  const form = document.querySelector<HTMLFormElement>('[data-email-form]')!;
+  const send = form.querySelector<HTMLButtonElement>('[data-send]');
+  const limit = form.querySelector<HTMLElement>('[data-limit]');
+  const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+
+  // The audience: confirm prompt count, the panel that goes with it, the daily limit warning.
+  const syncAudience = () => {
     const picked = form.querySelector<HTMLInputElement>('input[name=audience]:checked');
     const n = Number(picked?.dataset.count ?? 0);
-    if (send) send.dataset.confirm = `Send this email to ${n} ${n === 1 ? 'person' : 'people'}?`;
+    if (send) send.dataset.confirm = `Send this email to ${plural(n)}?`;
+    form.querySelectorAll<HTMLElement>('[data-for]').forEach((p) => {
+      p.hidden = p.dataset.for !== picked?.value;
+    });
+    if (limit) {
+      const left = Number(limit.dataset.limit);
+      limit.hidden = n <= left;
+      const text = limit.querySelector('[data-limit-text]');
+      if (text)
+        text.textContent = text.textContent!.replace(
+          /^This audience is [^,]+/,
+          `This audience is ${plural(n)}`,
+        );
+    }
+  };
+  form.addEventListener('change', syncAudience);
+  syncAudience();
+
+  // Choosing a file loads it right away (the counts and the list show under it).
+  const load = form.querySelector<HTMLButtonElement>('[data-load]');
+  form.querySelector<HTMLInputElement>('[data-csv-file]')?.addEventListener('change', (e) => {
+    if ((e.target as HTMLInputElement).files?.length && load) form.requestSubmit(load);
   });
+
   // Sending to a large audience takes a few seconds: block a second click meanwhile.
-  form?.addEventListener('submit', (e) => {
+  form.addEventListener('submit', (e) => {
     if (e.submitter !== send || !send) return;
     setTimeout(() => {
       if (e.defaultPrevented) return;
       send.disabled = true;
       send.textContent = 'Sending…';
     });
+  });
+
+  // Live preview: the whole email, rendered by the server as it will be sent.
+  const frame = document.querySelector<HTMLIFrameElement>('[data-preview]')!;
+  const status = document.querySelector<HTMLElement>('[data-preview-status]')!;
+  const subject = document.querySelector<HTMLElement>('[data-preview-subject]')!;
+  const idle = status.textContent;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let seq = 0;
+  const field = (n: string) => (form.elements.namedItem(n) as HTMLInputElement | null)?.value ?? '';
+  const refresh = async () => {
+    const mine = ++seq;
+    const picked = form.querySelector<HTMLInputElement>('input[name=audience]:checked');
+    try {
+      const res = await fetch('/api/admin/community-email-preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          audience: picked?.value ?? 'members',
+          subject: field('subject'),
+          body: field('body'),
+          actionLabel: field('actionLabel'),
+          actionUrl: field('actionUrl'),
+        }),
+      });
+      if (!res.headers.get('content-type')?.includes('json')) throw new Error('login');
+      const data = (await res.json()) as { html: string; subject: string; missing: string[] };
+      if (mine !== seq) return;
+      frame.srcdoc = data.html;
+      subject.textContent = data.subject || '…';
+      status.textContent = data.missing.length
+        ? `Not found, left out: ${data.missing.map((k) => `{{${k.replace(':', ': ')}}}`).join(', ')}. Use the picker to insert published posts and events.`
+        : idle;
+      status.classList.toggle('text-danger', data.missing.length > 0);
+    } catch {
+      if (mine === seq)
+        status.textContent =
+          'Could not reach the server for the preview. Your admin login may have expired: open the admin in a new tab to sign in again. Your text is still here.';
+    }
+  };
+  frame.addEventListener('load', () => {
+    const doc = frame.contentDocument;
+    if (doc?.body) frame.style.height = `${Math.max(320, doc.documentElement.scrollHeight + 8)}px`;
+  });
+  form.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 400);
+  });
+  form.addEventListener('change', () => {
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 100);
+  });
+  refresh();
+
+  // The picker: tick posts and events, Insert puts one card line per item in the message.
+  const picker = document.querySelector<HTMLDialogElement>('[data-picker]')!;
+  const editor = form.querySelector<HTMLElement>('[data-md-editor]');
+  const search = picker.querySelector<HTMLInputElement>('[data-picker-search]')!;
+  document.querySelector('[data-open-picker]')?.addEventListener('click', () => {
+    picker
+      .querySelectorAll<HTMLInputElement>('input[type=checkbox]')
+      .forEach((c) => (c.checked = false));
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
+    picker.showModal();
+  });
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    picker.querySelectorAll<HTMLElement>('[data-picker-group]').forEach((g) => {
+      let any = false;
+      g.querySelectorAll<HTMLElement>('[data-picker-item]').forEach((item) => {
+        const show = !q || item.textContent!.toLowerCase().includes(q);
+        item.hidden = !show;
+        any ||= show;
+      });
+      g.hidden = !any;
+    });
+  });
+  picker.querySelector('[data-picker-cancel]')?.addEventListener('click', () => picker.close());
+  picker.querySelector('[data-picker-insert]')?.addEventListener('click', () => {
+    const tokens = [
+      ...picker.querySelectorAll<HTMLInputElement>('input[type=checkbox]:checked'),
+    ].map((c) => c.value);
+    picker.close();
+    if (tokens.length)
+      editor?.dispatchEvent(new CustomEvent('md-insert', { detail: tokens.join('\n\n') }));
   });
 </script>
