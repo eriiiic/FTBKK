@@ -25,6 +25,12 @@ as you left them in this browser. On a phone, open it with the **Menu** button. 
 Everyone who can sign in to the admin can do everything: there are no roles, owners or approval
 steps.
 
+The **Dashboard** opens with the quick actions: Create an event, Write a post, Email the
+community, Check in guests, Add an organisation and Edit the home page. Below them, each count
+opens the matching list (what is waiting in the directory, unread messages, draft posts, listings
+and renewals, members to review, contacts). Upcoming events lists the next five, each with a link
+to its registrations and, on the day of the event, a **Check in** link.
+
 ## Posts
 
 - **New post**: title, text (Markdown), then **Save**. Leave it as _Draft_ until it is ready.
