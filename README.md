@@ -93,6 +93,10 @@ Public pages:
   (`renewal_due_at`): a daily cron job emails a one-click reminder 30 and 7 days before
   (`member_renew` link, `/member/renew`), then marks the member **lapsed** with a last email;
   a lapsed member renews in one click from that email or their member page.
+- **Admin dashboard** (`/admin`): six quick-action tiles with icons at the top (create an event,
+  write a post, email the community, check in guests, add an organisation, edit the home page),
+  then the counts that need the team (directory queue, unread messages, drafts, listings, members,
+  contacts), then the next five events with their registrations and a Check in link on the day.
 - **Reports** (`/admin/reports/events`, `/admin/reports/members`, loaded by `src/lib/reports.ts`):
   a period picker (last 30/90 days, 12 months, this or last year, all time, custom dates;
   `src/lib/report-period.ts`) with changes against the previous period, an event type filter, a

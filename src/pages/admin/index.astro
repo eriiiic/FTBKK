@@ -4,7 +4,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import Alert from '../../components/Alert.astro';
 import { usingTestSender } from '../../lib/email';
 import Badge from '../../components/Badge.astro';
-import Button from '../../components/Button.astro';
+import Icon from '../../components/Icon.astro';
 import { getDb } from '../../db';
 import { events, members, organisations, posts, submissions } from '../../db/schema';
 import { registrationCount } from '../../lib/registrations';
@@ -98,6 +98,17 @@ const stats = [
     note: `${contacts.filter((c) => c.attended > 0).length} came to an event`,
   },
 ];
+// The things the team does most, first on the page.
+const actions = [
+  { label: 'Create an event', href: '/admin/events/new', icon: 'calendar' },
+  { label: 'Write a post', href: '/admin/posts/new', icon: 'pencil' },
+  { label: 'Email the community', href: '/admin/community-email', icon: 'mail' },
+  { label: 'Check in guests', href: '/admin/checkin', icon: 'check' },
+  { label: 'Add an organisation', href: '/admin/ecosystem/new', icon: 'building' },
+  { label: 'Edit the home page', href: '/admin/site-texts', icon: 'home' },
+] as const;
+// Same window as the Check-in screen: started in the last day or starts in the next one.
+const happeningNow = (startsAt: Date) => Math.abs(startsAt.getTime() - now.getTime()) < 86400_000;
 ---
 
 <AdminLayout title="Dashboard">
@@ -108,11 +119,32 @@ const stats = [
       Resend and EMAIL_FROM uses it (see docs/deploy.md).
     </Alert>
   )}
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+  <section aria-labelledby="quick-actions">
+    <h2 id="quick-actions" class="sr-only">
+      Quick actions
+    </h2>
+    <ul class="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+      {actions.map((a) => (
+        <li>
+          <a
+            href={a.href}
+            class="flex h-full items-center gap-3 rounded-card border border-line bg-paper p-3 text-sm leading-snug font-semibold md:p-4 md:text-base text-navy no-underline transition-colors hover:border-brand hover:text-brand"
+          >
+            <span class="grid size-10 shrink-0 md:size-11 place-items-center rounded-full bg-brand/10 text-brand">
+              <Icon name={a.icon} class="size-5 md:size-6" />
+            </span>
+            {a.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <div class="mt-6 grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3">
     {stats.map((s) => (
       <a href={s.href} class="admin-panel block no-underline hover:border-accent">
         <p class="text-sm text-muted">{s.label}</p>
-        <p class="mt-1 font-display text-3xl font-bold text-navy">{s.value}</p>
+        <p class="mt-1 font-display text-2xl font-bold text-navy md:text-3xl">{s.value}</p>
         {s.note && <p class={`mt-1 text-sm ${s.alert ? 'text-danger' : 'text-muted'}`}>{s.note}</p>}
       </a>
     ))}
@@ -121,71 +153,49 @@ const stats = [
   <section class="admin-panel mt-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 class="text-lg">Upcoming events</h2>
-      <Button href="/admin/events/new" size="sm">
-        New event
-      </Button>
+      <a href="/admin/events" class="text-sm font-semibold">
+        All events
+      </a>
     </div>
     {upcoming.length ? (
-      <div class="mt-4 overflow-x-auto">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Event</th>
-              <th>Date</th>
-              <th>Registered</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {upcoming.map((e) => (
-              <tr>
-                <td>
-                  <a href={`/admin/events/${e.id}`}>{e.title}</a>
-                </td>
-                <td class="whitespace-nowrap">{formatEventDate(e.startsAt, e.endsAt)}</td>
-                <td>
-                  {e.registered}
-                  {e.capacity ? ` / ${e.capacity}` : ''}
-                  {e.waitlist > 0 && <span class="text-muted"> (+{e.waitlist} waitlist)</span>}
-                </td>
-                <td>
-                  <Badge
-                    tone={
-                      e.status === 'published'
-                        ? 'success'
-                        : e.status === 'cancelled'
-                          ? 'danger'
-                          : 'neutral'
-                    }
-                  >
-                    {e.status}
-                  </Badge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ul class="mt-4 divide-y divide-line border-t border-line">
+        {upcoming.map((e) => (
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+            <div class="min-w-0 flex-1 basis-64">
+              <a href={`/admin/events/${e.id}`} class="font-semibold">
+                {e.title}
+              </a>
+              <p class="text-sm text-muted">{formatEventDate(e.startsAt, e.endsAt)}</p>
+            </div>
+            <p class="text-sm whitespace-nowrap">
+              {e.registered}
+              {e.capacity ? ` / ${e.capacity}` : ''} registered
+              {e.waitlist > 0 && <span class="text-muted"> (+{e.waitlist} waitlist)</span>}
+            </p>
+            <Badge
+              tone={
+                e.status === 'published'
+                  ? 'success'
+                  : e.status === 'cancelled'
+                    ? 'danger'
+                    : 'neutral'
+              }
+            >
+              {e.status}
+            </Badge>
+            <p class="flex gap-3 text-sm whitespace-nowrap">
+              <a href={`/admin/registrations?event=${e.id}`}>Registrations</a>
+              {happeningNow(e.startsAt) && e.status !== 'cancelled' && (
+                <a href={`/admin/events/${e.id}/checkin`} class="font-semibold">
+                  Check in
+                </a>
+              )}
+            </p>
+          </li>
+        ))}
+      </ul>
     ) : (
       <p class="mt-4 text-muted">No upcoming events.</p>
     )}
-  </section>
-
-  <section class="admin-panel mt-6">
-    <h2 class="text-lg">Quick actions</h2>
-    <div class="mt-4 flex flex-wrap gap-3">
-      <Button href="/admin/posts/new" variant="secondary" size="sm">
-        Write a post
-      </Button>
-      <Button href="/admin/events/new" variant="secondary" size="sm">
-        Create an event
-      </Button>
-      <Button href="/admin/ecosystem/new" variant="secondary" size="sm">
-        Add an organisation
-      </Button>
-      <Button href="/admin/site-texts" variant="secondary" size="sm">
-        Edit the home page
-      </Button>
-    </div>
   </section>
 </AdminLayout>
