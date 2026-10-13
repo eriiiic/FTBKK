@@ -30,10 +30,12 @@ import { fieldErrors, formToObject } from '../../lib/forms';
 import { audit } from '../../lib/orgs';
 import { getSettings } from '../../lib/settings';
 import { formatDate, formatTime } from '../../lib/format';
+import { loadLabels } from '../../lib/contact-labels';
 
 // Email the community: one Markdown message to the active members, the newsletter subscribers,
-// every contact, a list imported from a CSV file, or the contacts ticked in Contacts (their
-// "Email…" button opens this page with the selection).
+// every contact, the people in some groups or with some tags, a list imported from a CSV file, or
+// the contacts ticked in Contacts (their "Email…" button opens this page with the selection).
+// "Email this group" links open it with ?audience=segment&group=<id> (or &tag=<key>).
 const db = getDb();
 const actor = Astro.locals.adminEmail ?? 'admin';
 let keys: string[] = [];
@@ -41,7 +43,12 @@ let errors: Record<string, string> = {};
 let error = '';
 let notice = '';
 let unreached: string[] = [];
-let values: Record<string, unknown> = { audience: 'members' };
+const labels = await loadLabels();
+const params = Astro.url.searchParams;
+let values: Record<string, unknown> =
+  params.get('audience') === 'segment'
+    ? { audience: 'segment', segGroups: params.getAll('group'), segTags: params.getAll('tag') }
+    : { audience: 'members' };
 let list: Recipient[] = [];
 let csv: (CsvList & { file: string }) | null = null;
 
@@ -55,7 +62,7 @@ if (Astro.request.method === 'POST') {
     .slice(0, 2000);
   if (action === 'compose') values = { audience: 'contacts' };
   else {
-    values = formToObject(form, ['c']);
+    values = formToObject(form, ['c', 'segTags', 'segGroups']);
     list = decodeRecipientList(form.get('list'));
     // A newly chosen file replaces the list loaded before.
     const file = form.get('csvFile');
@@ -69,7 +76,7 @@ if (Astro.request.method === 'POST') {
         if (read.error) error = read.error;
       }
     }
-    const parsed = CommunityEmailSchema.safeParse(values);
+    const parsed = CommunityEmailSchema.safeParse({ ...values, ...picked(values) });
     if (action === 'load' || error) {
       // Only the list was loaded: show the counts, nothing is sent.
     } else if (!parsed.success) errors = fieldErrors(parsed.error);
@@ -87,7 +94,17 @@ if (Astro.request.method === 'POST') {
       else error = `The test could not be sent: ${sent.error ?? 'unknown error'}.`;
     } else if (action === 'send') {
       const d = parsed.data;
-      const to = (await communityRecipients(keys, list)).lists[d.audience];
+      const segment = { tags: d.segTags, groups: d.segGroups };
+      const to = (await communityRecipients(keys, list, segment)).lists[d.audience];
+      const detail =
+        d.audience === 'segment'
+          ? [
+              ...d.segGroups.map((g) => labels.groupName.get(g)),
+              ...d.segTags.map((t) => labels.tagName.get(t)),
+            ]
+              .filter(Boolean)
+              .join(', ')
+          : null;
       const cards = await loadCards(d.body);
       const msg = communityMessage(d.audience, d, { cards });
       // A double click or a second tab must not email everyone twice (as on an event's Email page).
@@ -112,13 +129,16 @@ if (Astro.request.method === 'POST') {
         error =
           d.audience === 'csv'
             ? 'Nobody to send to: choose a CSV file with an "email" column first.'
-            : 'Nobody to send to: this audience has no one with an email address.';
+            : d.audience === 'segment'
+              ? 'Nobody to send to: nobody with an email (who accepts emails) is in these groups or has these tags.'
+              : 'Nobody to send to: this audience has no one with an email address.';
       else if (!values.resend && (await recent()).length) error = dupeError;
       else {
         const [row] = await db
           .insert(communityEmails)
           .values({
             audience: d.audience,
+            audienceDetail: detail,
             subject: d.subject,
             body: d.body,
             actionLabel: d.actionLabel || null,
@@ -156,7 +176,35 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const recipients = await communityRecipients(keys, list);
+const segment = picked(values);
+const recipients = await communityRecipients(keys, list, {
+  tags: segment.segTags,
+  groups: segment.segGroups,
+});
+/** The groups and tags ticked, those that still exist only. */
+function picked(v: Record<string, unknown>) {
+  const arr = (x: unknown) => (Array.isArray(x) ? x : x ? [x] : []).map(String);
+  return {
+    segTags: arr(v.segTags).filter((t) => labels.tagName.has(t)),
+    segGroups: arr(v.segGroups)
+      .map(Number)
+      .filter((g) => labels.groupName.has(g)),
+  };
+}
+// How many reachable people have each tag and are in each group (the boxes show it).
+const tagCounts = new Map<string, number>();
+const groupCounts = new Map<number, number>();
+for (const p of recipients.segmentable) {
+  for (const t of p.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+  for (const g of p.groups) groupCounts.set(g, (groupCounts.get(g) ?? 0) + 1);
+}
+// For counting a segment in the browser: who has which label (by position in this list).
+const segmentData = JSON.stringify(
+  recipients.segmentable.map((p) => [
+    ...p.tags.map((t) => `t:${t}`),
+    ...p.groups.map((g) => `g:${g}`),
+  ]),
+);
 const counts = Object.fromEntries(
   COMMUNITY_AUDIENCE_KEYS.map((a) => [a, recipients.lists[a].length]),
 ) as Record<CommunityAudience, number>;
@@ -188,8 +236,9 @@ const groups = [
 
 <AdminLayout title="Email the community">
   <p class="mb-6 max-w-3xl text-sm text-muted">
-    One email to the active members, the newsletter subscribers, every contact or a list you import.
-    To write to some contacts only, tick them in <a href="/admin/contacts">Contacts</a> and click{' '}
+    One email to the active members, the newsletter subscribers, every contact, the people in some{' '}
+    <a href="/admin/contacts/labels">groups or tags</a>, or a list you import. To write to some
+    contacts only, tick them in <a href="/admin/contacts">Contacts</a> and click{' '}
     <strong>Email…</strong>. For one event's registrants, use the Email page of that event.
   </p>
   {sent > 0 && (
@@ -248,7 +297,9 @@ const groups = [
               <span class="text-sm">
                 <span class="font-semibold">{COMMUNITY_AUDIENCES[a].label}</span>
                 {(a !== 'csv' || csvList.length > 0) && (
-                  <span class="ml-1 text-muted">({counts[a]})</span>
+                  <span class="ml-1 text-muted" data-count-text>
+                    ({counts[a]})
+                  </span>
                 )}
                 <span class="block text-muted">{COMMUNITY_AUDIENCES[a].hint}</span>
               </span>
@@ -270,6 +321,72 @@ const groups = [
           {plural(recipients.allOptedOut)} who said no to emails, and contacts without an email.
           People who deleted their data are no longer in Contacts.
         </p>
+      </div>
+
+      <div
+        data-for="segment"
+        hidden={audience !== 'segment'}
+        class="grid gap-3 rounded-lg bg-surface p-4 text-sm"
+        data-segment={segmentData}
+      >
+        {labels.groups.length + labels.tags.length === 0 ? (
+          <p class="text-muted">
+            No groups or tags yet: create them in{' '}
+            <a href="/admin/contacts/labels">Contacts &gt; Tags and groups</a>, then put people in
+            them from Contacts.
+          </p>
+        ) : (
+          <>
+            {labels.groups.length > 0 && (
+              <fieldset>
+                <legend class="font-semibold text-ink">Groups</legend>
+                <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  {labels.groups.map((g) => (
+                    <label class="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name="segGroups"
+                        value={g.id}
+                        checked={segment.segGroups.includes(g.id)}
+                        data-label={`g:${g.id}`}
+                        class="size-4 accent-brand"
+                      />
+                      {g.name} <span class="text-muted">({groupCounts.get(g.id) ?? 0})</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {labels.tags.length > 0 && (
+              <fieldset>
+                <legend class="font-semibold text-ink">Tags</legend>
+                <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  {labels.tags.map((t) => (
+                    <label class="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name="segTags"
+                        value={t.key}
+                        checked={segment.segTags.includes(t.key)}
+                        data-label={`t:${t.key}`}
+                        class="size-4 accent-brand"
+                      />
+                      {t.name} <span class="text-muted">({tagCounts.get(t.key) ?? 0})</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            <p class="text-muted">
+              Everyone in at least one of the groups or tags ticked gets one email:{' '}
+              <strong class="text-ink" data-segment-count>
+                {plural(counts.segment)}
+              </strong>
+              . People without an email or who said no to emails are left out. As for All contacts,
+              write about what they would expect from us, not marketing (PDPA).
+            </p>
+          </>
+        )}
       </div>
 
       <div data-for="csv" hidden={audience !== 'csv'} class="grid gap-3 rounded-lg bg-surface p-4">
@@ -508,7 +625,10 @@ const groups = [
               )}
             </details>
             <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <Badge tone="neutral">{COMMUNITY_AUDIENCES[h.audience].label}</Badge>
+              <Badge tone="neutral">
+                {COMMUNITY_AUDIENCES[h.audience].label}
+                {h.audienceDetail ? `: ${h.audienceDetail}` : ''}
+              </Badge>
               {plural(h.recipients)} · {formatDate(h.createdAt)} {formatTime(h.createdAt)} ·{' '}
               {h.sentBy}
             </p>
@@ -541,8 +661,28 @@ const groups = [
   const limit = form.querySelector<HTMLElement>('[data-limit]');
   const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
 
+  // Groups and tags: count everyone with at least one of the ticked labels.
+  const segmentPanel = form.querySelector<HTMLElement>('[data-segment]');
+  const segmentPeople = JSON.parse(segmentPanel?.dataset.segment ?? '[]') as string[][];
+  const segmentRadio = form.querySelector<HTMLInputElement>('input[name=audience][value=segment]');
+  const countSegment = () => {
+    if (!segmentPanel || !segmentRadio) return;
+    const ticked = new Set(
+      [...segmentPanel.querySelectorAll<HTMLInputElement>('input[data-label]:checked')].map(
+        (b) => b.dataset.label!,
+      ),
+    );
+    const n = segmentPeople.filter((p) => p.some((l) => ticked.has(l))).length;
+    segmentRadio.dataset.count = String(n);
+    const text = segmentRadio.parentElement?.querySelector('[data-count-text]');
+    if (text) text.textContent = `(${n})`;
+    const total = segmentPanel.querySelector('[data-segment-count]');
+    if (total) total.textContent = plural(n);
+  };
+
   // The audience: confirm prompt count, the panel that goes with it, the daily limit warning.
   const syncAudience = () => {
+    countSegment();
     const picked = form.querySelector<HTMLInputElement>('input[name=audience]:checked');
     const n = Number(picked?.dataset.count ?? 0);
     if (send) send.dataset.confirm = `Send this email to ${plural(n)}?`;

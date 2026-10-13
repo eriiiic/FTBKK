@@ -7,20 +7,28 @@ import { z } from 'zod';
 import {
   CONTACT_FILTER_HINTS,
   CONTACT_FILTERS,
-  CONTACT_TAGS,
   deleteContacts,
   filterContacts,
-  isContactTag,
   loadContacts,
   tagContacts,
-  type ContactTag,
+  type ContactLabel,
 } from '../../../lib/contacts';
+import { GroupSchema, createGroup, loadLabels, tagNames } from '../../../lib/contact-labels';
 import { formatDate } from '../../../lib/format';
 import { getSettings } from '../../../lib/settings';
 import { inviteToJoin } from '../../../lib/members';
 import { findDuplicates } from '../../../lib/contact-duplicates';
 
 const url = Astro.url;
+const labels = await loadLabels();
+/** "tag:speaker" or "group:3", as the bulk menu and the result message carry them. */
+const parseLabel = (v: unknown): ContactLabel | null => {
+  const m = /^(tag|group):(.+)$/.exec(String(v ?? ''));
+  if (m?.[1] === 'tag' && labels.tagName.has(m[2]!)) return { kind: 'tag', key: m[2]! };
+  if (m?.[1] === 'group' && labels.groupName.has(Number(m[2])))
+    return { kind: 'group', id: Number(m[2]) };
+  return null;
+};
 if (Astro.request.method === 'POST') {
   // Bulk actions on the selected rows (export goes to contacts.csv instead).
   const form = await Astro.request.formData();
@@ -32,10 +40,16 @@ if (Astro.request.method === 'POST') {
       z.object({
         action: z.enum(['tag-add', 'tag-remove']),
         keys,
-        tag: z.enum(Object.keys(CONTACT_TAGS) as [ContactTag, ...ContactTag[]]),
+        label: z.string().max(100),
+        newGroup: z.string().optional(),
       }),
     ])
-    .safeParse({ action: form.get('action'), keys: form.getAll('c'), tag: form.get('tag') });
+    .safeParse({
+      action: form.get('action'),
+      keys: form.getAll('c'),
+      label: form.get('label') ?? '',
+      newGroup: form.get('newGroup') ?? undefined,
+    });
   const back = new URLSearchParams(url.search);
   for (const k of ['saved', 'tagged', 'n', 'skipped', 'which', 'invited']) back.delete(k);
   const actor = Astro.locals.adminEmail ?? 'admin';
@@ -49,13 +63,22 @@ if (Astro.request.method === 'POST') {
       actor,
     );
     back.set('invited', [r.sent, r.members, r.recent, r.noEmail].join('.'));
-  } else if (parsed.success && 'tag' in parsed.data) {
+  } else if (parsed.success && 'label' in parsed.data) {
     const add = parsed.data.action === 'tag-add';
-    const { changed, skipped } = await tagContacts(parsed.data.keys, parsed.data.tag, add, actor);
-    back.set('tagged', add ? 'added' : 'removed');
-    back.set('which', parsed.data.tag);
-    back.set('n', String(changed));
-    if (skipped) back.set('skipped', String(skipped));
+    let label = parseLabel(parsed.data.label);
+    // "New group…": create it from the name typed next to the menu, then add the people.
+    const group = GroupSchema.safeParse({ name: parsed.data.newGroup ?? '' });
+    if (parsed.data.label === 'new-group' && add && group.success) {
+      const id = await createGroup(group.data, actor);
+      label = { kind: 'group', id };
+    }
+    if (label) {
+      const { changed, skipped } = await tagContacts(parsed.data.keys, label, add, actor);
+      back.set('tagged', add ? 'added' : 'removed');
+      back.set('which', label.kind === 'tag' ? `tag:${label.key}` : `group:${label.id}`);
+      back.set('n', String(changed));
+      if (skipped) back.set('skipped', String(skipped));
+    }
   }
   return Astro.redirect(`/admin/contacts${back.size ? `?${back}` : ''}`);
 }
@@ -63,34 +86,43 @@ const q = url.searchParams.get('q') ?? '';
 const show = url.searchParams.get('show') ?? 'all';
 const event = Number(url.searchParams.get('event')) || 0;
 const tagParam = url.searchParams.get('tag') ?? '';
-const tag = isContactTag(tagParam) ? tagParam : '';
+const tag = labels.tagName.has(tagParam) ? tagParam : '';
+const groupParam = Number(url.searchParams.get('group')) || 0;
+const group = labels.groupName.has(groupParam) ? groupParam : 0;
+const currentGroup = labels.groups.find((g) => g.id === group);
 const all = await loadContacts();
-const shown = filterContacts(all, { q, show, event, tag });
+const shown = filterContacts(all, { q, show, event, tag, group });
 const hint = CONTACT_FILTER_HINTS[show as keyof typeof CONTACT_FILTER_HINTS];
 
 // The result of an "Add tag" / "Remove tag" bulk action, shown once after the redirect.
 const tagged = Astro.request.method === 'GET' ? url.searchParams.get('tagged') : null;
-const which = url.searchParams.get('which') ?? '';
+const which = parseLabel(url.searchParams.get('which'));
 let taggedText = '';
 let taggedTone: 'success' | 'warning' = 'success';
-if ((tagged === 'added' || tagged === 'removed') && isContactTag(which)) {
+if ((tagged === 'added' || tagged === 'removed') && which) {
   const n = Number(url.searchParams.get('n')) || 0;
   const skipped = Number(url.searchParams.get('skipped')) || 0;
   const people = (k: number) => `${k} contact${k === 1 ? '' : 's'}`;
-  const label = CONTACT_TAGS[which];
-  const walkIns = `${skipped === 1 ? '1 walk-in' : `${skipped} walk-ins`} without an email ${skipped === 1 ? 'was' : 'were'} skipped: add an email on their page to tag them.`;
+  const isTag = which.kind === 'tag';
+  const walkIns = `${skipped === 1 ? '1 walk-in' : `${skipped} walk-ins`} without an email ${skipped === 1 ? 'was' : 'were'} skipped: add an email on their page first.`;
   if (n === 0 && skipped) {
     taggedTone = 'warning';
     taggedText = `Nothing changed. ${walkIns}`;
   } else {
-    taggedText =
-      tagged === 'added'
-        ? n
-          ? `Tag “${label}” added to ${people(n)}.`
-          : `Everyone selected already had the tag “${label}”.`
-        : n
-          ? `Tag “${label}” removed from ${people(n)}.`
-          : `Nobody selected had the tag “${label}”.`;
+    const name =
+      which.kind === 'tag' ? labels.tagName.get(which.key) : labels.groupName.get(which.id);
+    const add = tagged === 'added';
+    taggedText = isTag
+      ? n
+        ? `Tag “${name}” ${add ? 'added to' : 'removed from'} ${people(n)}.`
+        : add
+          ? `Everyone selected already had the tag “${name}”.`
+          : `Nobody selected had the tag “${name}”.`
+      : n
+        ? `${people(n)} ${add ? 'added to' : 'taken out of'} the group “${name}”.`
+        : add
+          ? `Everyone selected was already in the group “${name}”.`
+          : `Nobody selected was in the group “${name}”.`;
     if (skipped) taggedText += ` ${walkIns}`;
   }
 }
@@ -129,7 +161,7 @@ const summary = [
   ['Linked to the ecosystem', all.filter((c) => c.organisations.length > 0).length],
 ];
 const csv = `/admin/contacts.csv${url.search}`;
-const filtered = Boolean(q || event || tag || show !== 'all');
+const filtered = Boolean(q || event || tag || group || show !== 'all');
 const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', ');
 ---
 
@@ -141,6 +173,9 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       from registrations. Click a name to edit, contact or delete them.
     </p>
     <div class="flex flex-wrap gap-2">
+      <Button href="/admin/contacts/labels" size="sm" variant="secondary">
+        Tags and groups
+      </Button>
       <Button href="/admin/contacts/duplicates" size="sm" variant="secondary">
         Possible duplicates{duplicates ? ` (${duplicates})` : ''}
       </Button>
@@ -207,12 +242,32 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
         onchange="this.form.requestSubmit()"
       >
         <option value="">Any tag</option>
-        {Object.entries(CONTACT_TAGS).map(([k, label]) => (
-          <option value={k} selected={k === tag}>
-            {label}
+        {labels.tags.map((t) => (
+          <option value={t.key} selected={t.key === tag}>
+            {t.name}
           </option>
         ))}
       </select>
+      {labels.groups.length > 0 && (
+        <>
+          <label for="group" class="sr-only">
+            Group
+          </label>
+          <select
+            id="group"
+            name="group"
+            class="max-w-full rounded-lg border border-line px-3 py-1.5 sm:max-w-xs"
+            onchange="this.form.requestSubmit()"
+          >
+            <option value="">Any group</option>
+            {labels.groups.map((g) => (
+              <option value={g.id} selected={g.id === group}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       <label for="event" class="sr-only">
         Event
       </label>
@@ -254,6 +309,24 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
     </form>
 
     {hint && <p class="mb-3 text-sm text-muted">{hint}</p>}
+    {currentGroup && (
+      <div class="mb-3 flex flex-wrap items-center gap-3 rounded-lg bg-surface p-3 text-sm">
+        <p class="mr-auto">
+          <strong>{currentGroup.name}</strong>: {shown.length}{' '}
+          {shown.length === 1 ? 'person' : 'people'}
+          {currentGroup.description && (
+            <span class="block text-muted">{currentGroup.description}</span>
+          )}
+        </p>
+        <Button
+          href={`/admin/community-email?audience=segment&group=${currentGroup.id}`}
+          size="sm"
+          variant="secondary"
+        >
+          Email this group
+        </Button>
+      </div>
+    )}
 
     {shown.length ? (
       <form method="post" data-bulk>
@@ -267,19 +340,39 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
           </p>
           <span class="flex flex-wrap items-center gap-2">
             <label for="bulk-tag" class="sr-only">
-              Tag to add or remove
+              Tag or group to add or remove
             </label>
             <select
               id="bulk-tag"
-              name="tag"
+              name="label"
               data-bulk-tag
-              class="rounded-lg border border-paper/40 bg-navy px-2 py-1 text-sm text-paper"
+              class="max-w-56 rounded-lg border border-paper/40 bg-navy px-2 py-1 text-sm text-paper"
             >
-              <option value="">Choose a tag…</option>
-              {Object.entries(CONTACT_TAGS).map(([k, label]) => (
-                <option value={k}>{label}</option>
-              ))}
+              <option value="">Tag or group…</option>
+              <optgroup label="Tags">
+                {labels.tags.map((t) => (
+                  <option value={`tag:${t.key}`}>{t.name}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Groups">
+                {labels.groups.map((g) => (
+                  <option value={`group:${g.id}`}>{g.name}</option>
+                ))}
+                <option value="new-group">New group…</option>
+              </optgroup>
             </select>
+            <label for="bulk-new-group" class="sr-only">
+              Name of the new group
+            </label>
+            <input
+              id="bulk-new-group"
+              name="newGroup"
+              maxlength={80}
+              placeholder="Group name"
+              hidden
+              data-bulk-new-group
+              class="w-40 rounded-lg border border-paper/40 bg-navy px-2 py-1 text-sm text-paper placeholder:text-paper/60"
+            />
             <Button
               type="submit"
               size="sm"
@@ -288,7 +381,7 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
               value="tag-add"
               data-bulk-tag-action
             >
-              Add tag
+              Add
             </Button>
             <Button
               type="submit"
@@ -297,8 +390,9 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
               name="action"
               value="tag-remove"
               data-bulk-tag-action
+              data-bulk-remove
             >
-              Remove tag
+              Remove
             </Button>
           </span>
           <Button
@@ -406,9 +500,9 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
                       Invited {formatDate(c.invitedAt, { year: undefined })}
                     </span>
                   )}
-                  {c.tags.map((t) => (
+                  {tagNames(c.tags, labels).map((t) => (
                     <Badge tone="brand" class="ml-1">
-                      {CONTACT_TAGS[t]}
+                      {t}
                     </Badge>
                   ))}
                   <span class="block text-xs break-all text-muted">
@@ -466,6 +560,8 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
       const merge = form.querySelector<HTMLButtonElement>('[data-bulk-merge]')!;
       const tag = form.querySelector('[data-bulk-tag]') as unknown as HTMLSelectElement;
       const tagButtons = [...form.querySelectorAll<HTMLButtonElement>('[data-bulk-tag-action]')];
+      const remove = form.querySelector<HTMLButtonElement>('[data-bulk-remove]')!;
+      const newGroup = form.querySelector<HTMLInputElement>('[data-bulk-new-group]')!;
       const boxes = () => [...form.querySelectorAll<HTMLInputElement>('input[name="c"]')];
       const update = () => {
         const ticked = boxes().filter((b) => b.checked);
@@ -478,10 +574,18 @@ const emails = [...new Set(shown.map((c) => c.email).filter(Boolean))].join(', '
         const emails = new Set(ticked.map((b) => b.dataset.email).filter(Boolean));
         copy.disabled = emails.size === 0;
         copy.textContent = `Copy emails (${emails.size})`;
-        for (const b of tagButtons) b.disabled = !tag.value;
+        const creating = tag.value === 'new-group';
+        newGroup.hidden = !creating;
+        for (const b of tagButtons) b.disabled = !tag.value || (creating && !newGroup.value.trim());
+        remove.disabled ||= creating;
         merge.disabled = ticked.length < 2 || ticked.length > 10;
       };
       form.addEventListener('change', update);
+      newGroup.addEventListener('input', update);
+      tag.addEventListener('change', () => {
+        update();
+        if (tag.value === 'new-group') newGroup.focus();
+      });
       all.addEventListener('change', () => {
         for (const b of boxes()) b.checked = all.checked;
         update();

@@ -1,0 +1,256 @@
+---
+import { z } from 'zod';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Alert from '../../../components/Alert.astro';
+import Button from '../../../components/Button.astro';
+import { loadContacts } from '../../../lib/contacts';
+import {
+  GroupSchema,
+  TagNameSchema,
+  createGroup,
+  createTag,
+  deleteGroup,
+  deleteTag,
+  loadLabels,
+  renameTag,
+  updateGroup,
+} from '../../../lib/contact-labels';
+import { fieldErrors } from '../../../lib/forms';
+
+// Contacts > Tags and groups: create, rename and delete the tags put on contacts and the groups
+// of people. Putting them on people happens on Contacts (bulk) or on a contact's page.
+const actor = Astro.locals.adminEmail ?? 'admin';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const get = (k: string) => String(form.get(k) ?? '');
+  const action = get('action');
+  const id = z.coerce.number().int().positive().safeParse(get('id'));
+  let done = '';
+  if (action === 'tag-create' || action === 'tag-rename') {
+    const name = TagNameSchema.safeParse(get('name'));
+    if (!name.success) error = fieldErrors(name.error).form ?? 'Check the name.';
+    else {
+      const r =
+        action === 'tag-create'
+          ? await createTag(name.data, actor)
+          : await renameTag(get('key'), name.data, actor);
+      if (r.ok) done = action === 'tag-create' ? `Tag “${name.data}” created.` : 'Tag renamed.';
+      else error = r.error;
+    }
+  } else if (action === 'tag-delete') {
+    await deleteTag(get('key'), actor);
+    done = 'Tag deleted.';
+  } else if (action === 'group-create' || action === 'group-update') {
+    const group = GroupSchema.safeParse({ name: get('name'), description: get('description') });
+    if (!group.success) error = Object.values(fieldErrors(group.error)).join(' ');
+    else if (action === 'group-create') {
+      await createGroup(group.data, actor);
+      done = `Group “${group.data.name}” created. Add people from Contacts.`;
+    } else if (id.success) {
+      await updateGroup(id.data, group.data, actor);
+      done = 'Group saved.';
+    }
+  } else if (action === 'group-delete' && id.success) {
+    await deleteGroup(id.data, actor);
+    done = 'Group deleted.';
+  }
+  if (done && !error)
+    return Astro.redirect(`/admin/contacts/labels?done=${encodeURIComponent(done)}`, 303);
+}
+
+const [labels, contacts] = await Promise.all([loadLabels(), loadContacts()]);
+const tagCount = new Map<string, number>();
+const groupCount = new Map<number, number>();
+for (const c of contacts) {
+  for (const t of c.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+  for (const g of c.groups) groupCount.set(g, (groupCount.get(g) ?? 0) + 1);
+}
+const done = Astro.request.method === 'GET' ? Astro.url.searchParams.get('done') : null;
+const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+const input = 'rounded-lg border border-line px-3 py-1.5 text-sm';
+---
+
+<AdminLayout title="Tags and groups">
+  <p class="mb-6 max-w-3xl text-sm text-muted">
+    Use them to sort your contacts and members. A <strong>tag</strong> is a short label shown next
+    to a person's name (Speaker, Investor, Fintech…). A <strong>group</strong> is a list of people
+    you keep together for a purpose (Sponsor prospects, Connect volunteers…), with a description. A
+    person can have several tags and be in several groups. To put people in a tag or group, tick
+    them in <a href="/admin/contacts">Contacts</a> or <a href="/admin/members?tab=all">Members</a>{' '}
+    and use the bar that appears, or edit one person. Both can be picked as the audience in{' '}
+    <a href="/admin/community-email">Email the community</a>. Only the admin team sees them.
+  </p>
+  {done && (
+    <Alert tone="success" class="mb-4">
+      {done}
+    </Alert>
+  )}
+  {error && (
+    <Alert tone="danger" class="mb-4">
+      {error}
+    </Alert>
+  )}
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <section class="admin-panel grid content-start gap-4" aria-labelledby="groups-title">
+      <h2 id="groups-title" class="text-lg">
+        Groups
+      </h2>
+      {labels.groups.length ? (
+        <ul class="grid gap-3">
+          {labels.groups.map((g) => (
+            <li class="rounded-lg border border-line p-3">
+              <div class="flex flex-wrap items-start gap-2">
+                <p class="mr-auto min-w-0">
+                  <a href={`/admin/contacts?group=${g.id}`} class="font-semibold">
+                    {g.name}
+                  </a>
+                  <span class="ml-1 text-sm text-muted">{people(groupCount.get(g.id) ?? 0)}</span>
+                  {g.description && <span class="block text-sm text-muted">{g.description}</span>}
+                </p>
+                <Button href={`/admin/contacts?group=${g.id}`} size="sm" variant="secondary">
+                  See people
+                </Button>
+                <Button
+                  href={`/admin/community-email?audience=segment&group=${g.id}`}
+                  size="sm"
+                  variant="secondary"
+                >
+                  Email
+                </Button>
+              </div>
+              <details class="mt-2">
+                <summary class="cursor-pointer text-sm text-accent">Edit or delete</summary>
+                <form method="post" class="mt-2 grid gap-2">
+                  <input type="hidden" name="id" value={g.id} />
+                  <label class="grid gap-1 text-sm">
+                    Name
+                    <input name="name" value={g.name} required maxlength={80} class={input} />
+                  </label>
+                  <label class="grid gap-1 text-sm">
+                    Description (optional)
+                    <textarea
+                      name="description"
+                      rows={2}
+                      maxlength={500}
+                      class={input}
+                      set:text={g.description ?? ''}
+                    />
+                  </label>
+                  <div class="flex flex-wrap gap-2">
+                    <Button type="submit" size="sm" name="action" value="group-update">
+                      Save
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="secondary"
+                      name="action"
+                      value="group-delete"
+                      data-confirm={`Delete the group “${g.name}”? The ${people(groupCount.get(g.id) ?? 0)} in it stay in Contacts.`}
+                    >
+                      Delete group
+                    </Button>
+                  </div>
+                </form>
+              </details>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="text-sm text-muted">No groups yet.</p>
+      )}
+      <form method="post" class="grid gap-2 rounded-lg bg-surface p-3">
+        <h3 class="text-sm font-semibold">New group</h3>
+        <label class="grid gap-1 text-sm">
+          Name
+          <input
+            name="name"
+            required
+            maxlength={80}
+            placeholder="Sponsor prospects 2027"
+            class={input}
+          />
+        </label>
+        <label class="grid gap-1 text-sm">
+          Description (optional)
+          <textarea
+            name="description"
+            rows={2}
+            maxlength={500}
+            placeholder="What the group is for"
+            class={input}
+          ></textarea>
+        </label>
+        <div>
+          <Button type="submit" size="sm" name="action" value="group-create">
+            Create group
+          </Button>
+        </div>
+      </form>
+    </section>
+
+    <section class="admin-panel grid content-start gap-4" aria-labelledby="tags-title">
+      <h2 id="tags-title" class="text-lg">
+        Tags
+      </h2>
+      {labels.tags.length ? (
+        <ul class="grid gap-2">
+          {labels.tags.map((t) => (
+            <li class="flex flex-wrap items-center gap-2 border-b border-line pb-2 last:border-0">
+              <form method="post" class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <input type="hidden" name="key" value={t.key} />
+                <label class="sr-only" for={`tag-${t.key}`}>
+                  Name of the tag {t.name}
+                </label>
+                <input
+                  id={`tag-${t.key}`}
+                  name="name"
+                  value={t.name}
+                  required
+                  maxlength={40}
+                  class={`${input} w-40`}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="secondary"
+                  name="action"
+                  value="tag-rename"
+                >
+                  Rename
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="ghost"
+                  name="action"
+                  value="tag-delete"
+                  data-confirm={`Delete the tag “${t.name}”? It is taken off the ${people(tagCount.get(t.key) ?? 0)} who have it.`}
+                >
+                  Delete
+                </Button>
+              </form>
+              <a href={`/admin/contacts?tag=${encodeURIComponent(t.key)}`} class="text-sm">
+                {people(tagCount.get(t.key) ?? 0)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="text-sm text-muted">No tags yet.</p>
+      )}
+      <form method="post" class="flex flex-wrap items-end gap-2 rounded-lg bg-surface p-3">
+        <label class="grid gap-1 text-sm">
+          New tag
+          <input name="name" required maxlength={40} placeholder="Investor" class={input} />
+        </label>
+        <Button type="submit" size="sm" name="action" value="tag-create">
+          Create tag
+        </Button>
+      </form>
+    </section>
+  </div>
+</AdminLayout>

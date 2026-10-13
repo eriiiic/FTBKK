@@ -75,9 +75,16 @@ describe('privacy notice', () => {
       new URL('../migrations/0033_drop_member_nationality.sql', import.meta.url),
       'utf8',
     ).match(/replace\(value, '(.*?)', ''\) WHERE key = 'privacyNotice'/)![1]!;
-    expect(JSON.parse(latest[1]!.replace(/''/g, "'")).replace(noNationality, '')).toBe(
-      DEFAULT_PRIVACY_NOTICE,
-    );
+    // 0039 then adds groups to the notes and tags line, edited or not.
+    const groups = readFileSync(
+      new URL('../migrations/0039_contact_tags_groups.sql', import.meta.url),
+      'utf8',
+    ).match(/replace\(value, '(.*?)', '(.*?)'\) WHERE key = 'privacyNotice'/)!;
+    expect(
+      JSON.parse(latest[1]!.replace(/''/g, "'"))
+        .replace(noNationality, '')
+        .replace(groups[1]!, groups[2]!),
+    ).toBe(DEFAULT_PRIVACY_NOTICE);
   });
 });
 

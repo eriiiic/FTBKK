@@ -1,6 +1,6 @@
 // "Email the community" (Emails and social media > Email the community): one email, written each
-// time in Markdown, to the active members, the newsletter subscribers, every contact, a list
-// imported from a CSV file or a selection of contacts. Lines such as {{event: slug}} become cards.
+// time in Markdown, to the active members, the newsletter subscribers, every contact, the people
+// in some groups or with some tags, a list imported from a CSV file or a selection of contacts. Lines such as {{event: slug}} become cards.
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
@@ -24,6 +24,10 @@ export const COMMUNITY_AUDIENCES = {
     label: 'All contacts',
     hint: 'Everyone with an email in Contacts, except those who said no to emails',
   },
+  segment: {
+    label: 'Groups and tags',
+    hint: 'The people in the groups or with the tags you pick, except those who said no to emails',
+  },
   csv: { label: 'Imported list', hint: 'The people in a CSV file you upload below' },
   contacts: { label: 'Selected contacts', hint: 'The people you ticked in Contacts' },
 } as const;
@@ -40,6 +44,13 @@ export const CommunityEmailSchema = z
     body: z.string().trim().min(10, 'Write the message.').max(20000),
     actionLabel: z.string().trim().max(60).optional().default(''),
     actionUrl: optionalUrl(500),
+    /** For segment: tag keys and group ids (people with any of them get the email). */
+    segTags: z.array(z.string().max(80)).max(100).optional().default([]),
+    segGroups: z.array(z.coerce.number().int().positive()).max(200).optional().default([]),
+  })
+  .refine((d) => d.audience !== 'segment' || d.segTags.length + d.segGroups.length > 0, {
+    path: ['audience'],
+    message: 'Pick at least one group or tag.',
   })
   .refine((d) => !d.actionLabel || d.actionUrl, {
     path: ['actionUrl'],
@@ -84,6 +95,31 @@ export function optedOutEmails(contacts: Pick<Contact, 'newsletter' | 'email' | 
     for (const e of [c.email, ...c.otherEmails]) if (e) out.add(e.trim().toLowerCase());
   }
   return out;
+}
+
+/** What "Groups and tags" picks: people with any of these tags or in any of these groups. */
+export interface Segment {
+  tags: string[];
+  groups: number[];
+}
+
+/**
+ * The contacts in a segment who can get an email: with an address, and who did not say no to
+ * emails (same rule as "All contacts").
+ */
+export function segmentRecipients(
+  contacts: Pick<Contact, 'name' | 'email' | 'newsletter' | 'tags' | 'groups'>[],
+  segment: Segment,
+) {
+  return uniqueRecipients(
+    contacts.filter(
+      (c) =>
+        c.email &&
+        !saidNo(c) &&
+        (c.tags.some((t) => segment.tags.includes(t)) ||
+          c.groups.some((g) => segment.groups.includes(g))),
+    ),
+  );
 }
 
 /** Most people in one imported list. */
@@ -184,6 +220,11 @@ export interface Recipients {
   /** Left out of "All contacts" and of the imported list because they said no to emails. */
   allOptedOut: number;
   csvOptedOut: number;
+  /**
+   * Everyone "Groups and tags" can reach (an email, never said no), with their tags and groups,
+   * so the page can count a segment as boxes are ticked.
+   */
+  segmentable: { email: string; tags: string[]; groups: number[] }[];
 }
 
 /**
@@ -194,6 +235,7 @@ export interface Recipients {
 export async function communityRecipients(
   keys: string[] = [],
   list: Recipient[] = [],
+  segment: Segment = { tags: [], groups: [] },
 ): Promise<Recipients> {
   const [active, all] = await Promise.all([
     getDb()
@@ -215,12 +257,16 @@ export async function communityRecipients(
       members: uniqueRecipients(active),
       newsletter: uniqueRecipients(all.filter((c) => c.newsletter.agreed)),
       all: everyone,
+      segment: segmentRecipients(all, segment),
       csv: csv.filter((r) => !optedOut.has(r.email)),
       contacts: uniqueRecipients(all.filter((c) => wanted.has(c.key))),
     },
     allWithoutConsent: everyone.filter((r) => !consenting.has(r.email)).length,
     allOptedOut: all.filter((c) => c.email && saidNo(c)).length,
     csvOptedOut: csv.filter((r) => optedOut.has(r.email)).length,
+    segmentable: reachable
+      .filter((c) => c.tags.length || c.groups.length)
+      .map((c) => ({ email: c.email!.trim().toLowerCase(), tags: c.tags, groups: c.groups })),
   };
 }
 
@@ -228,6 +274,8 @@ const FOOTERS: Record<CommunityAudience, string> = {
   members: 'You get this email because you are a member of La French Tech Bangkok.',
   newsletter: 'You get this email because you subscribed to the La French Tech Bangkok newsletter.',
   all: 'You get this email because you are in touch with La French Tech Bangkok (an event, membership or the directory).',
+  segment:
+    'You get this email because you are in touch with La French Tech Bangkok (an event, membership or the directory).',
   csv: 'You get this email because you are on a La French Tech Bangkok mailing list.',
   contacts: 'You get this email because you came to a La French Tech Bangkok event.',
 };

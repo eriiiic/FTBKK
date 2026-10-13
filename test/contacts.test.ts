@@ -10,7 +10,9 @@ import {
   newsletterConsent,
   newsletterDate,
   filterContacts,
+  normalizeGroups,
   normalizeTags,
+  withGroup,
   withTag,
   whatsappUrl,
   type ContactRegistration,
@@ -213,24 +215,34 @@ describe('contact tags', () => {
     ...p,
   });
 
-  it('keeps known tags only, once each, in the fixed order', () => {
-    expect(normalizeTags(['press', 'speaker', 'press', 'vip', 3])).toEqual(['speaker', 'press']);
+  it('keeps tag keys and group ids once each, dropping anything else', () => {
+    expect(normalizeTags(['press', 'speaker', 'press', '', 3])).toEqual(['press', 'speaker']);
     expect(normalizeTags(null)).toEqual([]);
+    expect(normalizeGroups([3, 1, 3, -2, 1.5, '4'])).toEqual([3, 1]);
   });
 
-  it('adds and removes one tag', () => {
-    expect(withTag(['press'], 'board', true)).toEqual(['board', 'press']);
+  it('adds and removes one tag or group', () => {
+    expect(withTag(['press'], 'board', true)).toEqual(['press', 'board']);
     expect(withTag(['board', 'press'], 'board', true)).toEqual(['board', 'press']);
     expect(withTag(['board', 'press'], 'press', false)).toEqual(['board']);
     expect(withTag([], 'press', false)).toEqual([]);
+    expect(withGroup([1], 2, true)).toEqual([1, 2]);
+    expect(withGroup([1, 2], 1, false)).toEqual([2]);
   });
 
   it('come from the saved card and filter the list, with the other filters', () => {
     const list = buildContacts(regs, orgs, now, [
-      card({ id: 1, email: 'bob@example.com', name: 'Bob', tags: ['speaker', 'bogus'] }),
+      card({
+        id: 1,
+        email: 'bob@example.com',
+        name: 'Bob',
+        tags: ['speaker', 'speaker'],
+        groups: [7],
+      }),
       card({ id: 2, name: 'Dana Manual', tags: ['speaker', 'board'] }),
     ]);
     expect(list.find((c) => c.key === 'bob@example.com')!.tags).toEqual(['speaker']);
+    expect(list.find((c) => c.key === 'bob@example.com')!.groups).toEqual([7]);
     expect(list.find((c) => c.key === 'alice@example.com')!.tags).toEqual([]);
     expect(filterContacts(list, { tag: 'speaker' }).map((c) => c.key)).toEqual([
       'bob@example.com',
@@ -241,15 +253,21 @@ describe('contact tags', () => {
       'bob@example.com',
     ]);
     expect(filterContacts(list, { tag: 'speaker', q: 'dana' }).map((c) => c.key)).toEqual(['id:2']);
-    // An unknown tag in the URL filters nothing out.
-    expect(filterContacts(list, { tag: 'vip' })).toHaveLength(list.length);
+    expect(filterContacts(list, { group: 7 }).map((c) => c.key)).toEqual(['bob@example.com']);
+    expect(filterContacts(list, { group: 7, tag: 'board' })).toEqual([]);
   });
 
-  it('are validated on the contact form', () => {
-    const ok = ContactSchema.parse({ name: 'Bob', tags: ['press', 'speaker', 'press'] });
-    expect(ok.tags).toEqual(['speaker', 'press']);
+  it('are read from the contact form', () => {
+    const ok = ContactSchema.parse({
+      name: 'Bob',
+      tags: ['press', 'speaker', 'press'],
+      groups: ['2', '5', '2'],
+    });
+    expect(ok.tags).toEqual(['press', 'speaker']);
+    expect(ok.groups).toEqual([2, 5]);
     expect(ContactSchema.parse({ name: 'Bob' }).tags).toEqual([]);
-    expect(ContactSchema.safeParse({ name: 'Bob', tags: ['vip'] }).success).toBe(false);
+    expect(ContactSchema.parse({ name: 'Bob' }).groups).toEqual([]);
+    expect(ContactSchema.safeParse({ name: 'Bob', groups: ['abc'] }).success).toBe(false);
   });
 });
 

@@ -15,7 +15,7 @@ export const DEFAULT_PRIVACY_NOTICE = `La French Tech Bangkok is a volunteer-run
 - If you become a member: what you type in the membership form (your name, email, phone, company, job title, LinkedIn, what describes you best, the sectors you're interested in and how you heard about us) and when you confirmed.
 - Your newsletter choice, and the date you made it.
 - Your feedback after an event, if you give it.
-- Notes and tags the organising team adds to help run the community (for example "speaker" or "volunteer").
+- Notes, tags and groups the organising team adds to help run the community (for example "speaker" or "volunteer").
 
 ## Why we use it
 
@@ -122,7 +122,7 @@ export function describeMyData(c: {
   rows.push([
     'Contact card',
     c.savedId
-      ? 'Yes: the team saved your details, and may have added tags or notes'
+      ? 'Yes: the team saved your details, and may have added tags, groups or notes'
       : 'No, only your registrations',
   ]);
   return rows;

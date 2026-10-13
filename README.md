@@ -125,7 +125,8 @@ Public pages:
   last 30 days are skipped; the invitation date shows on the list.
 - **Email the community** (`/admin/community-email`): one message to the active members, the
   newsletter subscribers, all contacts (minus those who said no to emails, with a PDPA note and
-  the count without consent), a list imported from a CSV file (email required, name optional,
+  the count without consent), the people in some **groups or tags** (same consent rule as all
+  contacts; the count updates as boxes are ticked, and the history shows which ones), a list imported from a CSV file (email required, name optional,
   deduplicated and previewed before sending) or the contacts ticked in Contacts (**Email…**).
   The message is Markdown with a live preview of the real email, link and image buttons, and a
   picker that inserts published events and blog posts as cards (`{{event: slug}}`,
@@ -290,24 +291,30 @@ backup); a second send of the same message within 10 minutes, even from another 
 per person (grouped by email), with no sign-up needed. For each person it shows how many events
 they attended, registered for and missed, which events those were, their company, and the
 ecosystem listings they manage or are the contact for. The list can be filtered (regulars, never
-came, linked to the ecosystem, by event, by tag, "Members" (active individual members) and
+came, linked to the ecosystem, by event, by tag, by group, "Members" (active individual members) and
 "Regulars not yet members": people who came to 3 or more events and haven't joined, to invite) and exported to CSV, and "Copy emails" copies
-the filtered addresses for the Bcc field of an email. Contacts can carry tags (speaker, sponsor,
-volunteer, board, press), shown next to their name. Tick several contacts to copy their emails,
-export them to CSV, add or remove a tag, or delete them at once. A **Member** box in a contact's Edit form (and on New contact) makes them an active
+the filtered addresses for the Bcc field of an email. **Tags and groups** (`/admin/contacts/labels`,
+`lib/contact-labels.ts`, migration 0039) turn Contacts into a small CRM: the team creates, renames
+and deletes tags (short labels shown next to a name; Speaker, Sponsor, Volunteer, Board and Press to
+start with, `contact_tags`) and groups (named lists with a description, `contact_groups`); a
+contact card keeps its tag keys (`contacts.tags`) and group ids (`contacts.groups`), and a person
+can have several of each. Both filter Contacts and Members, show on the contact page and in the
+CSV exports and My data, and can be chosen as the audience of Email the community. Tick several
+contacts (or members) to copy their emails, export them to CSV, add or remove a tag or group (or
+put them in a new group in one go), or delete them at once. A **Member** box in a contact's Edit form (and on New contact) makes them an active
 member, optionally with the welcome email; unticking ends the membership, and changing the email
 moves it. **Merge…** (2 to 10 selected)
 folds duplicates into one contact: you pick the main email, the other emails to keep and, field by
 field, the name, phone, company, role and LinkedIn to keep; registrations, attendance and feedback
 move over (same event twice: came > registered > waitlist > cancelled wins, and a freed seat goes
-to the waitlist), tags are combined, notes joined and the membership moves to the main email. **Possible
+to the waitlist), tags and groups are combined, notes joined and the membership moves to the main email. **Possible
 duplicates** (`/admin/contacts/duplicates`, `lib/contact-duplicates.ts`) lists contacts that look
 like the same person (same name, phone, LinkedIn, email before the @, or first name + company),
 suggests the main one and links each group to the merge page; "Not the same person" is kept in
 the `notDuplicates` setting. A
 contact can have **other emails** (`contacts.other_emails`, migration 0030): registrations,
 sign-ups and members-only registrations made with any of them count as that person. Contacts can be added by hand,
-edited (with tags, team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
+edited (with tags, groups, team notes and LinkedIn), contacted by email, WhatsApp or phone, and deleted. The dashboard shows
 the total number of contacts.
 
 **Newsletter consent** (Thailand's PDPA: explicit, opt-in, dated). The registration form has an

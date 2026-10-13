@@ -24,6 +24,8 @@ import {
   type MemberStatus,
   type ProfileType,
 } from '../../lib/members';
+import { tagContacts, type ContactLabel } from '../../lib/contacts';
+import { loadLabels, tagNames } from '../../lib/contact-labels';
 
 // Free individual members. New members are active as soon as they confirm their email; the team
 // looks at them afterwards here (To review, never blocking), and can suspend anyone.
@@ -33,10 +35,44 @@ const tab = params.get('tab') === 'all' ? 'all' : 'review';
 let error = '';
 const done = params.get('done');
 
+const labels = await loadLabels();
+
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
+  const action = form.get('action');
+  if (action === 'label-add' || action === 'label-remove') {
+    // Tags and groups live on their contact: same as the bulk bar on Contacts.
+    const m = /^(tag|group):(.+)$/.exec(String(form.get('label') ?? ''));
+    const label: ContactLabel | null =
+      m?.[1] === 'tag' && labels.tagName.has(m[2]!)
+        ? { kind: 'tag', key: m[2]! }
+        : m?.[1] === 'group' && labels.groupName.has(Number(m[2]))
+          ? { kind: 'group', id: Number(m[2]) }
+          : null;
+    const ids = new Set(form.getAll('ids').map(Number));
+    const keys = (await loadMemberList())
+      .filter((x) => ids.has(x.id))
+      .map((x) => x.contactKey ?? x.email);
+    if (!label || !keys.length) error = 'Choose a tag or group, and tick at least one member.';
+    else {
+      const add = action === 'label-add';
+      const { changed } = await tagContacts(keys, label, add, actor);
+      const name =
+        label.kind === 'tag'
+          ? `tag “${labels.tagName.get(label.key)}”`
+          : `group “${labels.groupName.get(label.id)}”`;
+      const back = new URL(Astro.url);
+      back.searchParams.set(
+        'done',
+        `${name.charAt(0).toUpperCase()}${name.slice(1)}: ${changed} ${changed === 1 ? 'member' : 'members'} ${add ? 'added' : 'removed'}.`,
+      );
+      return Astro.redirect(`${back.pathname}${back.search}`, 303);
+    }
+  }
   const parsed = MemberAdminAction.safeParse(formToObject(form, ['ids']));
-  if (!parsed.success) error = Object.values(fieldErrors(parsed.error)).join(' ');
+  if (error) {
+    // The tag or group action above failed.
+  } else if (!parsed.success) error = Object.values(fieldErrors(parsed.error)).join(' ');
   else {
     const message = await applyMemberAction(parsed.data, actor);
     const back = new URL(Astro.url);
@@ -66,7 +102,7 @@ const tone = {
 } as const;
 const select = 'rounded-lg border border-line px-3 py-1.5';
 const selects: {
-  name: 'status' | 'type' | 'sector' | 'attended' | 'noshow' | 'newsletter';
+  name: 'status' | 'type' | 'sector' | 'attended' | 'noshow' | 'newsletter' | 'tag' | 'group';
   label: string;
   any: string;
   options: Record<string, string>;
@@ -87,6 +123,26 @@ const selects: {
     any: 'Any',
     options: { yes: 'Agreed', no: 'Not agreed' },
   },
+  ...(labels.tags.length
+    ? [
+        {
+          name: 'tag' as const,
+          label: 'Tag',
+          any: 'Any tag',
+          options: Object.fromEntries(labels.tags.map((t) => [t.key, t.name])),
+        },
+      ]
+    : []),
+  ...(labels.groups.length
+    ? [
+        {
+          name: 'group' as const,
+          label: 'Group',
+          any: 'Any group',
+          options: Object.fromEntries(labels.groups.map((g) => [String(g.id), g.name])),
+        },
+      ]
+    : []),
 ];
 ---
 
@@ -211,6 +267,36 @@ const selects: {
           <p class="mr-auto text-sm font-semibold" aria-live="polite">
             <span data-bulk-count>0</span> selected
           </p>
+          <span class="flex flex-wrap items-center gap-2">
+            <label for="bulk-label" class="sr-only">
+              Tag or group to add or remove
+            </label>
+            <select
+              id="bulk-label"
+              name="label"
+              class="max-w-56 rounded-lg border border-paper/40 bg-navy px-2 py-1 text-sm text-paper"
+            >
+              <option value="">Tag or group…</option>
+              <optgroup label="Tags">
+                {labels.tags.map((t) => (
+                  <option value={`tag:${t.key}`}>{t.name}</option>
+                ))}
+              </optgroup>
+              {labels.groups.length > 0 && (
+                <optgroup label="Groups">
+                  {labels.groups.map((g) => (
+                    <option value={`group:${g.id}`}>{g.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <Button type="submit" size="sm" variant="light" name="action" value="label-add">
+              Add
+            </Button>
+            <Button type="submit" size="sm" variant="light" name="action" value="label-remove">
+              Remove
+            </Button>
+          </span>
           <Button type="submit" size="sm" variant="light" name="action" value="review">
             Mark as reviewed
           </Button>
@@ -279,6 +365,11 @@ const selects: {
                 </td>
                 <td>
                   <a href={`/admin/contacts/view?c=${encodeURIComponent(m.email)}`}>{m.name}</a>
+                  {tagNames(m.tags, labels).map((t) => (
+                    <Badge tone="brand" class="ml-1">
+                      {t}
+                    </Badge>
+                  ))}
                   <span class="block text-xs break-all text-muted">{m.email}</span>
                   {m.linkedin && (
                     <a href={m.linkedin} rel="noopener" class="text-xs">

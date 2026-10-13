@@ -4,6 +4,8 @@ import {
   decodeRecipientList,
   optedOutEmails,
   parseRecipientsCsv,
+  segmentRecipients,
+  CommunityEmailSchema,
 } from '../src/lib/community-emails';
 import { cardRefs, emailMarkdown, type EmailCard } from '../src/lib/email-markdown';
 import { renderEmail } from '../src/lib/email';
@@ -153,5 +155,37 @@ describe('communityMessage', () => {
     }).to({ name: '', email: 'x@x.io' });
     expect(m.paragraphs[0]).toBe('Hello there, here is our news.');
     expect(m.footer).toMatch(/in touch with/);
+  });
+});
+
+describe('groups and tags audience', () => {
+  const said = (agreed: boolean, at: Date | null) => ({ agreed, at, source: 'card' as const });
+  const people = [
+    { name: 'Ann', email: 'ann@x.io', newsletter: said(false, null), tags: ['vip'], groups: [] },
+    { name: 'Ben', email: 'BEN@x.io', newsletter: said(true, new Date()), tags: [], groups: [2] },
+    {
+      name: 'Cid',
+      email: 'cid@x.io',
+      newsletter: said(false, new Date()),
+      tags: ['vip'],
+      groups: [2],
+    },
+    { name: 'Dan', email: null, newsletter: said(false, null), tags: ['vip'], groups: [] },
+    { name: 'Eve', email: 'eve@x.io', newsletter: said(false, null), tags: [], groups: [3] },
+  ];
+
+  it('takes everyone with one of the tags or in one of the groups, minus who said no', () => {
+    const emails = (tags: string[], groups: number[]) =>
+      segmentRecipients(people, { tags, groups }).map((r) => r.email);
+    expect(emails(['vip'], [])).toEqual(['ann@x.io']);
+    expect(emails(['vip'], [2])).toEqual(['ann@x.io', 'ben@x.io']);
+    expect(emails([], [3])).toEqual(['eve@x.io']);
+    expect(emails([], [])).toEqual([]);
+  });
+
+  it('needs at least one group or tag', () => {
+    const base = { audience: 'segment', subject: 'Hello all', body: 'A message for you.' };
+    expect(CommunityEmailSchema.safeParse(base).success).toBe(false);
+    expect(CommunityEmailSchema.safeParse({ ...base, segGroups: ['2'] }).success).toBe(true);
   });
 });

@@ -9,7 +9,7 @@ The menu has a group per kind of work, then the figures, then the switches:
 | Group                       | What is in it                                                                                                                                                                             |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Events**                  | All events, Registrations, Check-in                                                                                                                                                       |
-| **Community**               | Members, Contacts, Messages, Board and speakers                                                                                                                                           |
+| **Community**               | Members, Contacts, Tags and groups, Messages, Board and speakers                                                                                                                          |
 | **Ecosystem**               | To review, All listings, Partners, Renewals                                                                                                                                               |
 | **Blog**                    | Posts, PDFs and files                                                                                                                                                                     |
 | **Website pages**           | The texts and photos of each public page: Home, About, Join, Tech Pulse, Thai page, Code of conduct and privacy (one screen each, with its own Save button)                               |
@@ -199,8 +199,8 @@ uses any more.
   registered for and missed (registered for a past event where check-in was used, but not
   checked in), and the ecosystem listings their email manages or is the contact for. Filter by
   "came at least once", "came 2 times or more", "registered, never came", "linked to an
-  ecosystem listing", "members", "regulars not yet members", by tag or by event, then **Export CSV** (the export keeps the filters and has
-  a Tags column). Click a
+  ecosystem listing", "members", "regulars not yet members", by tag, by group or by event, then **Export CSV** (the export keeps the filters and has
+  Tags and Groups columns). Click a
   name to see their full event history. Details come from their latest registration.
 - **Members** (in the Show filter) lists people with an active individual membership; they carry a
   **Member** badge next to their name, and their page has a Membership line linking to Members.
@@ -218,7 +218,7 @@ uses any more.
   company, role or LinkedIn differ, pick the value to keep (a detail only one of them has is
   kept). All registrations, attendance and feedback move to the main email; if two of them
   registered for the same event, the one that counts most stays (came, then registered, waitlist,
-  cancelled) and a freed seat on an upcoming event goes to the waitlist. Tags are combined, notes
+  cancelled) and a freed seat on an upcoming event goes to the waitlist. Tags and groups are combined, notes
   are put together and a membership moves to the main email. Ecosystem listings keep the emails
   they name as owners (change those on the listing). Merging can't be undone.
 - **Possible duplicates** (button at the top of Contacts, with how many there are): the
@@ -236,7 +236,7 @@ uses any more.
   membership can't be added: merge the two contacts instead.
 - On a contact's page: **Email**, **WhatsApp** (Thai numbers starting with 0 get +66) and
   **Call** buttons, and **Edit** for name, email, other emails, phone, company, role, tags,
-  LinkedIn and team notes.
+  groups, LinkedIn and team notes.
   Once edited, the saved details win over what the person types in later registrations. Changing
   the email moves their registrations to the new one; if that email already registered, the two
   merge. Adding an email to a walk-in groups their future registrations with it. **New contact**
@@ -244,15 +244,25 @@ uses any more.
   registrations (their seats on upcoming events go to the waitlist). People can do the same
   themselves: see **Manage or delete my data** below. **Copy emails** on the list
   copies the filtered addresses for the Bcc field of an email.
-- **Tags**: Speaker, Sponsor, Volunteer, Board and Press. You set them by hand (nothing is tagged
-  automatically) and only the admin team sees them. They show as small badges next to the name,
-  and the **Any tag** menu on the list shows only the people with one tag (it combines with the
-  other filters and the search). Tagging someone saves a contact card for them, as editing does.
-  A walk-in without an email can't be tagged until you add an email on their page.
+- **Tags and groups** (Community > Tags and groups, or the button at the top of Contacts): use
+  them to sort and segment the community. A **tag** is a short label shown as a badge next to the
+  name (Speaker, Sponsor, Volunteer, Board and Press are there to start with; add your own, such as
+  Investor or Fintech). A **group** is a named list of people for a purpose (Sponsor prospects
+  2027, Connect volunteers…), with an optional description. A person can have several tags and be
+  in several groups. On that page you create, rename and delete them and see how many people each
+  has; **See people** opens Contacts showing only that group, and **Email** opens Email the
+  community with the group already picked. Deleting a tag or group takes it off everyone (the
+  people stay in Contacts). You put people in them by hand (nothing is automatic) and only the
+  admin team sees them, except that a person's own **My data** page lists the tags and groups they
+  are in, as the PDPA requires. The **Any tag** and **Any group** menus on Contacts (and the Tag
+  and Group filters on All members) show only those people, combined with the other filters.
+  Tagging someone or adding them to a group saves a contact card for them, as editing does. A
+  walk-in without an email can't be tagged until you add an email on their page.
 - **Bulk actions on Contacts**: tick the boxes in front of the names (or the box in the header to
   tick every row shown). A bar appears with **Copy emails**, **Export CSV** (only the ticked
-  rows), **Add tag** / **Remove tag** (choose the tag in the menu first; walk-ins without an email
-  are skipped, and the message says how many), **Email…** (write one email to them, see Email the
+  rows), **Add** / **Remove** (choose a tag or group in the menu first; **New group…** in that menu
+  asks for a name and puts the ticked people in a new group; walk-ins without an email are
+  skipped, and the message says how many), **Email…** (write one email to them, see Email the
   community), **Invite to join** (once membership is open: the "Claim your membership" email, with
   a link to a form already filled in with what we know; members and people invited in the last 30
   days are skipped, and "Invited 6 Oct" shows next to the name) and **Delete** (asks first; removes those contacts and their registrations, and freed
@@ -380,7 +390,8 @@ enrolment at check-in.
 - **All members**: search by name, email or company and filter by status, profile type,
   sector of interest, when they joined (between two dates), events attended (never,
   once, 3 or 5 times or more), no-shows (always came, 25% or 50% no-shows and more) and newsletter
-  (agreed or not). The Events column shows events attended, no-shows and the newsletter.
+  (agreed or not), and by tag or group. Tags show next to the name. Tick members and choose a tag
+  or group in the bar to **Add** or **Remove** it, as on Contacts. The Events column shows events attended, no-shows and the newsletter.
   **Export these members (CSV)** downloads the list with the filters applied, with their profile,
   sectors, join and renewal dates, event figures, newsletter answer and notes. No-shows count only
   events where check-in was used; event figures and the newsletter answer come from Contacts.
@@ -412,6 +423,10 @@ enrolment at check-in.
     out; people who deleted their data are no longer in Contacts. The page says how many of them
     never agreed to the newsletter: under the PDPA, write to them only about what they would
     expect from us (events like the ones they came to, their membership), not marketing.
+  - **Groups and tags**: tick one or more groups and tags; everyone in at least one of them gets
+    one email, and the count updates as you tick. As for All contacts, people without an email or
+    who said no to emails are left out. The list of sent emails shows which groups and tags were
+    picked.
   - **Imported list**: choose a CSV file and the list loads at once (or click **Load the list**).
     The first line names the columns: `email` (required) and `name`, or `first name` and
     `last name` (optional). Other columns are ignored; up to 2,000 people; a file whose first line

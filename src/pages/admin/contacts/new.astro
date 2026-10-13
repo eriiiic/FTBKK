@@ -6,16 +6,18 @@ import { ContactSchema, contactInput, createContact } from '../../../lib/contact
 import { setMembershipByTeam } from '../../../lib/members';
 import { audit } from '../../../lib/orgs';
 import { fieldErrors, formToObject } from '../../../lib/forms';
+import { knownLabelsOnly, loadLabels } from '../../../lib/contact-labels';
 
 const actor = Astro.locals.adminEmail ?? 'admin';
 let errors: Record<string, string> = {};
 let values: Record<string, unknown> = {};
 let existing = '';
+const labels = await loadLabels();
 
 if (Astro.request.method === 'POST') {
-  values = formToObject(await Astro.request.formData(), ['tags']);
+  values = formToObject(await Astro.request.formData(), ['tags', 'groups']);
   const parsed = ContactSchema.safeParse(values);
-  const input = parsed.success ? contactInput(parsed.data, null) : null;
+  const input = parsed.success ? contactInput(knownLabelsOnly(parsed.data, labels), null) : null;
   const member = values.member === true;
   if (!parsed.success) errors = fieldErrors(parsed.error);
   else if (!input || 'error' in input) errors = { newsletterAt: input?.error ?? 'Invalid date.' };
@@ -55,6 +57,6 @@ if (Astro.request.method === 'POST') {
         <a href={`/admin/contacts/view?c=${encodeURIComponent(existing)}`}>Open that contact</a>
       </Alert>
     )}
-    <ContactForm values={values} errors={errors} submit="Add contact" />
+    <ContactForm values={values} errors={errors} submit="Add contact" labels={labels} />
   </div>
 </AdminLayout>
